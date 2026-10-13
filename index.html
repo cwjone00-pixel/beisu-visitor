@@ -395,6 +395,9 @@
   .cap-text{ flex:1; font-size:13px; color:#2a3140; }
   .cap-badge{ font-size:10px; color:#9aa3ad; letter-spacing:.4px; }
   .lm-recaptcha{ display:none; margin-top:12px; justify-content:center; }   /* 配置真实 Site Key 后展示（v2 复选框） */
+  .lm-or{ display:none; align-items:center; gap:10px; margin:16px 0 12px; font-size:12px; color:#9aa3ad; }
+  .lm-or::before, .lm-or::after{ content:''; flex:1; height:1px; background:rgba(20,40,80,.12); }
+  .lm-tg{ display:none; justify-content:center; min-height:0; }   /* 配置 Telegram Bot 后展示官方登录控件 */
   .lm-demo{ margin-top:10px; font-size:11.5px; color:#c97a10; background:#fdf3e3; border-radius:8px; padding:7px 10px; display:none; word-break:break-all; }
   .lm-demo.show{ display:block; }
   .lm-tabs{ display:flex; gap:8px; margin-top:14px; }
@@ -629,6 +632,9 @@
       <div class="lm-field"><label data-i18n="authPwd">登录密码</label><input class="lm-input" id="lgPwd" type="password" autocomplete="current-password" data-i18n-ph="authPwdPh" placeholder="请输入密码" onkeydown="if(event.key==='Enter')authLogin()"></div>
       <div class="lm-err" id="lgErr"></div>
       <button class="lm-btn primary full" id="lgSubmit" onclick="authLogin()" data-i18n="authLoginBtn">登 录</button>
+      <div class="lm-or" id="lgOr" data-i18n="authOr">或</div>
+      <div class="lm-tg" id="tgSlot"></div>
+      <div class="lm-err" id="tgErr"></div>
       <div class="lm-links">
         <a data-i18n="authForgot" onclick="authOpenReset()">忘记密码？</a>
         <a data-i18n="authToRegister" onclick="authGoto('register')">还没有账号？注册</a>
@@ -904,7 +910,7 @@ const I18N = {
     langName:'中文', tipDemo:'演示',
     authLoginTitle:'登录悖速', authLoginSub:'使用邮箱登录',
     authEmail:'邮箱地址', authEmailPh:'请输入邮箱地址', authPwd:'登录密码', authPwdPh:'请输入密码', authLoginBtn:'登 录',
-    authForgot:'忘记密码？', authToRegister:'还没有账号？注册', authToLogin:'已有账号？去登录',
+    authForgot:'忘记密码？', authToRegister:'还没有账号？注册', authToLogin:'已有账号？去登录', authOr:'或',
     authRegTitle:'注册账号', authRegSub:'邮箱注册 · 邮件链接激活', authNick:'展示昵称', authNickPh:'请输入对外展示的昵称',
     authRegPwd:'设置密码', authRegPwdPh:'至少 6 位', authRegPwd2:'确认密码', authRegPwd2Ph:'请再次输入密码', authCaptcha:'我是人类（人机验证）',
     authSendCode:'发送验证码', authCodePh:'6位数字验证码', authRegBtn:'注册并发送激活邮件',
@@ -934,7 +940,7 @@ const I18N = {
     langName:'English', tipDemo:'Demo',
     authLoginTitle:'Sign in to Beisu', authLoginSub:'Sign in with email',
     authEmail:'Email', authEmailPh:'Enter your email', authPwd:'Password', authPwdPh:'Enter your password', authLoginBtn:'Sign in',
-    authForgot:'Forgot password?', authToRegister:'No account? Sign up', authToLogin:'Already have an account? Sign in',
+    authForgot:'Forgot password?', authToRegister:'No account? Sign up', authToLogin:'Already have an account? Sign in', authOr:'or',
     authRegTitle:'Create account', authRegSub:'Email sign-up · activate via link', authNick:'Display name', authNickPh:'Enter the name shown to others',
     authRegPwd:'Password', authRegPwdPh:'At least 6 characters', authRegPwd2:'Confirm password', authRegPwd2Ph:'Re-enter your password', authCaptcha:"I'm human (captcha)",
     authSendCode:'Send code', authCodePh:'6-digit code', authRegBtn:'Sign up & send link',
@@ -964,7 +970,7 @@ const I18N = {
     langName:'Русский', tipDemo:'Демо',
     authLoginTitle:'Вход в Beisu', authLoginSub:'Войдите по почте',
     authEmail:'Эл. почта', authEmailPh:'Введите эл. почту', authPwd:'Пароль', authPwdPh:'Введите пароль', authLoginBtn:'Войти',
-    authForgot:'Забыли пароль?', authToRegister:'Нет аккаунта? Регистрация', authToLogin:'Уже есть аккаунт? Войти',
+    authForgot:'Забыли пароль?', authToRegister:'Нет аккаунта? Регистрация', authToLogin:'Уже есть аккаунт? Войти', authOr:'или',
     authRegTitle:'Создать аккаунт', authRegSub:'Регистрация по почте · активация по ссылке', authNick:'Отображаемое имя', authNickPh:'Введите имя, видимое другим',
     authRegPwd:'Пароль', authRegPwdPh:'Не менее 6 символов', authRegPwd2:'Подтвердите пароль', authRegPwd2Ph:'Введите пароль ещё раз', authCaptcha:'Я человек (проверка)',
     authSendCode:'Отправить код', authCodePh:'Код из 6 цифр', authRegBtn:'Регистрация + ссылка',
@@ -1140,6 +1146,7 @@ function authGoto(view){
 function authOpen(){
   authGoto(currentUser ? 'account' : 'login');
   $('loginOverlay').classList.add('show');
+  renderTelegramWidget();   // 弹窗可见后再注入控件，避免在隐藏容器里渲染成 0 尺寸
 }
 function authOpenReset(){
   $('rsId').value = $('lgId').value.trim();
@@ -1160,6 +1167,7 @@ function authToggleCaptcha(){
    Site Key 由后端 /api/auth/config 下发（公开）；Secret Key 仅在后端校验，前端不可见。
    未配置密钥 → 自动使用上方模拟勾选框，功能与联调不受影响。 */
 let capCfg = { recaptchaEnabled:false, siteKey:'', version:'v2', emailMode:'demo' };
+let tgCfg = { enabled:false, botUsername:'' };   // Telegram 登录配置（后端 /api/auth/config 下发）
 const CAP_VIEWS = { register:'rgRecaptcha', reset:'rsRecaptcha' };
 const recaptchaWidgets = {};
 window.onRecaptchaLoad = function(){
@@ -1183,6 +1191,8 @@ async function loadAuthConfig(){
       siteKey: (d && d.recaptchaSiteKey) || '',
       version: (d && d.recaptchaVersion) || 'v2'
     });
+    tgCfg.enabled = !!(d && d.telegramEnabled);
+    tgCfg.botUsername = (d && d.telegramBotUsername) || '';
   } catch(e){ return; }
   if (!capCfg.recaptchaEnabled || !capCfg.siteKey) return;   // 模拟模式：保留原有勾选框
   const mock = $('rgCaptcha'); if (mock) mock.style.display = 'none';
@@ -1211,6 +1221,41 @@ function resetCaptcha(kind){
   try { grecaptcha.reset(recaptchaWidgets[kind]); } catch(e){}
 }
 loadAuthConfig();
+/* ---------------- Telegram 快捷登录 ----------------
+   官方 Login Widget：脚本读取自身 data-* 属性并在容器内注入登录按钮 iframe。
+   用户授权后 Telegram 以 postMessage 回调全局 onTelegramAuth(user)，
+   前端把用户数据交给后端做 HMAC 签名校验，校验通过即登录（无需邮箱）。
+   前提：BotFather 里为该 Bot 执行 /setdomain 绑定本站域名，否则控件不显示。 */
+function renderTelegramWidget(){
+  if (!tgCfg.enabled || !tgCfg.botUsername) return;
+  const slot = $('tgSlot'); if (!slot || slot.dataset.rendered) return;
+  const or = $('lgOr'); if (or) or.style.display = 'flex';
+  slot.style.display = 'flex';
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://telegram.org/js/telegram-widget.js?22';
+  s.setAttribute('data-telegram-login', tgCfg.botUsername);
+  s.setAttribute('data-size', 'large');
+  s.setAttribute('data-radius', '10');
+  s.setAttribute('data-onauth', 'onTelegramAuth(user)');
+  slot.appendChild(s);
+  slot.dataset.rendered = '1';
+}
+window.onTelegramAuth = async function(user){
+  const err = $('tgErr'); if (err) err.textContent = '';
+  if (!user) return;
+  try {
+    const res = await fetch('/api/auth/telegram', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ user, sessionId, lang })
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok){ if (err) err.textContent = (d && d.error) || dict().authErrLogin; return; }
+    acceptUser(d.user, true);
+    toast(dict().authWelcome.replace('{n}', d.user.nickname));
+    closeLogin();
+  } catch(e){ if (err) err.textContent = dict().authErrLogin; }
+};
 /* 邮件激活回跳：读取 URL 上的 ?activated=1|0 → 弹提示并清理地址栏 */
 function handleActivateRedirect(){
   const params = new URLSearchParams(location.search);

@@ -521,6 +521,7 @@ const SECRETS_TEMPLATE = {
   twilio:    { accountSid: '', authToken: '', fromPhone: '' },
   resend:    { apiKey: '', fromEmail: '', fromName: 'Beisu' },
   recaptcha: { version: 'v2', siteKey: '', secretKey: '' },
+  telegram:  { botUsername: '', botToken: '' },   // Telegram 登录：botUsername 公开（前端控件用），botToken 仅后端校验用
   mongo:     { uri: '' }
 };
 function ensureSecretsFile(){
@@ -541,6 +542,7 @@ function loadSecrets(){
     resend:    { apiKey: pick(str(s.resend, 'apiKey'), 'RESEND_API_KEY'), fromEmail: pick(str(s.resend, 'fromEmail'), 'RESEND_FROM_EMAIL'), fromName: pick(str(s.resend, 'fromName'), 'RESEND_FROM_NAME') || 'Beisu' },
     recaptcha: { version: (str(s.recaptcha, 'version') || str(env, 'RECAPTCHA_VERSION')) === 'v3' ? 'v3' : 'v2',
                  siteKey: pick(str(s.recaptcha, 'siteKey'), 'RECAPTCHA_SITE_KEY'), secretKey: pick(str(s.recaptcha, 'secretKey'), 'RECAPTCHA_SECRET_KEY') },
+    telegram:  { botUsername: pick(str(s.telegram, 'botUsername'), 'TELEGRAM_BOT_USERNAME'), botToken: pick(str(s.telegram, 'botToken'), 'TELEGRAM_BOT_TOKEN') },
     mongo:     { uri: pick(str(s.mongo, 'uri'), 'MONGODB_URI') }
   };
 }
@@ -634,6 +636,40 @@ function verifyRecaptcha(token, remoteip){
   });
 }
 
+/* ---------------- Telegram 网页登录 ----------------
+   Telegram Login Widget 回调数据校验（官方算法）：
+     secret_key        = SHA256(bot_token)
+     data_check_string = 除 hash 外所有键值对按 "key=value" 升序用 \n 连接
+     校验 hash == HMAC_SHA256(data_check_string, secret_key)
+   auth_date 超过 1 天视为过期，防止重放。未配置 Bot Token 时不可用。 */
+const TG_AUTH_TTL = 24 * 60 * 60 * 1000;
+function verifyTelegramAuth(user){
+  const g = loadSecrets().telegram;
+  if (!g.botToken) return { ok:false, error:'未配置 Telegram Bot Token' };
+  const data = (user && typeof user === 'object') ? user : {};
+  const hash = String(data.hash || '');
+  const tgId = String(data.id || '');
+  if (!hash || !tgId) return { ok:false, error:'登录数据不完整' };
+  const dataCheckString = Object.keys(data)
+    .filter(k => k !== 'hash' && data[k] !== undefined && data[k] !== null)
+    .map(k => k + '=' + data[k]).sort().join('\n');
+  const secretKey = crypto.createHash('sha256').update(g.botToken).digest();
+  const calc = crypto.createHmac('sha256', secretKey).update(dataCheckString).digest('hex');
+  const a = Buffer.from(calc, 'utf-8'), b = Buffer.from(hash, 'utf-8');
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { ok:false, error:'Telegram 签名校验失败' };
+  const authDate = Number(data.auth_date || 0) * 1000;
+  if (authDate && Date.now() - authDate > TG_AUTH_TTL) return { ok:false, error:'登录凭证已过期，请重新登录' };
+  return { ok:true, id:tgId, first:String(data.first_name || '').trim(), last:String(data.last_name || '').trim(),
+           username:String(data.username || '').trim(), photo:String(data.photo_url || '').trim() };
+}
+/* Telegram 昵称：优先「名 姓」，其次用户名，最后回退；与站内已用昵称冲突时自动加序号 */
+function telegramNickname(v){
+  const base = ([v.first, v.last].filter(Boolean).join(' ') || v.username || ('TG' + v.id)).slice(0, 20);
+  let nick = base;
+  for (let i = 2; nicknameTaken(nick) && i < 1000; i++) nick = base + ' ' + i;
+  return nick.slice(0, 24);
+}
+
 /* ---------------- 路由 ---------------- */
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
@@ -651,7 +687,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/config' || p === '/api/match' ||
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
-      p === '/api/auth/activate' ||
+      p === '/api/auth/activate' || p === '/api/auth/telegram' ||
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
@@ -739,12 +775,15 @@ const server = http.createServer(async (req, res) => {
 
   /* ---- 前端可见的账号相关配置（仅下发公开信息；Secret Key 绝不外泄） ---- */
   if (p === '/api/auth/config' && req.method === 'GET'){
-    const r = loadSecrets().recaptcha;
+    const sec = loadSecrets();
+    const r = sec.recaptcha, tg = sec.telegram;
     return send(res, 200, {
       recaptchaSiteKey: r.siteKey,     // 前端公开 key
       recaptchaVersion: r.version,     // 'v2' 复选框 / 'v3' 分数式
       recaptchaEnabled: !!r.siteKey,   // 未配置 → 前端使用模拟勾选框
-      emailMode: emailLive() ? 'live' : 'demo'    // demo 时验证码回显前端，便于联调
+      emailMode: emailLive() ? 'live' : 'demo',    // demo 时验证码回显前端，便于联调
+      telegramEnabled: !!(tg.botUsername && tg.botToken),   // 两者齐备才展示 Telegram 登录控件
+      telegramBotUsername: tg.botUsername                    // 公开：前端控件 data-telegram-login 使用
     });
   }
   /* ---- 访客账号：预校验（邮箱 格式与唯一性、昵称唯一） ---- */
@@ -859,6 +898,28 @@ const server = http.createServer(async (req, res) => {
     u.sessionId = sid; saveUsers();
     return send(res, 200, { ok:true, user: { id:u.id, email:u.email, nickname:u.nickname, sessionId:sid, createdAt:u.createdAt } });
   }
+  /* ---- Telegram 快捷登录：校验控件回调签名 → 按 Telegram ID 建/取访客账号 → 返回会话 ----
+     Telegram 不提供邮箱，故此类账号 email 为空、注册即激活（status=active），
+     以 telegramId 唯一标识；重复登录复用同一账号与其历史会话。 */
+  if (p === '/api/auth/telegram' && req.method === 'POST'){
+    const body = await readBody(req);
+    const v = verifyTelegramAuth(body.user);
+    if (!v.ok) return send(res, 401, { ok:false, error: v.error || 'Telegram 登录失败' });
+    const users = loadUsers().users;
+    let u = users.find(x => String(x.telegramId || '') === v.id);
+    if (!u){
+      u = { id: crypto.randomUUID(), createdAt: Date.now(), provider:'telegram', telegramId: v.id, nickname: telegramNickname(v), status:'active', sessionId: crypto.randomUUID() };
+      users.push(u);
+    }
+    u.telegramId = v.id;
+    u.provider = 'telegram';
+    if (v.username) u.telegramUsername = v.username;
+    if (v.photo) u.photoUrl = v.photo;
+    u.status = 'active';   // Telegram 已完成身份验证，无需邮箱激活
+    const sid = u.sessionId || crypto.randomUUID();
+    u.sessionId = sid; saveUsers();
+    return send(res, 200, { ok:true, user: { id:u.id, email:u.email || '', nickname:u.nickname, sessionId:sid, createdAt:u.createdAt, provider:'telegram' } });
+  }
   /* ---- 忘记密码：邮箱验证码核验 → 重设密码 ---- */
   if (p === '/api/auth/reset' && req.method === 'POST'){
     const body = await readBody(req);
@@ -883,7 +944,7 @@ const server = http.createServer(async (req, res) => {
   /* ---- 用户列表（后台查看，需登录） ---- */
   if (p === '/api/users' && req.method === 'GET'){
     const list = loadUsers().users.slice().sort((a, b) => b.createdAt - a.createdAt)
-      .map(u => ({ id:u.id, email:u.email, nickname:u.nickname, createdAt:u.createdAt }));
+      .map(u => ({ id:u.id, email:u.email, nickname:u.nickname, createdAt:u.createdAt, provider: u.provider || 'email' }));
     return send(res, 200, list);
   }
 
