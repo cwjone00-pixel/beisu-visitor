@@ -522,6 +522,7 @@ const SECRETS_TEMPLATE = {
   resend:    { apiKey: '', fromEmail: '', fromName: 'Beisu' },
   recaptcha: { version: 'v2', siteKey: '', secretKey: '' },
   telegram:  { botUsername: '', botToken: '' },   // Telegram 登录：botUsername 公开（前端控件用），botToken 仅后端校验用
+  facebook:  { appId: '', appSecret: '', graphVersion: 'v21.0' },   // Facebook 登录：appId 走 OAuth 授权，appSecret 仅后端换取 token 用
   mongo:     { uri: '' }
 };
 function ensureSecretsFile(){
@@ -543,6 +544,9 @@ function loadSecrets(){
     recaptcha: { version: (str(s.recaptcha, 'version') || str(env, 'RECAPTCHA_VERSION')) === 'v3' ? 'v3' : 'v2',
                  siteKey: pick(str(s.recaptcha, 'siteKey'), 'RECAPTCHA_SITE_KEY'), secretKey: pick(str(s.recaptcha, 'secretKey'), 'RECAPTCHA_SECRET_KEY') },
     telegram:  { botUsername: pick(str(s.telegram, 'botUsername'), 'TELEGRAM_BOT_USERNAME'), botToken: pick(str(s.telegram, 'botToken'), 'TELEGRAM_BOT_TOKEN') },
+    facebook:  { appId: pick(str(s.facebook, 'appId'), 'FACEBOOK_APP_ID'),
+                 appSecret: pick(str(s.facebook, 'appSecret'), 'FACEBOOK_APP_SECRET'),
+                 graphVersion: pick(str(s.facebook, 'graphVersion'), 'FACEBOOK_GRAPH_VERSION') || 'v21.0' },
     mongo:     { uri: pick(str(s.mongo, 'uri'), 'MONGODB_URI') }
   };
 }
@@ -670,6 +674,37 @@ function telegramNickname(v){
   return nick.slice(0, 24);
 }
 
+/* ---------------- Facebook 网页登录 ----------------
+   标准 OAuth 授权码流程（与 Telegram 的控件回调不同，需要浏览器跳转往返）：
+     1. 前端点击圆形 f 图标 → 跳转 /api/auth/facebook/start
+     2. 服务端生成一次性 state，302 到 Facebook 授权页
+     3. Facebook 回跳 /api/auth/facebook/callback?code&state
+     4. 服务端用 code 换 access_token（appSecret 仅后端使用，绝不下发前端），再取 id/name/email
+     5. 按 facebookId 建/取访客账号 → 生成一次性握手串 → 302 回前端 /?fb=1&h=...
+     6. 前端凭握手串调用 /api/auth/facebook/claim 取回账号完成登录
+        （账号信息不直接拼进地址栏，避免泄露与历史记录残留）
+   账号逻辑与 Telegram 一致：以第三方 ID 唯一标识，重复登录复用同一账号及其历史会话；
+   Facebook 未返回邮箱时 email 留空，账号注册即激活（status=active）。 */
+const FB_TTL = 10 * 60 * 1000;       // state / 握手串有效期
+const FB_STATES = new Map();          // state → createdAt（防 CSRF 与重放）
+const FB_HANDSHAKES = new Map();      // 一次性握手串 → { user, createdAt }
+function fbGraphVersion(){ return loadSecrets().facebook.graphVersion || 'v21.0'; }
+function fbRedirectUri(){ return PUBLIC_BASE_URL + '/api/auth/facebook/callback'; }
+/* 调用 Facebook Graph API（GET，复用 trFetch 的 https 请求实现），返回解析后的 JSON */
+async function fbGraph(pathname, params){
+  const url = 'https://graph.facebook.com/' + encodeURIComponent(fbGraphVersion()) + '/' + pathname
+    + '?' + new URLSearchParams(params).toString();
+  const raw = await trFetch(url);
+  try { return JSON.parse(raw); } catch(e){ return {}; }
+}
+/* Facebook 昵称：优先取资料姓名，其次回退 FB+ID；与站内已用昵称冲突时自动加序号 */
+function facebookNickname(name, id){
+  const base = (String(name || '').trim() || ('FB' + id)).slice(0, 20);
+  let nick = base;
+  for (let i = 2; nicknameTaken(nick) && i < 1000; i++) nick = base + ' ' + i;
+  return nick.slice(0, 24);
+}
+
 /* ---------------- 路由 ---------------- */
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
@@ -688,6 +723,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
       p === '/api/auth/activate' || p === '/api/auth/telegram' ||
+      p === '/api/auth/facebook/start' || p === '/api/auth/facebook/callback' || p === '/api/auth/facebook/claim' ||
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
@@ -783,7 +819,8 @@ const server = http.createServer(async (req, res) => {
       recaptchaEnabled: !!r.siteKey,   // 未配置 → 前端使用模拟勾选框
       emailMode: emailLive() ? 'live' : 'demo',    // demo 时验证码回显前端，便于联调
       telegramEnabled: !!(tg.botUsername && tg.botToken),   // 两者齐备才展示 Telegram 登录控件
-      telegramBotUsername: tg.botUsername                    // 公开：前端控件 data-telegram-login 使用
+      telegramBotUsername: tg.botUsername,                   // 公开：前端控件 data-telegram-login 使用
+      facebookEnabled: !!(sec.facebook.appId && sec.facebook.appSecret)   // 两者齐备才展示 Facebook 登录入口（appId/appSecret 均不下发）
     });
   }
   /* ---- 访客账号：预校验（邮箱 格式与唯一性、昵称唯一） ---- */
@@ -919,6 +956,71 @@ const server = http.createServer(async (req, res) => {
     const sid = u.sessionId || crypto.randomUUID();
     u.sessionId = sid; saveUsers();
     return send(res, 200, { ok:true, user: { id:u.id, email:u.email || '', nickname:u.nickname, sessionId:sid, createdAt:u.createdAt, provider:'telegram' } });
+  }
+  /* ---- Facebook 快捷登录（1/3）：生成 state 并跳转 Facebook 授权页 ---- */
+  if (p === '/api/auth/facebook/start' && req.method === 'GET'){
+    const fb = loadSecrets().facebook;
+    if (!(fb.appId && fb.appSecret)) return send(res, 503, 'Facebook 登录未配置');
+    const state = crypto.randomBytes(16).toString('hex');
+    FB_STATES.set(state, Date.now());
+    FB_HANDSHAKES.forEach((rec, k) => { if (Date.now() - rec.createdAt > FB_TTL) FB_HANDSHAKES.delete(k); });
+    FB_STATES.forEach((ts, k) => { if (Date.now() - ts > FB_TTL) FB_STATES.delete(k); });
+    const qs = new URLSearchParams({
+      client_id: fb.appId,
+      redirect_uri: fbRedirectUri(),
+      state,
+      scope: 'email,public_profile',
+      response_type: 'code'
+    }).toString();
+    res.writeHead(302, { 'Location': 'https://www.facebook.com/' + fbGraphVersion() + '/dialog/oauth?' + qs });
+    return res.end();
+  }
+  /* ---- Facebook 快捷登录（2/3）：授权回跳 → 换取 token 与资料 → 建/取账号 → 回前端 ---- */
+  if (p === '/api/auth/facebook/callback' && req.method === 'GET'){
+    const code = url.searchParams.get('code') || '';
+    const state = url.searchParams.get('state') || '';
+    const back = query => { res.writeHead(302, { 'Location': '/?' + query }); return res.end(); };
+    if (!state || !FB_STATES.has(state)){ console.error('[Facebook] state 无效或已过期'); return back('fb=0'); }
+    FB_STATES.delete(state);                    // state 一次性，防止重放
+    if (!code){ console.error('[Facebook] 用户未授权或取消授权'); return back('fb=0'); }
+    const fb = loadSecrets().facebook;
+    let tok;
+    try { tok = await fbGraph('oauth/access_token', { client_id: fb.appId, client_secret: fb.appSecret, redirect_uri: fbRedirectUri(), code }); }
+    catch(e){ console.error('[Facebook] 换取 access_token 失败:', e.message); return back('fb=0'); }
+    if (!tok || !tok.access_token){ console.error('[Facebook] 换取 access_token 失败:', JSON.stringify(tok).slice(0, 300)); return back('fb=0'); }
+    let me;
+    try { me = await fbGraph('me', { fields:'id,name,email,picture.width(200)', access_token: tok.access_token }); }
+    catch(e){ console.error('[Facebook] 获取用户资料失败:', e.message); return back('fb=0'); }
+    const fbId = String((me && me.id) || '');
+    if (!fbId){ console.error('[Facebook] 未取到用户 ID:', JSON.stringify(me).slice(0, 300)); return back('fb=0'); }
+    const users = loadUsers().users;
+    let u = users.find(x => String(x.facebookId || '') === fbId);
+    if (!u){
+      u = { id: crypto.randomUUID(), createdAt: Date.now(), provider:'facebook', facebookId: fbId, nickname: facebookNickname(me.name, fbId), status:'active', sessionId: crypto.randomUUID() };
+      users.push(u);
+    }
+    u.facebookId = fbId;
+    u.provider = 'facebook';
+    if (me.name) u.facebookName = String(me.name);
+    /* Facebook 邮箱仅作存档，不写入 email 字段：避免与邮箱注册链路（查重/登录）相互干扰 */
+    if (me.email) u.facebookEmail = normEmail(me.email);
+    if (me.picture && me.picture.data && me.picture.data.url) u.photoUrl = String(me.picture.data.url);
+    u.status = 'active';                        // 已完成 Facebook 身份验证，无需邮箱激活
+    const sid = u.sessionId || crypto.randomUUID();
+    u.sessionId = sid; saveUsers();
+    const handshake = crypto.randomBytes(24).toString('hex');
+    FB_HANDSHAKES.set(handshake, { createdAt: Date.now(),
+      user: { id:u.id, email:u.email || '', nickname:u.nickname, sessionId:sid, createdAt:u.createdAt, provider:'facebook' } });
+    console.log('[Facebook] 登录成功: ' + u.nickname + '（' + fbId + '）');
+    return back('fb=1&h=' + handshake);
+  }
+  /* ---- Facebook 快捷登录（3/3）：前端凭一次性握手串取回账号，随后清理地址栏 ---- */
+  if (p === '/api/auth/facebook/claim' && req.method === 'GET'){
+    const handshake = url.searchParams.get('h') || '';
+    const rec = handshake ? FB_HANDSHAKES.get(handshake) : null;
+    if (rec) FB_HANDSHAKES.delete(handshake);   // 一次性，取回即失效
+    if (!rec || Date.now() - rec.createdAt > FB_TTL) return send(res, 400, { ok:false, error:'登录凭据无效或已过期，请重新登录' });
+    return send(res, 200, { ok:true, user: rec.user });
   }
   /* ---- 忘记密码：邮箱验证码核验 → 重设密码 ---- */
   if (p === '/api/auth/reset' && req.method === 'POST'){
