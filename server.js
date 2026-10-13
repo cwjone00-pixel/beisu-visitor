@@ -23,6 +23,52 @@ const PORT = process.env.PORT || 3210;
 const ROOT = __dirname;
 const DATA_FILE = path.join(ROOT, 'data', 'rules.json');
 
+/* ---------------- 云存储（MongoDB Atlas 免费集群） ----------------
+   配置 MONGODB_URI（环境变量或 secrets.json 的 mongo.uri）后，
+   4 个数据集合（rules/chats/auth/users）持久化到云端，Render 重启不再丢数据；
+   未配置时完全退回本地 JSON 文件模式，本地开发零影响。
+   读取走内存缓存（同步），写入内存后防抖回写云端（replaceOne upsert）。 */
+const CLOUD_DOCS = ['rules', 'chats', 'auth', 'users'];
+const cloud = { enabled:false, col:null, docs:{}, dirty:new Set(), timer:null };
+const cloudGet = name => cloud.docs[name];
+function cloudSave(name, value){
+  cloud.docs[name] = value;
+  cloud.dirty.add(name);
+  if (!cloud.timer) cloud.timer = setTimeout(flushCloud, 300);
+}
+async function flushCloud(){
+  cloud.timer = null;
+  const names = [...cloud.dirty];
+  cloud.dirty.clear();
+  for (const name of names){
+    try { await cloud.col.replaceOne({ _id:name }, { _id:name, value: cloud.docs[name] }, { upsert:true }); }
+    catch(e){ console.error('[cloud] 写回失败 ' + name + ':', e.message); cloud.dirty.add(name); }
+  }
+  if (cloud.dirty.size && !cloud.timer) cloud.timer = setTimeout(flushCloud, 2000);   // 失败稍后重试
+}
+function readLocalSeed(name){
+  const file = { rules:DATA_FILE, chats:CHAT_FILE, auth:AUTH_FILE, users:USER_FILE }[name];
+  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch(e){ return null; }
+}
+async function initCloud(uri){
+  if (!uri){ console.log('[cloud] 未配置 MONGODB_URI，使用本地 JSON 文件存储'); return; }
+  const { MongoClient } = require('mongodb');
+  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 10000 });
+  await client.connect();
+  cloud.col = client.db(process.env.MONGODB_DB || 'beisu').collection('singleton');
+  for (const name of CLOUD_DOCS){
+    const doc = await cloud.col.findOne({ _id:name });
+    if (doc && doc.value !== undefined){ cloud.docs[name] = doc.value; }
+    else {
+      const seed = readLocalSeed(name);   // 云库为空：用本地既有数据播种（迁移）；本地也无则留空待首次写入
+      cloud.docs[name] = seed;
+      if (seed !== null) await cloud.col.replaceOne({ _id:name }, { _id:name, value:seed }, { upsert:true });
+    }
+  }
+  cloud.enabled = true;
+  console.log('[cloud] MongoDB 已连接，云端持久化已启用（DB=' + (process.env.MONGODB_DB || 'beisu') + '）');
+}
+
 /* ---------------- 数据持久化 ---------------- */
 function ensureDataFile(){
   if (!fs.existsSync(path.dirname(DATA_FILE))) fs.mkdirSync(path.dirname(DATA_FILE), { recursive:true });
@@ -40,11 +86,14 @@ function ensureDataFile(){
     fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf-8');
   }
 }
-function loadData(){
-  ensureDataFile();
-  try {
-    const d = migrate(JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8')));
-    d.link = normalizeLinkTemplate(d.link);
+let dataCache = null;
+/* 归一化任意来源的原始配置（本地文件 / 云库文档）为完整可用结构 */
+function shapeData(raw){
+  const d = migrate(raw && typeof raw === 'object' ? raw : {});
+  if (!Array.isArray(d.quickButtons)) d.quickButtons = [];
+  if (!Array.isArray(d.rules)) d.rules = [];
+  if (!d.fallback || typeof d.fallback !== 'object') d.fallback = { reply:{zh:'',en:'',ru:''}, quickButtons:[], appendLink:false };
+  d.link = normalizeLinkTemplate(d.link);
     /* 首页引导文字（三语）；旧数据无此字段时按当前线上文案补齐基线，后台可自由修改 */
     if (!d.guide || typeof d.guide !== 'object' || !('text' in d.guide)){
       d.guide = { text: { zh:'请问你过来有什么需求？', en:'How can we help you today?', ru:'Чем мы можем вам помочь?' } };
@@ -75,17 +124,19 @@ function loadData(){
     d.agentChat.translate = d.agentChat.translate !== false;
     d.agentChat.botEnabled = d.agentChat.botEnabled !== false;
     return d;
+}
+function loadData(){
+  if (cloud.enabled){
+    if (!dataCache) dataCache = shapeData(cloudGet('rules'));
+    return dataCache;
   }
-  catch(e){
-    return {
-      quickButtons:[], rules:[],
-      fallback:{ reply:{zh:'',en:'',ru:''}, quickButtons:[], appendLink:false },
-      link:{ text:{zh:'',en:'',ru:''}, url:'' },
-      agentChat:{ translate:true }
-    };
-  }
+  ensureDataFile();
+  try { return shapeData(JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'))); }
+  catch(e){ return shapeData({}); }
 }
 function saveData(data){
+  dataCache = data;
+  if (cloud.enabled) return cloudSave('rules', data);
   fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), 'utf-8');
 }
 /* 兼容旧格式（reply 为字符串）→ 迁移为三语对象 */
@@ -299,12 +350,18 @@ const CHAT_FILE = path.join(ROOT, 'data', 'chats.json');
 let chatCache = null;
 function loadChats(){
   if (chatCache) return chatCache;
-  try { chatCache = JSON.parse(fs.readFileSync(CHAT_FILE, 'utf-8')); }
-  catch(e){ chatCache = { sessions:{} }; }
+  if (cloud.enabled){
+    const raw = cloudGet('chats');
+    chatCache = (raw && typeof raw === 'object') ? raw : { sessions:{} };
+  } else {
+    try { chatCache = JSON.parse(fs.readFileSync(CHAT_FILE, 'utf-8')); }
+    catch(e){ chatCache = { sessions:{} }; }
+  }
   if (!chatCache.sessions || typeof chatCache.sessions !== 'object') chatCache.sessions = {};
   return chatCache;
 }
 function saveChats(){
+  if (cloud.enabled) return cloudSave('chats', loadChats());
   fs.writeFileSync(CHAT_FILE, JSON.stringify(loadChats(), null, 2), 'utf-8');
 }
 function getSession(id){
@@ -334,21 +391,32 @@ let authCache = null;
 function hashPwd(salt, pwd){ return crypto.createHash('sha256').update(salt + ':' + pwd).digest('hex'); }
 function loadAuth(){
   if (authCache) return authCache;
-  try { authCache = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf-8')); }
-  catch(e){
+  let loaded = false;
+  if (cloud.enabled){
+    const raw = cloudGet('auth');
+    if (raw && typeof raw === 'object'){ authCache = raw; loaded = true; }
+  } else {
+    try { authCache = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf-8')); loaded = true; }
+    catch(e){ loaded = false; }
+  }
+  if (!loaded){
     /* 首次运行：预设一套初始账号 */
     const salt = crypto.randomBytes(16).toString('hex');
     authCache = {
       accounts: [{ id: crypto.randomUUID(), username: PRESET_USER, salt, hash: hashPwd(salt, PRESET_PASS), createdAt: Date.now() }],
       sessions: []
     };
-    fs.writeFileSync(AUTH_FILE, JSON.stringify(authCache, null, 2), 'utf-8');
+    if (cloud.enabled) cloudSave('auth', authCache);
+    else fs.writeFileSync(AUTH_FILE, JSON.stringify(authCache, null, 2), 'utf-8');
   }
   if (!Array.isArray(authCache.accounts)) authCache.accounts = [];
   if (!Array.isArray(authCache.sessions)) authCache.sessions = [];
   return authCache;
 }
-function saveAuth(){ fs.writeFileSync(AUTH_FILE, JSON.stringify(loadAuth(), null, 2), 'utf-8'); }
+function saveAuth(){
+  if (cloud.enabled) return cloudSave('auth', loadAuth());
+  fs.writeFileSync(AUTH_FILE, JSON.stringify(loadAuth(), null, 2), 'utf-8');
+}
 /* 会话是否仍存活（有心跳且在超时窗口内） */
 function sessionLive(s){ return !!s && !!s.lastSeen && (Date.now() - s.lastSeen) < HEARTBEAT_TIMEOUT; }
 /* 人工在线：存在任一「存活且未被标记为已关闭」的会话 */
@@ -384,12 +452,20 @@ const USER_FILE = path.join(ROOT, 'data', 'users.json');
 let userCache = null;
 function loadUsers(){
   if (userCache) return userCache;
-  try { userCache = JSON.parse(fs.readFileSync(USER_FILE, 'utf-8')); }
-  catch(e){ userCache = { users: [] }; }
+  if (cloud.enabled){
+    const raw = cloudGet('users');
+    userCache = (raw && typeof raw === 'object') ? raw : { users: [] };
+  } else {
+    try { userCache = JSON.parse(fs.readFileSync(USER_FILE, 'utf-8')); }
+    catch(e){ userCache = { users: [] }; }
+  }
   if (!Array.isArray(userCache.users)) userCache.users = [];
   return userCache;
 }
-function saveUsers(){ fs.writeFileSync(USER_FILE, JSON.stringify(loadUsers(), null, 2), 'utf-8'); }
+function saveUsers(){
+  if (cloud.enabled) return cloudSave('users', loadUsers());
+  fs.writeFileSync(USER_FILE, JSON.stringify(loadUsers(), null, 2), 'utf-8');
+}
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$/;
 /* 一次性临时邮箱域名黑名单：注册时拦截，防止爬虫批量建号 */
 const DISPOSABLE_DOMAINS = new Set([
@@ -433,7 +509,8 @@ const SECRETS_FILE = path.join(ROOT, 'data', 'secrets.json');
 const SECRETS_TEMPLATE = {
   twilio:    { accountSid: '', authToken: '', fromPhone: '' },
   resend:    { apiKey: '', fromEmail: '', fromName: 'Beisu' },
-  recaptcha: { version: 'v2', siteKey: '', secretKey: '' }
+  recaptcha: { version: 'v2', siteKey: '', secretKey: '' },
+  mongo:     { uri: '' }
 };
 function ensureSecretsFile(){
   if (fs.existsSync(SECRETS_FILE)) return;
@@ -452,7 +529,8 @@ function loadSecrets(){
     twilio:    { accountSid: pick(str(s.twilio, 'accountSid'), 'TWILIO_ACCOUNT_SID'), authToken: pick(str(s.twilio, 'authToken'), 'TWILIO_AUTH_TOKEN'), fromPhone: pick(str(s.twilio, 'fromPhone'), 'TWILIO_FROM_PHONE') },
     resend:    { apiKey: pick(str(s.resend, 'apiKey'), 'RESEND_API_KEY'), fromEmail: pick(str(s.resend, 'fromEmail'), 'RESEND_FROM_EMAIL'), fromName: pick(str(s.resend, 'fromName'), 'RESEND_FROM_NAME') || 'Beisu' },
     recaptcha: { version: (str(s.recaptcha, 'version') || str(env, 'RECAPTCHA_VERSION')) === 'v3' ? 'v3' : 'v2',
-                 siteKey: pick(str(s.recaptcha, 'siteKey'), 'RECAPTCHA_SITE_KEY'), secretKey: pick(str(s.recaptcha, 'secretKey'), 'RECAPTCHA_SECRET_KEY') }
+                 siteKey: pick(str(s.recaptcha, 'siteKey'), 'RECAPTCHA_SITE_KEY'), secretKey: pick(str(s.recaptcha, 'secretKey'), 'RECAPTCHA_SECRET_KEY') },
+    mongo:     { uri: pick(str(s.mongo, 'uri'), 'MONGODB_URI') }
   };
 }
 /* 是否已配置为真实服务（用于前端提示与人机验证渲染方式） */
@@ -1131,9 +1209,14 @@ server.on('upgrade', (req, socket) => {
 /* 会话回收定时器：心跳超时与页面关闭宽限的兜底销毁 */
 setInterval(sweepSessions, 2000);
 
-ensureDataFile();
-server.listen(PORT, () => {
-  console.log(`[beisu-visitor] server running at http://localhost:${PORT}`);
-  console.log(`  游客前端: http://localhost:${PORT}/`);
-  console.log(`  后台管理: http://localhost:${PORT}/admin.html`);
-});
+/* 启动引导：先接入云库（如已配置），再监听端口；云库不可用则自动回退本地文件存储 */
+(async () => {
+  try { await initCloud(loadSecrets().mongo.uri); }
+  catch(e){ console.error('[cloud] 初始化失败，回退本地 JSON 文件存储:', e.message); }
+  ensureDataFile();
+  server.listen(PORT, () => {
+    console.log(`[beisu-visitor] server running at http://localhost:${PORT}`);
+    console.log(`  游客前端: http://localhost:${PORT}/`);
+    console.log(`  后台管理: http://localhost:${PORT}/admin.html`);
+  });
+})();

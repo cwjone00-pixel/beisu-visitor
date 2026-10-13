@@ -1,4 +1,4 @@
-# 依赖（本项目为零依赖，仅占位）
+# 依赖（mongodb 云库驱动等）
 node_modules/
 npm-debug.log*
 

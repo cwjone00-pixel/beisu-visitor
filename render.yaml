@@ -26,3 +26,6 @@ services:
         sync: false
       - key: RECAPTCHA_SECRET_KEY
         sync: false
+      # MongoDB Atlas 云库连接串（免费 M0 集群），用于持久化用户/配置/聊天数据，避免重启丢数据
+      - key: MONGODB_URI
+        sync: false
