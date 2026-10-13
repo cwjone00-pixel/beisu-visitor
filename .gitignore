@@ -1,0 +1,12 @@
+# 依赖（本项目为零依赖，仅占位）
+node_modules/
+npm-debug.log*
+
+# 日志与系统文件
+*.log
+.DS_Store
+
+# 运行时数据与密钥：严禁提交到 GitHub
+# （secrets.json 含 Resend / reCAPTCHA 密钥；users/chats/auth/rules 为运行时数据）
+data/*.json
+!data/.gitkeep

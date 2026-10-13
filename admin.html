@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>悖速 · 配置管理后台</title>
+<style>
+  *{ margin:0; padding:0; box-sizing:border-box; }
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
+    background:#eef2f7; color:#1c2330; -webkit-font-smoothing:antialiased;
+  }
+  .topbar{
+    background:#fff; padding:16px 28px; display:flex; align-items:center; justify-content:space-between;
+    box-shadow:0 1px 4px rgba(20,40,80,.06); position:sticky; top:0; z-index:10;
+  }
+  .topbar h1{ font-size:18px; font-weight:700; }
+  .topbar .sub{ font-size:12px; color:#8b94a0; margin-top:2px; }
+  .btn{
+    display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 16px;
+    border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; border:none;
+    transition:.15s; font-family:inherit;
+  }
+  .btn-primary{ background:#2f7cf6; color:#fff; }
+  .btn-primary:hover{ background:#1e66e0; }
+  .btn-ghost{ background:#f1f4f9; color:#4a5260; }
+  .btn-ghost:hover{ background:#e3e9f2; }
+  .btn-danger{ background:#fff; color:#e04a4a; border:1px solid #f5c2c2; }
+  .btn-danger:hover{ background:#fdecec; }
+  .btn-sm{ height:30px; padding:0 10px; font-size:12px; }
+  .container{ max-width:1400px; margin:24px auto; padding:0 20px 60px; display:flex; gap:22px; align-items:flex-start; }
+  .main-col{ flex:1; min-width:0; }
+
+  /* ---- 独立用户列表列 ---- */
+  .users-col{
+    width:330px; flex:none; position:sticky; top:88px;
+    background:#fff; border-radius:14px; box-shadow:0 2px 10px rgba(20,40,80,.05);
+    display:flex; flex-direction:column; max-height:calc(100vh - 112px); overflow:hidden;
+  }
+  .users-col .users-head{ padding:18px 18px 12px; border-bottom:1px solid #eef2f7; }
+  .users-col .users-head h2{ font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; }
+  .users-col .users-head h2 .tag{ font-size:11px; font-weight:500; color:#2f7cf6; background:#eaf3ff; padding:2px 8px; border-radius:6px; }
+  .users-col .users-head .desc{ font-size:12px; color:#8b94a0; margin-top:4px; }
+  .users-col .users-search{ margin-top:10px; }
+  .users-scroll{ overflow-y:auto; flex:1; padding:10px 12px 14px; display:flex; flex-direction:column; gap:8px; }
+  .user-item{ border:1px solid #e6ebf2; border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+  .user-item .u-row{ display:flex; align-items:center; gap:8px; }
+  .u-nick{ font-size:13px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .u-meta{ font-size:11px; color:#9aa3ad; line-height:1.6; word-break:break-all; }
+  @media (max-width: 940px){
+    .container{ flex-direction:column; }
+    .users-col{ width:100%; position:static; max-height:none; }
+    .users-scroll{ max-height:320px; }
+  }
+  .card{
+    background:#fff; border-radius:14px; padding:20px 22px; margin-bottom:18px;
+    box-shadow:0 2px 10px rgba(20,40,80,.05);
+  }
+  .card h2{ font-size:15px; font-weight:700; margin-bottom:4px; display:flex; align-items:center; gap:8px; }
+  .card .desc{ font-size:12px; color:#8b94a0; margin-bottom:14px; }
+  .card h2 .tag{ font-size:11px; font-weight:500; color:#2f7cf6; background:#eaf3ff; padding:2px 8px; border-radius:6px; }
+  .card .head-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+  .card .head-row h2{ margin-bottom:0; }
+  .rule-list{ display:flex; flex-direction:column; gap:12px; }
+  .rule-item{
+    border:1px solid #e6ebf2; border-radius:12px; padding:14px 16px;
+    display:flex; flex-direction:column; gap:10px; transition:.15s;
+  }
+  .rule-item.disabled{ opacity:.5; }
+  .rule-head{ display:flex; align-items:center; gap:10px; }
+  .rule-type{ font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px; }
+  .type-exact{ background:#e8f7ee; color:#1a9d4a; }
+  .type-fuzzy{ background:#fdf3e3; color:#c97a10; }
+  .rule-title{ font-size:14px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .switch{ position:relative; width:38px; height:20px; border-radius:20px; background:#d4dae4; cursor:pointer; transition:.2s; flex:none; }
+  .switch.on{ background:#2f7cf6; }
+  .switch::after{ content:''; position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#fff; transition:.2s; }
+  .switch.on::after{ left:20px; }
+  .meta{ font-size:12px; color:#6a7280; line-height:1.7; }
+  .meta .label{ color:#9aa3ad; }
+  .lang-tag{ display:inline-block; font-size:10px; color:#8b94a0; margin-right:3px; }
+  .kw-chips{ display:flex; flex-wrap:wrap; gap:5px; margin-top:4px; }
+  .chip{ font-size:11px; background:#eef2f7; color:#4a5260; padding:2px 8px; border-radius:6px; }
+  .empty{ text-align:center; padding:36px 20px; color:#9aa3ad; font-size:13px; }
+
+  /* ---- 弹窗 ---- */
+  .modal-mask{
+    position:fixed; inset:0; background:rgba(18,28,46,.45); backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center; z-index:100; padding:20px;
+  }
+  .modal-mask.hidden{ display:none; }
+  .modal{
+    background:#fff; border-radius:16px; width:100%; max-width:600px; max-height:90vh;
+    overflow-y:auto; padding:24px; box-shadow:0 30px 80px rgba(10,25,55,.35);
+  }
+  .modal h3{ font-size:17px; font-weight:700; margin-bottom:18px; }
+  .field{ margin-bottom:15px; }
+  .field label{ display:block; font-size:12px; font-weight:600; color:#4a5260; margin-bottom:6px; }
+  .field .hint{ font-size:11px; color:#9aa3ad; margin-top:4px; }
+  .input, .textarea, .select{
+    width:100%; border:1px solid #d9e0ea; border-radius:8px; padding:8px 12px;
+    font-size:13px; font-family:inherit; outline:none; transition:.15s;
+  }
+  .input:focus, .textarea:focus{ border-color:#2f7cf6; box-shadow:0 0 0 3px rgba(47,124,246,.15); }
+  .textarea{ resize:vertical; min-height:64px; }
+  .tri-row{ display:grid; grid-template-columns:56px 1fr; gap:6px; align-items:center; margin-bottom:6px; }
+  .tri-row .lang-chip{ font-size:11px; font-weight:600; color:#4a5260; background:#eef2f7; border-radius:6px; padding:5px 0; text-align:center; }
+  .btn-block-row{ display:flex; gap:6px; margin-bottom:6px; }
+  .btn-block-row .input{ flex:1; }
+  .radio-group{ display:flex; gap:14px; }
+  .radio-group label{ display:flex; align-items:center; gap:5px; font-size:13px; font-weight:500; cursor:pointer; }
+  .modal-foot{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+
+  /* ---- 登录鉴权门 ---- */
+  .gate-mask{ position:fixed; inset:0; background:#eef2f7; z-index:999; display:flex; align-items:center; justify-content:center; }
+  .gate-card{ background:#fff; border-radius:16px; padding:38px 36px 30px; width:340px; box-shadow:0 24px 70px rgba(20,40,80,.16); }
+  .gate-card h2{ font-size:20px; text-align:center; }
+  .gate-sub{ font-size:12px; color:#8b94a0; text-align:center; margin:8px 0 22px; }
+  .gate-card .input{ margin-bottom:12px; height:38px; }
+  .gate-btn{ width:100%; height:40px; font-size:14px; margin-top:4px; }
+  #gateErr{ font-size:12px; color:#e04a4a; text-align:center; margin-top:12px; min-height:16px; }
+
+</style>
+</head>
+<body>
+
+<!-- 登录鉴权门：未登录时覆盖全部后台内容，登录成功后才移除 -->
+<div class="gate-mask" id="loginGate">
+  <div class="gate-card">
+    <h2>悖速 · 管理后台</h2>
+    <p class="gate-sub">请使用人工客服账号登录后操作</p>
+    <input class="input" id="gateUser" placeholder="账号" autocomplete="username">
+    <input class="input" id="gatePass" type="password" placeholder="密码" autocomplete="current-password" onkeydown="if(event.key==='Enter')gateLogin()">
+    <button class="btn btn-primary gate-btn" onclick="gateLogin()">登 录</button>
+    <div id="gateErr"></div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div>
+    <h1>悖速 · 配置管理后台</h1>
+    <div class="sub">首页快捷按钮 / 关键词回复规则 / 兜底回复 —— 全部内容由后端输出，前端零硬编码</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- 左列：全部功能配置 -->
+  <div class="main-col">
+
+  <!-- ⓪-1 人工客服登录（登录后游客前端自动显示「人工在线」） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>人工客服 <span class="tag" id="opStateTag">离线</span></h2>
+      <span style="font-size:12px; color:#8b94a0;">登录后游客端粒子球体变为深蓝密集状态，并显示「人工客服在线」绿灯；退出登录自动恢复仅机器人在线</span>
+    </div>
+    <div id="opLoginBox" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+      <input class="input" id="opUser" placeholder="账号" style="width:160px;">
+      <input class="input" id="opPass" type="password" placeholder="密码" style="width:160px;">
+      <button class="btn btn-primary" onclick="opLogin()">登录</button>
+      <span id="opLoginErr" style="font-size:12px; color:#e04a4a;"></span>
+    </div>
+    <div id="opLoggedBox" style="display:none; align-items:center; gap:12px; flex-wrap:wrap;">
+      <span style="font-size:13px; font-weight:600;">已登录：<span id="opWho"></span></span>
+      <button class="btn btn-danger btn-sm" onclick="opLogout()">退出登录</button>
+      <span style="width:1px; height:22px; background:#e6ebf2;"></span>
+      <input class="input" id="opOldPwd" type="password" placeholder="旧密码" style="width:130px;">
+      <input class="input" id="opNewPwd" type="password" placeholder="新密码（至少6位）" style="width:150px;">
+      <button class="btn btn-ghost btn-sm" onclick="opChangePwd()">修改密码</button>
+      <span id="opPwdMsg" style="font-size:12px; color:#1a9d4a;"></span>
+    </div>
+    <div style="margin-top:14px; border-top:1px solid #eef2f7; padding-top:12px;">
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:12px; font-weight:600; color:#4a5260;">账号管理</span>
+        <input class="input" id="newAccUser" placeholder="新账号名" style="width:150px;">
+        <input class="input" id="newAccPwd" type="password" placeholder="初始密码（至少6位）" style="width:170px;">
+        <button class="btn btn-primary btn-sm" onclick="opCreateAccount()">+ 创建账号</button>
+        <span id="accMsg" style="font-size:12px;"></span>
+      </div>
+      <div id="accList" style="display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;"></div>
+    </div>
+  </div>
+
+  <!-- ⓪ 实时对话（人工介入） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>实时对话 <span class="tag" id="chatCount">0 个会话</span></h2>
+      <span style="display:flex; align-items:center; gap:14px; font-size:12px; color:#8b94a0;">
+        <label style="display:flex; align-items:center; gap:7px; color:#4a5260; cursor:pointer; user-select:none;" onclick="toggleAgentTranslate()" title="开启后：人工发送的消息自动翻译成客户前端语种；客户消息在后台附带中文译文。机器人自动回复不受影响">
+          <span class="switch" id="trSwitch"></span>人工消息自动翻译
+        </label>
+        <label style="display:flex; align-items:center; gap:7px; color:#4a5260; cursor:pointer; user-select:none;" onclick="toggleBotSwitch()" title="机器人总开关：关闭后机器人完全关停，不触发任何关键词匹配、不发出任何自动消息；人工仍可登录后台手动接待">
+          <span class="switch" id="botSwitch"></span>机器人总开关
+        </label>
+        <span>客户与机器人的对话实时显示在这里；可随时切换「机器人自动回复 / 人工接管」，人工接管后可直接发言</span>
+      </span>
+    </div>
+    <div style="display:flex; gap:14px; align-items:flex-start; flex-wrap:wrap;">
+      <div id="chatSessions" style="width:270px; flex:none; display:flex; flex-direction:column; gap:6px; max-height:430px; overflow-y:auto;"></div>
+      <div id="chatPanel" style="flex:1; min-width:320px; display:none; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+          <span class="rule-type type-exact" id="cpModeTag">机器人自动回复</span>
+          <span style="color:#8b94a0; font-size:12px;" id="cpTitle"></span>
+          <span style="flex:1"></span>
+          <button class="btn btn-ghost btn-sm" id="cpModeBtn" onclick="toggleChatMode()">切换为人工接管</button>
+          <button class="btn btn-danger btn-sm" onclick="askEndChat(activeChat)">结束会话</button>
+        </div>
+        <div id="cpMessages" style="height:340px; overflow-y:auto; border:1px solid rgba(25,50,95,.08); border-radius:10px; padding:12px; background:rgba(247,248,251,.6); display:flex; flex-direction:column; gap:6px;"></div>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <input class="input" id="cpInput" style="flex:1" placeholder="输入人工回复内容，回车或点「发送」">
+          <button class="btn btn-primary" onclick="sendAgentMsg()">发送</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ① 首页快捷按钮 -->
+  <div class="card">
+    <div class="head-row">
+      <h2>首页快捷按钮 <span class="tag" id="qbHomeCount">0 个</span></h2>
+      <button class="btn btn-primary" onclick="openHomeEditor()">+ 新增按钮</button>
+    </div>
+    <div class="desc">显示在首页标题下方；每个按钮绑定一个关键词，点击等于提交该关键词进行匹配。数量不限，前端自动两列排版。</div>
+    <div id="homeList" class="rule-list"></div>
+  </div>
+
+  <!-- ② 关键词规则 -->
+  <div class="card">
+    <div class="head-row">
+      <h2>关键词回复规则 <span class="tag" id="ruleCount">0 条</span></h2>
+      <button class="btn btn-primary" onclick="openRuleEditor()">+ 新建规则</button>
+    </div>
+    <div class="desc">精准匹配优先于模糊匹配；回复文案支持中/英/俄三语；可配置 0~4 个配套快捷按钮（三语），留空则不展示。</div>
+    <div id="ruleList" class="rule-list"></div>
+  </div>
+
+  <!-- ③ 兜底回复 -->
+  <div class="card">
+    <h2>默认兜底回复 <span class="tag">未命中任何规则时使用</span></h2>
+    <div class="desc">支持中/英/俄三语文案与配套快捷按钮（0~4 个）。</div>
+    <div class="field"><label>中文回复</label><textarea class="textarea" id="fbZh"></textarea></div>
+    <div class="field"><label>英文回复</label><textarea class="textarea" id="fbEn"></textarea></div>
+    <div class="field"><label>俄语回复</label><textarea class="textarea" id="fbRu"></textarea></div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="fbAppendLink"> 是否附加底部链接（打开后回复末尾自动追加预设链接）
+      </label>
+    </div>
+    <div class="field">
+      <label>配套快捷按钮（0~4 个，每个按钮三种语言文字）</label>
+      <div id="fbBtns"></div>
+      <button class="btn btn-ghost btn-sm" onclick="fbBtns.push({zh:'',en:'',ru:''});renderFbBtns()">+ 添加按钮</button>
+    </div>
+    <button class="btn btn-primary" onclick="saveFallback()">保存兜底配置</button>
+  </div>
+
+  <!-- ④ 底部链接模板 -->
+  <div class="card">
+    <h2>底部链接模板 <span class="tag">供规则/兜底的「附加链接」开关使用</span></h2>
+    <div class="desc">统一模板：开启「是否附加底部链接」的回复，文本末尾自动追加此链接；链接文字支持三语，可随时修改。</div>
+    <div class="field"><label>链接文字（三语）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="lkZh"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="lkEn"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="lkRu"></div>
+    </div>
+    <div class="field"><label>链接地址</label><input class="input" id="lkUrl" placeholder="https://..."></div>
+    <button class="btn btn-primary" onclick="saveLinkTpl()">保存链接模板</button>
+  </div>
+
+  <!-- ⑤ 首页引导文字 -->
+  <div class="card">
+    <h2>首页引导文字 <span class="tag">游客首页顶部标题</span></h2>
+    <div class="desc">显示在游客首页标题位置；跟随访客前端语种自动切换展示对应文字。</div>
+    <div class="field"><label>中文</label><input class="input" id="gdZh" placeholder="例如：请问你过来有什么需求？"></div>
+    <div class="field"><label>English</label><input class="input" id="gdEn" placeholder="例如：How can we help you today?"></div>
+    <div class="field"><label>Русский</label><input class="input" id="gdRu" placeholder="例如：Чем мы можем вам помочь?"></div>
+    <button class="btn btn-primary" onclick="saveGuide()">保存引导文字</button>
+  </div>
+
+  <!-- ⑥ 输入框占位提示（按在线状态区分） -->
+  <div class="card">
+    <h2>输入框占位提示 <span class="tag">按在线状态区分</span></h2>
+    <div class="desc">显示在游客端底部输入框内；「人工客服在线」与「仅机器人在线」两种状态分别展示，跟随访客语种自动切换。</div>
+    <div class="field" style="margin-bottom:8px;"><label style="color:#2f7cf6;">仅机器人在线</label></div>
+    <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="pbZh"></div>
+    <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="pbEn"></div>
+    <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="pbRu"></div>
+    <div class="field" style="margin:16px 0 8px;"><label style="color:#1a9d4a;">人工在线（人工 + 机器人）</label></div>
+    <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="paZh"></div>
+    <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="paEn"></div>
+    <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="paRu"></div>
+    <button class="btn btn-primary" style="margin-top:12px;" onclick="savePh()">保存占位提示</button>
+  </div>
+
+  <!-- ⑦ 输入框快捷按钮（输入框内部，随语种切换） -->
+  <div class="card">
+    <h2>输入框快捷按钮 <span class="tag">底部输入框内部 · 3 个</span></h2>
+    <div class="desc">显示在底部输入框内部（拍照/上传按钮左侧）；点击按钮等同提交当前语种的按钮文字进行关键词匹配，机制与首页快捷按钮一致。某个按钮三种语言都留空则前端自动隐藏。</div>
+    <div class="field" style="margin-bottom:8px;"><label style="color:#2f7cf6;">按钮 1</label></div>
+    <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="c1Zh" placeholder="例如：租房"></div>
+    <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="c1En" placeholder="例如：Housing Rental"></div>
+    <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="c1Ru" placeholder="例如：Аренда жилья"></div>
+    <div class="field" style="margin:16px 0 8px;"><label style="color:#2f7cf6;">按钮 2</label></div>
+    <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="c2Zh" placeholder="例如：租车"></div>
+    <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="c2En" placeholder="例如：Car Rental"></div>
+    <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="c2Ru" placeholder="例如：Аренда авто"></div>
+    <div class="field" style="margin:16px 0 8px;"><label style="color:#2f7cf6;">按钮 3</label></div>
+    <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="c3Zh" placeholder="例如：旅游搭子"></div>
+    <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="c3En" placeholder="例如：Travel Buddy"></div>
+    <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="c3Ru" placeholder="例如：Попутчик"></div>
+    <button class="btn btn-primary" style="margin-top:12px;" onclick="saveCb()">保存输入框快捷按钮</button>
+  </div>
+
+  </div><!-- /main-col -->
+
+  <!-- 右列：独立用户列表（支持搜索 + 内部滚动，客户再多也不挤压左列） -->
+  <aside class="users-col">
+    <div class="users-head">
+      <h2>用户列表 <span class="tag" id="userCount">0 位</span></h2>
+      <div class="desc">完成注册的用户自动录入此处；邮箱 / 昵称全局唯一，列表支持滚动加载。</div>
+      <div class="users-search">
+        <input class="input" id="userSearch" placeholder="搜索邮箱 / 昵称…" oninput="renderUsers()">
+      </div>
+    </div>
+    <div class="users-scroll" id="userList"></div>
+  </aside>
+
+</div>
+
+<!-- 首页按钮编辑弹窗 -->
+<div class="modal-mask hidden" id="homeModal">
+  <div class="modal">
+    <h3 id="homeModalTitle">新增按钮</h3>
+    <div class="field">
+      <label>绑定关键词（点击按钮时提交给匹配逻辑的文字）</label>
+      <input class="input" id="hmKeyword" placeholder="例如：短期避冬游玩">
+    </div>
+    <div class="field">
+      <label>按钮显示文字（三语）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="hmZh"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="hmEn"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="hmRu"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('homeModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveHome()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 规则编辑弹窗 -->
+<div class="modal-mask hidden" id="ruleModal">
+  <div class="modal">
+    <h3 id="ruleModalTitle">新建规则</h3>
+    <div class="field">
+      <label>匹配类型（精准匹配优先级高）</label>
+      <div class="radio-group">
+        <label><input type="radio" name="rType" value="exact" checked> 精准匹配</label>
+        <label><input type="radio" name="rType" value="fuzzy"> 模糊匹配（包含即命中）</label>
+      </div>
+    </div>
+    <div class="field">
+      <label>中文关键词（每行一个）</label>
+      <textarea class="textarea" id="rmKwZh"></textarea>
+      <label>English关键词（每行一个）</label>
+      <textarea class="textarea" id="rmKwEn"></textarea>
+      <label>Русский关键词（每行一个）</label>
+      <textarea class="textarea" id="rmKwRu"></textarea>
+    </div>
+    <div class="field">
+      <label>回复文案（三语一一对应）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><textarea class="textarea" id="rmZh"></textarea></div>
+      <div class="tri-row"><span class="lang-chip">English</span><textarea class="textarea" id="rmEn"></textarea></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><textarea class="textarea" id="rmRu"></textarea></div>
+    </div>
+    <div class="field">
+      <label>本轮配套快捷按钮（0~4 个，每个按钮三种语言文字；留空不展示）</label>
+      <div id="rmBtns"></div>
+      <button class="btn btn-ghost btn-sm" onclick="rmBtns.push({zh:'',en:'',ru:''});renderRmBtns()">+ 添加按钮</button>
+    </div>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="rmAppendLink"> 是否附加底部链接（打开后回复末尾自动追加预设链接）
+      </label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('ruleModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveRule()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 结束会话二次确认弹窗 -->
+<div class="modal-mask hidden" id="endModal">
+  <div class="modal" style="max-width:460px;">
+    <h3>确认结束会话？</h3>
+    <p style="font-size:13px; color:#4a5260; line-height:1.9;">确认之后，本次会话全部聊天消息，会从服务器彻底清除，不在服务器留存，记录不可恢复。如果客户后续再发新消息，系统会自动新建一条独立会话。</p>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeEndModal()">取消</button>
+      <button class="btn btn-danger" onclick="confirmEndChat()">确认结束</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ================= 登录鉴权：fetch 拦截器 =================
+   1) 所有 /api/ 请求自动附带 X-Op-Token（登录 token）
+   2) 后台接口返回 401（未登录/登录失效）时自动弹回登录门
+   登录门本身在 HTML 中默认覆盖页面，JS 校验通过后才移除 */
+const _rawFetch = window.fetch.bind(window);
+let adminUnlocked = false;
+window.fetch = function(input, init){
+  let url = '';
+  try { url = (typeof input === 'string') ? input : ((input && input.url) || ''); } catch(e){}
+  if (url.startsWith('/api/')){
+    init = Object.assign({}, init);
+    init.headers = Object.assign({}, init.headers, opToken ? { 'X-Op-Token': opToken } : {});
+  }
+  return _rawFetch(input, init).then(resp => {
+    if (resp && resp.status === 401 && url.startsWith('/api/') && !url.startsWith('/api/auth/login')){
+      showLoginGate('登录态已失效，请重新登录');
+    }
+    return resp;
+  });
+};
+
+const API = {
+  config: () => fetch('/api/config').then(r=>r.json()),
+  /* 首页按钮 */
+  qbList: () => fetch('/api/quick-buttons').then(r=>r.json()),
+  qbCreate: d => fetch('/api/quick-buttons', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  qbUpdate: (id,d) => fetch('/api/quick-buttons/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  qbDelete: id => fetch('/api/quick-buttons/'+id, { method:'DELETE' }),
+  /* 规则 */
+  list: () => fetch('/api/rules').then(r=>r.json()),
+  create: d => fetch('/api/rules', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  update: (id,d) => fetch('/api/rules/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  del: id => fetch('/api/rules/'+id, { method:'DELETE' }),
+  toggle: id => fetch('/api/rules/'+id+'/toggle', { method:'PATCH' }),
+  /* 兜底 */
+  getFb: () => fetch('/api/fallback').then(r=>r.json()),
+  saveFb: d => fetch('/api/fallback', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  /* 底部链接模板 */
+  getLink: () => fetch('/api/link').then(r=>r.json()),
+  saveLink: d => fetch('/api/link', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  /* 首页引导文字（三语） */
+  guideGet: () => fetch('/api/guide').then(r=>r.json()),
+  guideSave: d => fetch('/api/guide', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  /* 输入框快捷按钮（整体保存） */
+  cbGet: () => fetch('/api/composer-buttons').then(r=>r.json()),
+  cbSave: arr => fetch('/api/composer-buttons', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ buttons: arr }) }),
+  /* 输入框占位提示（按在线状态区分，三语） */
+  phGet: () => fetch('/api/placeholder').then(r=>r.json()),
+  phSave: d => fetch('/api/placeholder', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  /* 用户列表（邮箱注册用户，需登录） */
+  usersList: () => fetch('/api/users').then(r=>r.json()),
+  /* 人工客服账号与在线状态 */
+  authStatus: tk => fetch('/api/auth/status' + (tk ? '?token=' + encodeURIComponent(tk) : '')).then(r=>r.json()),
+  authLogin: d => fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  authLogout: d => fetch('/api/auth/logout', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  authHeartbeat: d => fetch('/api/auth/heartbeat', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  authPwd: d => fetch('/api/auth/password', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  authAccounts: () => fetch('/api/auth/accounts').then(r=>r.json()),
+  authAccountCreate: d => fetch('/api/auth/accounts', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) })
+};
+
+let homeBtns = [], rules = [];
+let editingHome = null, editingRule = null;
+let fbBtns = [], rmBtns = [];
+
+/* ================= 人工客服登录 / 账号管理 ================= */
+const $ = id => document.getElementById(id);
+let opToken = localStorage.getItem('beisu_op_token') || '';
+
+/* ================= 登录门逻辑 ================= */
+function showLoginGate(msg){
+  adminUnlocked = false;
+  opToken = '';
+  try { localStorage.removeItem('beisu_op_token'); } catch(e){}
+  $('loginGate').style.display = 'flex';
+  $('gateErr').textContent = msg || '';
+  $('gateUser').value = '';
+  $('gatePass').value = '';
+}
+async function gateLogin(){
+  const err = $('gateErr');
+  err.textContent = '';
+  const u = $('gateUser').value.trim();
+  const pwd = $('gatePass').value;
+  if (!u || !pwd){ err.textContent = '请输入账号和密码'; return; }
+  try {
+    const r = await _rawFetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ username: u, password: pwd }) });
+    const d = await r.json();
+    if (!r.ok || !d.ok){ err.textContent = d.error || '账号或密码错误'; return; }   // 错误提示，停留在登录页
+    opToken = d.token;
+    localStorage.setItem('beisu_op_token', opToken);
+    $('gatePass').value = '';
+    unlockAdmin(d.username);   // 登录成功 → 人工状态自动在线（进入后台）
+  } catch(e){ err.textContent = '网络错误，请重试'; }
+}
+/* 解锁后台：移除登录门并加载全部后台数据 */
+async function unlockAdmin(loggedInAs){
+  adminUnlocked = true;
+  $('loginGate').style.display = 'none';
+  $('gateErr').textContent = '';
+  renderOpState(loggedInAs || null);
+  sendHeartbeat();   // 进入后台立即上报一次心跳，避免等待 3s 间隔
+  renderAccList();
+  loadChatList();
+  loadAgentTranslate();
+  loadBotSwitch();
+  loadHome();
+  loadRules();
+  loadFallback();
+  loadLinkTpl();
+  loadGuide();
+  loadPh();
+  loadCb();
+  loadUsers();
+}
+/* 页面打开：本地 token 有效直接进入后台，无效弹出登录门 */
+(async function gateInit(){
+  if (opToken){
+    try {
+      const d = await _rawFetch('/api/auth/status?token=' + encodeURIComponent(opToken)).then(r => r.json());
+      if (d.loggedInAs) return unlockAdmin(d.loggedInAs);
+    } catch(e){}
+    opToken = '';
+    try { localStorage.removeItem('beisu_op_token'); } catch(e){}
+  }
+  showLoginGate();
+})();
+
+
+function renderOpState(loggedInAs){
+  const tag = $('opStateTag');
+  if (loggedInAs){
+    tag.textContent = '人工客服在线';
+    tag.className = 'tag type-exact';
+  } else {
+    tag.textContent = '离线';
+    tag.className = 'tag';
+    tag.style.background = '#eef2f7'; tag.style.color = '#8b94a0';
+  }
+  $('opLoginBox').style.display = loggedInAs ? 'none' : 'flex';
+  $('opLoggedBox').style.display = loggedInAs ? 'flex' : 'none';
+  if (loggedInAs) $('opWho').textContent = loggedInAs;
+}
+async function refreshOpState(){
+  if (!adminUnlocked) return;   // 未解锁时由登录门负责，不做轮询
+  try {
+    const d = await API.authStatus(opToken);
+    renderOpState(d.loggedInAs || null);
+    if (!d.loggedInAs && opToken){
+      opToken = ''; localStorage.removeItem('beisu_op_token');
+      showLoginGate('登录态已失效，请重新登录');   // 服务端会话失效 → 弹回登录门
+    }
+  } catch(e){ renderOpState(null); }
+}
+async function opLogin(){
+  $('opLoginErr').textContent = '';
+  try {
+    const r = await API.authLogin({ username: $('opUser').value.trim(), password: $('opPass').value });
+    const d = await r.json();
+    if (!r.ok || !d.ok){ $('opLoginErr').textContent = d.error || '登录失败'; return; }
+    opToken = d.token;
+    localStorage.setItem('beisu_op_token', opToken);
+    $('opPass').value = '';
+    renderOpState(d.username);
+  } catch(e){ $('opLoginErr').textContent = '网络错误'; }
+}
+async function opLogout(){
+  try { await API.authLogout({ token: opToken }); } catch(e){}
+  opToken = '';
+  localStorage.removeItem('beisu_op_token');
+  renderOpState(null);
+  showLoginGate();   // 退出登录 → 人工状态离线，回到登录门
+}
+async function opChangePwd(){
+  const msg = $('opPwdMsg');
+  msg.style.color = '#1a9d4a'; msg.textContent = '';
+  try {
+    const r = await API.authPwd({ token: opToken, oldPassword: $('opOldPwd').value, newPassword: $('opNewPwd').value });
+    const d = await r.json();
+    if (!r.ok || !d.ok){ msg.style.color = '#e04a4a'; msg.textContent = d.error || '修改失败'; return; }
+    msg.textContent = '密码已修改';
+    $('opOldPwd').value = ''; $('opNewPwd').value = '';
+    setTimeout(() => msg.textContent = '', 3000);
+  } catch(e){ msg.style.color = '#e04a4a'; msg.textContent = '网络错误'; }
+}
+async function renderAccList(){
+  try {
+    const d = await API.authAccounts();
+    $('accList').innerHTML = (d.accounts || []).map(a =>
+      `<span class="chip" style="font-size:12px; padding:4px 10px;">${esc(a.username)}</span>`
+    ).join('') || '<span style="font-size:12px; color:#9aa3ad;">暂无账号</span>';
+  } catch(e){}
+}
+async function opCreateAccount(){
+  const msg = $('accMsg');
+  msg.style.color = '#1a9d4a'; msg.textContent = '';
+  try {
+    const r = await API.authAccountCreate({ username: $('newAccUser').value.trim(), password: $('newAccPwd').value });
+    const d = await r.json();
+    if (!r.ok || !d.ok){ msg.style.color = '#e04a4a'; msg.textContent = d.error || '创建失败'; return; }
+    msg.textContent = '账号已创建';
+    $('newAccUser').value = ''; $('newAccPwd').value = '';
+    renderAccList();
+    setTimeout(() => msg.textContent = '', 3000);
+  } catch(e){ msg.style.color = '#e04a4a'; msg.textContent = '网络错误'; }
+}
+setInterval(refreshOpState, 5000);   // 立即调用由登录门/unlockAdmin 负责
+
+/* ================= 在线心跳 / 页面关闭上报 =================
+   心跳：坐席页面每 3s 上报一次在线；后端超过 10s 未收到即判定离线
+        （销毁 session + 人工在线=false + WebSocket 推送，游客端指示灯熄灭）
+        —— 用于覆盖浏览器丢弃 beforeunload、断网、直接关机等极端情况
+   页面关闭：pagehide 用 sendBeacon 立即标记会话待关闭并推送离线（即时熄灭指示灯） */
+let heartbeatTimer = null;
+async function sendHeartbeat(){
+  if (!adminUnlocked || !opToken) return;
+  try {
+    const r = await API.authHeartbeat({ token: opToken });
+    if (r && r.status === 401){   // 会话已被后端回收 → 弹回登录门
+      opToken = ''; try { localStorage.removeItem('beisu_op_token'); } catch(e){}
+      showLoginGate('登录态已失效，请重新登录');
+    }
+  } catch(e){ /* 网络异常时静默，下个周期重试 */ }
+}
+heartbeatTimer = setInterval(sendHeartbeat, 3000);
+
+/* 页面关闭（关闭标签 / 关闭浏览器 / 刷新）：发送关闭上报，令会话立即失效并广播离线。
+   刷新场景由后端 4s 宽限期内的新心跳自动恢复，不会误判为退出登录。 */
+function reportPageClose(){
+  if (!opToken) return;
+  try {
+    const blob = new Blob([JSON.stringify({ token: opToken })], { type:'application/json' });
+    if (navigator.sendBeacon) navigator.sendBeacon('/api/auth/close', blob);
+    else _rawFetch('/api/auth/close', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ token: opToken }), keepalive:true });
+  } catch(e){}
+}
+window.addEventListener('pagehide', function(e){ if (e.persisted) return; reportPageClose(); });
+window.addEventListener('beforeunload', function(){ reportPageClose(); });
+
+
+/* ================= 实时对话（人工介入） ================= */
+API.chats = () => fetch('/api/chats').then(r=>r.json());
+API.chatGet = id => fetch('/api/chat/'+encodeURIComponent(id)).then(r=>r.json());
+API.chatSince = (id,since) => fetch('/api/chat/'+encodeURIComponent(id)+'/messages?since='+since).then(r=>r.json());
+API.chatAgent = (id,text) => fetch('/api/chat/'+encodeURIComponent(id)+'/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ text }) });
+API.chatMode = (id,mode) => fetch('/api/chat/'+encodeURIComponent(id)+'/mode', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ mode }) });
+API.chatEnd = id => fetch('/api/chat/'+encodeURIComponent(id)+'/end', { method:'POST' });
+API.getTr = () => fetch('/api/agent-translate').then(r=>r.json());
+API.setTr = v => fetch('/api/agent-translate', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ translate:v }) });
+
+let activeChat = null, chatLastId = 0, chatMode = 'bot';
+const ROLE_NAME = { visitor:'客户', bot:'机器人', agent:'人工' };
+
+async function loadChatList(){
+  if (!adminUnlocked) return;   // 未登录时不拉取会话
+  const list = await API.chats();
+  document.getElementById('chatCount').textContent = list.length + ' 个会话';
+  const box = document.getElementById('chatSessions');
+  if (!list.length){ box.innerHTML = '<div class="empty">暂无会话；客户在前端发消息后出现在这里</div>'; return; }
+  box.innerHTML = list.map(s => `
+    <div class="rule-item" style="padding:8px 10px; cursor:pointer; ${s.id===activeChat?'outline:2px solid #2f7cf6;':''}" onclick="openChat('${s.id}')">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span class="rule-type ${s.mode==='agent'?'type-fuzzy':'type-exact'}">${s.mode==='agent'?'人工中':'机器人'}</span>
+        <span style="font-size:12px; color:#3d434d; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(s.last.text||'（空）')}</span>
+        <button class="btn btn-danger btn-sm" style="height:22px; padding:0 8px; font-size:11px; flex:none;" onclick="event.stopPropagation(); askEndChat('${s.id}')">结束</button>
+      </div>
+      <div style="font-size:11px; color:#9aa3ad; margin-top:3px;">${new Date(s.last.ts).toLocaleTimeString()} · ${s.count} 条</div>
+    </div>
+  `).join('');
+}
+
+async function openChat(id){
+  activeChat = id;
+  const s = await API.chatGet(id);
+  chatMode = s.mode || 'bot';
+  chatLastId = s.messages.length ? s.messages[s.messages.length-1].id : 0;
+  document.getElementById('chatPanel').style.display = 'flex';
+  document.getElementById('cpTitle').textContent = '会话 ' + s.id.slice(0,8) + '… · ' + s.messages.length + ' 条消息';
+  renderChatPanel(s.messages, true);
+  updateModeBtn();
+  loadChatList();
+}
+
+function renderChatPanel(msgs, reset){
+  const box = document.getElementById('cpMessages');
+  if (reset) box.innerHTML = '';
+  const bubble = role => role === 'agent'
+    ? 'align-self:flex-end; background:#eaf3ff; border-radius:12px 12px 3px 12px;'
+    : 'align-self:flex-start; background:#fff; border:1px solid rgba(25,50,95,.08); border-radius:12px 12px 12px 3px;';
+  box.innerHTML += msgs
+    .filter(m => m && m.id != null && !box.querySelector('[data-mid="'+m.id+'"]'))
+    .map(m => {
+      let text = m.text || (m.reply ? [m.reply.zh, m.reply.en, m.reply.ru].filter(Boolean).join(' / ') : '');
+      /* 客户消息：原文 + 中文译文；人工消息：显示人工输入原文 + 实际发送给客户的译文 */
+      let extra = '';
+      if (m.role === 'visitor' && m.transZh){
+        extra = `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:12px; color:#5b7bb2;">译文：${esc(m.transZh)}</div>`;
+      }
+      if (m.role === 'agent' && m.origText){
+        text = m.origText;
+        extra = `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0;">已自动翻译发送：${esc(m.text)}</div>`;
+      }
+      const align = m.role === 'agent' ? 'right' : 'left';
+      const tag = `<div style="font-size:10px; color:#9aa3ad; margin:0 4px 2px; text-align:${align};">${ROLE_NAME[m.role]||m.role} · ${new Date(m.ts).toLocaleTimeString()}</div>`;
+      return `<div data-mid="${m.id}">${tag}<div style="${bubble(m.role)} padding:8px 12px; font-size:13px; line-height:1.55; max-width:78%; word-break:break-word; box-shadow:0 1px 4px rgba(30,60,110,.06);">${esc(text)}${extra}</div></div>`;
+    }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function pollActiveChat(){
+  if (!activeChat || !adminUnlocked) return;
+  try {
+    const d = await API.chatSince(activeChat, chatLastId);
+    if (d.ended){
+      // 会话已被结束：关闭面板并刷新列表
+      activeChat = null;
+      document.getElementById('chatPanel').style.display = 'none';
+      loadChatList();
+      return;
+    }
+    if (d.messages && d.messages.length){
+      chatLastId = d.messages[d.messages.length-1].id;
+      renderChatPanel(d.messages, false);
+    }
+    if (d.mode && d.mode !== chatMode){ chatMode = d.mode; updateModeBtn(); }
+  } catch(e){}
+}
+
+function updateModeBtn(){
+  const btn = document.getElementById('cpModeBtn');
+  const tag = document.getElementById('cpModeTag');
+  if (chatMode === 'agent'){
+    btn.textContent = '切回机器人自动回复';
+    tag.textContent = '人工接管中'; tag.className = 'rule-type type-fuzzy';
+  } else {
+    btn.textContent = '切换为人工接管';
+    tag.textContent = '机器人自动回复'; tag.className = 'rule-type type-exact';
+  }
+}
+
+async function toggleChatMode(){
+  if (!activeChat) return;
+  const next = chatMode === 'agent' ? 'bot' : 'agent';
+  await API.chatMode(activeChat, next);
+  chatMode = next; updateModeBtn(); loadChatList();
+}
+
+async function sendAgentMsg(){
+  const inp = document.getElementById('cpInput');
+  const text = inp.value.trim();
+  if (!text || !activeChat) return;
+  const r = await API.chatAgent(activeChat, text);
+  if (r.status === 409){
+    alert('该会话已结束，无法继续发送');
+    activeChat = null;
+    document.getElementById('chatPanel').style.display = 'none';
+    loadChatList();
+    return;
+  }
+  inp.value = '';
+  await pollActiveChat();
+  loadChatList();
+}
+document.getElementById('cpInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendAgentMsg(); });
+
+/* ---- 人工消息自动翻译总开关 ---- */
+let agentTranslate = true;
+async function loadAgentTranslate(){
+  try { const d = await API.getTr(); agentTranslate = d.translate !== false; }
+  catch(e){ agentTranslate = true; }
+  document.getElementById('trSwitch').classList.toggle('on', agentTranslate);
+}
+async function toggleAgentTranslate(){
+  agentTranslate = !agentTranslate;
+  document.getElementById('trSwitch').classList.toggle('on', agentTranslate);
+  try {
+    const d = await API.setTr(agentTranslate);
+    agentTranslate = d.translate !== false;
+  } catch(e){}
+  document.getElementById('trSwitch').classList.toggle('on', agentTranslate);
+}
+
+/* ---- 机器人总开关（一键全局关停自动回复） ---- */
+let botEnabled = true;
+async function loadBotSwitch(){
+  try { const d = await fetch('/api/bot-switch').then(r=>r.json()); botEnabled = d.enabled !== false; }
+  catch(e){ botEnabled = true; }
+  document.getElementById('botSwitch').classList.toggle('on', botEnabled);
+}
+async function toggleBotSwitch(){
+  botEnabled = !botEnabled;
+  document.getElementById('botSwitch').classList.toggle('on', botEnabled);
+  try {
+    const d = await fetch('/api/bot-switch', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ enabled: botEnabled }) }).then(r=>r.json());
+    botEnabled = d.enabled !== false;
+  } catch(e){}
+  document.getElementById('botSwitch').classList.toggle('on', botEnabled);
+}
+
+/* ---- 结束会话（二次确认，硬删除服务器消息） ---- */
+let pendingEndChat = null;
+function askEndChat(id){
+  if (!id) return;
+  pendingEndChat = id;
+  show('endModal');
+}
+function closeEndModal(){
+  pendingEndChat = null;
+  closeModal('endModal');
+}
+async function confirmEndChat(){
+  const id = pendingEndChat;
+  closeEndModal();
+  if (!id) return;
+  try { await API.chatEnd(id); } catch(e){}
+  if (activeChat === id){
+    activeChat = null;
+    document.getElementById('chatPanel').style.display = 'none';
+  }
+  loadChatList();
+}
+
+setInterval(loadChatList, 3000);
+setInterval(pollActiveChat, 2000);
+/* 数据加载统一由 unlockAdmin（登录成功后）触发 */
+
+/* ================= 首页快捷按钮 ================= */
+async function loadHome(){
+  homeBtns = await API.qbList();
+  document.getElementById('qbHomeCount').textContent = homeBtns.length + ' 个';
+  const list = document.getElementById('homeList');
+  if (!homeBtns.length){ list.innerHTML = '<div class="empty">暂无首页按钮，点击「新增按钮」配置</div>'; return; }
+  list.innerHTML = homeBtns.map(b => `
+    <div class="rule-item">
+      <div class="rule-head">
+        <span class="rule-type type-exact">按钮</span>
+        <span class="rule-title">${esc(labelOf(b.label))} <span style="color:#9aa3ad;font-weight:400">→ 关键词「${esc(b.keyword)}」</span></span>
+        <div class="rule-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openHomeEditor('${b.id}')">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="delHome('${b.id}')">删除</button>
+        </div>
+      </div>
+      <div class="meta">
+        <span class="lang-tag">中文</span>${esc(b.label.zh)||'<i style="color:#e04a4a">未填</i>'}　
+        <span class="lang-tag">EN</span>${esc(b.label.en)||'<i style="color:#e04a4a">未填</i>'}　
+        <span class="lang-tag">RU</span>${esc(b.label.ru)||'<i style="color:#e04a4a">未填</i>'}
+      </div>
+    </div>
+  `).join('');
+}
+function openHomeEditor(id){
+  editingHome = id || null;
+  document.getElementById('homeModalTitle').textContent = id ? '编辑按钮' : '新增按钮';
+  const b = id ? homeBtns.find(x=>x.id===id) : { keyword:'', label:{zh:'',en:'',ru:''} };
+  document.getElementById('hmKeyword').value = b.keyword || '';
+  document.getElementById('hmZh').value = b.label.zh || '';
+  document.getElementById('hmEn').value = b.label.en || '';
+  document.getElementById('hmRu').value = b.label.ru || '';
+  show('homeModal');
+}
+async function saveHome(){
+  const d = {
+    keyword: val('hmKeyword'),
+    label: { zh: val('hmZh'), en: val('hmEn'), ru: val('hmRu') }
+  };
+  if (!d.keyword){ alert('请填写绑定关键词'); return; }
+  if (editingHome) await API.qbUpdate(editingHome, d); else await API.qbCreate(d);
+  closeModal('homeModal'); loadHome();
+}
+async function delHome(id){ if (confirm('确定删除该按钮？')) { await API.qbDelete(id); loadHome(); } }
+
+/* ================= 关键词规则 ================= */
+/* 规则关键词三语分存 {zh:[],en:[],ru:[]} */
+function kwAll(r){ const kw = r.keywords || {}; return [].concat(kw.zh||[], kw.en||[], kw.ru||[]); }
+function kwChips(r){
+  const kw = r.keywords || {};
+  const seg = (tag, arr) => (arr && arr.length) ? `<span class="lang-tag">${tag}</span><span class="kw-chips">${arr.map(k=>`<span class="chip">${esc(k)}</span>`).join('')}</span>　` : '';
+  return seg('中文', kw.zh) + seg('EN', kw.en) + seg('RU', kw.ru) || '<span style="color:#e04a4a">未配置</span>';
+}
+async function loadRules(){
+  rules = await API.list();
+  document.getElementById('ruleCount').textContent = rules.length + ' 条';
+  const list = document.getElementById('ruleList');
+  if (!rules.length){ list.innerHTML = '<div class="empty">暂无规则，点击「新建规则」开始配置</div>'; return; }
+  list.innerHTML = rules.map(r => `
+    <div class="rule-item ${r.enabled===false?'disabled':''}">
+      <div class="rule-head">
+        <span class="rule-type type-${r.type}">${r.type==='exact'?'精准':'模糊'}</span>
+        <span class="rule-title">${esc(kwAll(r)[0]||'（无关键词）')}${kwAll(r).length>1?` 等 ${kwAll(r).length} 个`:''}</span>
+        ${r.appendLink?'<span class="chip" style="background:#eaf3ff;color:#2f7cf6">带链接</span>':''}
+        <div class="switch ${r.enabled===false?'':'on'}" onclick="toggleRule('${r.id}')"></div>
+        <button class="btn btn-ghost btn-sm" onclick="openRuleEditor('${r.id}')">编辑</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteRule('${r.id}')">删除</button>
+      </div>
+      <div class="meta">
+        <div><span class="label">关键词：</span>
+          ${kwChips(r)}
+        </div>
+        <div><span class="label">回复：</span>
+          <span class="lang-tag">中文</span>${esc(r.reply.zh)||'<i style="color:#e04a4a">未填</i>'}　
+          <span class="lang-tag">EN</span>${esc(r.reply.en)||'<i style="color:#e04a4a">未填</i>'}　
+          <span class="lang-tag">RU</span>${esc(r.reply.ru)||'<i style="color:#e04a4a">未填</i>'}
+        </div>
+        <div><span class="label">配套按钮：</span>${r.quickButtons.length?r.quickButtons.map(b=>`<span class="chip">${esc(labelOf(b.label))}</span>`).join(' '):'无'}</div>
+      </div>
+    </div>
+  `).join('');
+}
+function openRuleEditor(id){
+  editingRule = id || null;
+  document.getElementById('ruleModalTitle').textContent = id ? '编辑规则' : '新建规则';
+  const r = id ? rules.find(x=>x.id===id) : { type:'exact', keywords:{zh:[],en:[],ru:[]}, reply:{zh:'',en:'',ru:''}, quickButtons:[], appendLink:false };
+  document.querySelector(`input[name="rType"][value="${r.type}"]`).checked = true;
+  const kw = r.keywords || {};
+  document.getElementById('rmKwZh').value = (kw.zh||[]).join('\n');
+  document.getElementById('rmKwEn').value = (kw.en||[]).join('\n');
+  document.getElementById('rmKwRu').value = (kw.ru||[]).join('\n');
+  document.getElementById('rmZh').value = r.reply.zh || '';
+  document.getElementById('rmEn').value = r.reply.en || '';
+  document.getElementById('rmRu').value = r.reply.ru || '';
+  document.getElementById('rmAppendLink').checked = r.appendLink === true;
+  rmBtns = (r.quickButtons||[]).map(b => ({ ...b.label }));
+  renderRmBtns();
+  show('ruleModal');
+}
+async function saveRule(){
+  const type = document.querySelector('input[name="rType"]:checked').value;
+  // 三个语种关键词框各自独立解析（每行一个），不自动填充任何内容
+  const kwZh = val('rmKwZh').split('\n').map(s=>s.trim()).filter(Boolean);
+  const kwEn = val('rmKwEn').split('\n').map(s=>s.trim()).filter(Boolean);
+  const kwRu = val('rmKwRu').split('\n').map(s=>s.trim()).filter(Boolean);
+  if (!kwZh.length && !kwEn.length && !kwRu.length){ alert('请至少填写一个关键词（任意语种）'); return; }
+  const d = {
+    type,
+    keywords: { zh: kwZh, en: kwEn, ru: kwRu },
+    reply: { zh: val('rmZh'), en: val('rmEn'), ru: val('rmRu') },
+    quickButtons: rmBtns.map(b => ({ label: { zh:(b.zh||'').trim(), en:(b.en||'').trim(), ru:(b.ru||'').trim() } }))
+      .filter(b => b.label.zh || b.label.en || b.label.ru),
+    enabled: true,
+    appendLink: document.getElementById('rmAppendLink').checked
+  };
+  if (editingRule) await API.update(editingRule, d); else await API.create(d);
+  closeModal('ruleModal'); loadRules();
+}
+async function toggleRule(id){ await API.toggle(id); loadRules(); }
+async function deleteRule(id){ if (confirm('确定删除该规则？')) { await API.del(id); loadRules(); } }
+function renderRmBtns(){
+  document.getElementById('rmBtns').innerHTML = rmBtns.map((b,i)=>`
+    <div class="btn-block-row">
+      <div style="flex:1">
+        <div class="tri-row"><span class="lang-chip">中文</span><input class="input" value="${escAttr(b.zh||'')}" onchange="rmBtns[${i}].zh=this.value"></div>
+        <div class="tri-row"><span class="lang-chip">EN</span><input class="input" value="${escAttr(b.en||'')}" onchange="rmBtns[${i}].en=this.value"></div>
+        <div class="tri-row"><span class="lang-chip">RU</span><input class="input" value="${escAttr(b.ru||'')}" onchange="rmBtns[${i}].ru=this.value"></div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="rmBtns.splice(${i},1);renderRmBtns()">×</button>
+    </div>
+  `).join('');
+}
+
+/* ================= 兜底 ================= */
+async function loadFallback(){
+  const fb = await API.getFb();
+  document.getElementById('fbZh').value = fb.reply.zh || '';
+  document.getElementById('fbEn').value = fb.reply.en || '';
+  document.getElementById('fbRu').value = fb.reply.ru || '';
+  document.getElementById('fbAppendLink').checked = fb.appendLink === true;
+  fbBtns = (fb.quickButtons||[]).map(b => ({ ...b.label }));
+  renderFbBtns();
+}
+function renderFbBtns(){
+  document.getElementById('fbBtns').innerHTML = fbBtns.map((b,i)=>`
+    <div class="btn-block-row">
+      <div style="flex:1">
+        <div class="tri-row"><span class="lang-chip">中文</span><input class="input" value="${escAttr(b.zh||'')}" onchange="fbBtns[${i}].zh=this.value"></div>
+        <div class="tri-row"><span class="lang-chip">EN</span><input class="input" value="${escAttr(b.en||'')}" onchange="fbBtns[${i}].en=this.value"></div>
+        <div class="tri-row"><span class="lang-chip">RU</span><input class="input" value="${escAttr(b.ru||'')}" onchange="fbBtns[${i}].ru=this.value"></div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="fbBtns.splice(${i},1);renderFbBtns()">×</button>
+    </div>
+  `).join('');
+}
+async function saveFallback(){
+  await API.saveFb({
+    reply: { zh: val('fbZh'), en: val('fbEn'), ru: val('fbRu') },
+    quickButtons: fbBtns.map(b => ({ label: { zh:(b.zh||'').trim(), en:(b.en||'').trim(), ru:(b.ru||'').trim() } }))
+      .filter(b => b.label.zh || b.label.en || b.label.ru),
+    appendLink: document.getElementById('fbAppendLink').checked
+  });
+  alert('兜底配置已保存');
+}
+
+/* ================= 底部链接模板 ================= */
+async function loadLinkTpl(){
+  const lk = await API.getLink();
+  document.getElementById('lkZh').value = (lk.text && lk.text.zh) || '';
+  document.getElementById('lkEn').value = (lk.text && lk.text.en) || '';
+  document.getElementById('lkRu').value = (lk.text && lk.text.ru) || '';
+  document.getElementById('lkUrl').value = lk.url || '';
+}
+async function saveLinkTpl(){
+  await API.saveLink({
+    text: { zh: val('lkZh'), en: val('lkEn'), ru: val('lkRu') },
+    url: val('lkUrl')
+  });
+  alert('链接模板已保存');
+}
+
+/* ================= 首页引导文字（三语） ================= */
+async function loadGuide(){
+  try {
+    const g = await API.guideGet();
+    const t = (g && g.text) || {};
+    document.getElementById('gdZh').value = t.zh || '';
+    document.getElementById('gdEn').value = t.en || '';
+    document.getElementById('gdRu').value = t.ru || '';
+  } catch(e){}
+}
+async function saveGuide(){
+  await API.guideSave({
+    text: { zh: val('gdZh'), en: val('gdEn'), ru: val('gdRu') }
+  });
+  alert('引导文字已保存，游客端刷新后生效');
+}
+
+/* ================= 输入框占位提示（按在线状态区分，三语） ================= */
+function phVal(id){ return document.getElementById(id).value.trim(); }
+async function loadPh(){
+  try {
+    const p = await API.phGet();
+    const bot = (p && p.bot) || {}, agent = (p && p.agent) || {};
+    document.getElementById('pbZh').value = bot.zh || '';
+    document.getElementById('pbEn').value = bot.en || '';
+    document.getElementById('pbRu').value = bot.ru || '';
+    document.getElementById('paZh').value = agent.zh || '';
+    document.getElementById('paEn').value = agent.en || '';
+    document.getElementById('paRu').value = agent.ru || '';
+  } catch(e){}
+}
+async function savePh(){
+  await API.phSave({
+    bot:   { zh: phVal('pbZh'), en: phVal('pbEn'), ru: phVal('pbRu') },
+    agent: { zh: phVal('paZh'), en: phVal('paEn'), ru: phVal('paRu') }
+  });
+  alert('占位提示已保存，游客端刷新后生效');
+}
+
+/* ================= 输入框快捷按钮（3 个固定槽位，三语） ================= */
+let cbIds = [];   // 各槽位按钮 id（保持槽位与后台顺序稳定）
+async function loadCb(){
+  try {
+    const list = await API.cbGet();
+    for (let i = 0; i < 3; i++){
+      const b = list[i] || { id:null, label:{} };
+      cbIds[i] = b.id || null;
+      document.getElementById('c' + (i+1) + 'Zh').value = (b.label && b.label.zh) || '';
+      document.getElementById('c' + (i+1) + 'En').value = (b.label && b.label.en) || '';
+      document.getElementById('c' + (i+1) + 'Ru').value = (b.label && b.label.ru) || '';
+    }
+  } catch(e){}
+}
+async function saveCb(){
+  const buttons = [];
+  for (let i = 0; i < 3; i++){
+    const label = {
+      zh: document.getElementById('c' + (i+1) + 'Zh').value.trim(),
+      en: document.getElementById('c' + (i+1) + 'En').value.trim(),
+      ru: document.getElementById('c' + (i+1) + 'Ru').value.trim()
+    };
+    buttons.push({ id: cbIds[i] || undefined, keyword: label.zh || label.en || label.ru, label });
+  }
+  await API.cbSave(buttons);
+  alert('输入框快捷按钮已保存，游客端刷新后生效');
+}
+
+/* ================= 用户列表（邮箱注册用户，独立列 · 滚动加载） ================= */
+let users = [];
+let usersShown = 0;                 // 已渲染数量（滚动到底部继续加载）
+const USERS_PAGE = 20;              // 每批渲染数量
+let usersFiltered = [];             // 当前搜索条件下待渲染队列
+async function loadUsers(){
+  if (!adminUnlocked) return;
+  try {
+    const list = await API.usersList();
+    users = Array.isArray(list) ? list : [];
+  } catch(e){ users = []; }
+  renderUsers();
+}
+function userFiltered(){
+  const kw = (document.getElementById('userSearch').value || '').trim().toLowerCase();
+  return kw
+    ? users.filter(u => String(u.nickname||'').toLowerCase().includes(kw) || String(u.email||'').toLowerCase().includes(kw))
+    : users;
+}
+function userItemHtml(u){
+  const time = u.createdAt ? new Date(u.createdAt).toLocaleString() : '';
+  const emailLine = u.email ? `<div class="u-meta">邮箱：${esc(u.email)}</div>` : '';
+  return `<div class="user-item">
+    <div class="u-row"><span class="u-nick">${esc(u.nickname)}</span></div>
+    ${emailLine}
+    <div class="u-meta">注册时间：${esc(time)}</div>
+  </div>`;
+}
+function renderUsers(){
+  const box = document.getElementById('userList');
+  document.getElementById('userCount').textContent = users.length + ' 位';
+  usersFiltered = userFiltered();
+  usersShown = 0;
+  box.innerHTML = '';
+  if (!users.length){ box.innerHTML = '<div class="empty">暂无用户；游客完成注册后自动出现在这里</div>'; return; }
+  if (!usersFiltered.length){ box.innerHTML = '<div class="empty">没有匹配的用户</div>'; return; }
+  appendUsers();
+}
+/* 追加渲染下一批（滚动到底部时继续加载，客户再多也不挤压左列） */
+function appendUsers(){
+  const box = document.getElementById('userList');
+  const next = usersFiltered.slice(usersShown, usersShown + USERS_PAGE);
+  if (!next.length) return;
+  box.insertAdjacentHTML('beforeend', next.map(userItemHtml).join(''));
+  usersShown += next.length;
+}
+document.getElementById('userList').addEventListener('scroll', function(){
+  if (this.scrollTop + this.clientHeight >= this.scrollHeight - 24) appendUsers();
+});
+
+/* ================= 工具 ================= */
+function val(id){ return document.getElementById(id).value.trim(); }
+function show(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+function labelOf(l){ return (l && (l.zh || l.en || l.ru)) || ''; }
+function esc(s){ const d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML; }
+function escAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;'); }
+</script>
+</body>
+</html>

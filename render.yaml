@@ -1,0 +1,28 @@
+# Render 蓝图：把本仓库连接为 Render 免费版 Web 服务即可一键部署
+# 说明：plan=free 使用 Render 免费实例；密钥类变量 sync:false 需在 Render 控制台手动填写。
+services:
+  - type: web
+    name: beisu-visitor
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: RECAPTCHA_VERSION
+        value: "v2"
+      # reCAPTCHA Site Key 为公开信息（前端可见），可直接写入
+      - key: RECAPTCHA_SITE_KEY
+        value: "6Lcl1OstAAAAAPUBWrE4W93mEvrRXvMQoinG6YN3"
+      - key: RESEND_FROM_EMAIL
+        value: "noreply@beisuas.com"
+      - key: RESEND_FROM_NAME
+        value: "Beisu"
+      # 以下为敏感密钥：sync:false 表示不在仓库中保存，需在 Render 控制台填写
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RECAPTCHA_SECRET_KEY
+        sync: false
