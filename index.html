@@ -397,7 +397,23 @@
   .lm-recaptcha{ display:none; margin-top:12px; justify-content:center; }   /* 配置真实 Site Key 后展示（v2 复选框） */
   .lm-or{ display:none; align-items:center; gap:10px; margin:16px 0 12px; font-size:12px; color:#9aa3ad; }
   .lm-or::before, .lm-or::after{ content:''; flex:1; height:1px; background:rgba(20,40,80,.12); }
-  .lm-tg{ display:none; justify-content:center; min-height:0; }   /* 配置 Telegram Bot 后展示官方登录控件 */
+  .lm-tg{ display:none; justify-content:center; min-height:0; margin-top:4px; }   /* 配置 Telegram Bot 后展示（圆形纸飞机图标） */
+  /* 圆形纸飞机按钮：视觉层 */
+  .tg-round-wrap{ position:relative; width:44px; height:44px; }
+  .tg-round{
+    position:absolute; inset:0; border-radius:50%; background:#fff;
+    border:1px solid rgba(20,40,80,.14); box-shadow:0 2px 8px rgba(20,40,80,.08);
+    display:flex; align-items:center; justify-content:center; transition:.15s;
+  }
+  .tg-round svg{ width:21px; height:21px; fill:#2AABEE; display:block; }
+  .tg-round-wrap:hover .tg-round{ border-color:rgba(42,171,238,.55); box-shadow:0 4px 14px rgba(42,171,238,.22); transform:translateY(-1px); }
+  .tg-round-wrap:active .tg-round{ transform:translateY(0) scale(.95); }
+  /* 官方登录控件透明铺满圆形区：视觉上是圆钮，点击命中官方 iframe，授权流程不变 */
+  .tg-hit{ position:absolute; inset:0; display:block; overflow:hidden; border-radius:50%; z-index:2; }
+  .tg-hit iframe{
+    position:absolute !important; left:50% !important; top:50% !important; margin:0 !important;
+    border:0 !important; opacity:0 !important; transform:translate(-50%,-50%) scale(1.6) !important;
+  }
   .lm-demo{ margin-top:10px; font-size:11.5px; color:#c97a10; background:#fdf3e3; border-radius:8px; padding:7px 10px; display:none; word-break:break-all; }
   .lm-demo.show{ display:block; }
   .lm-tabs{ display:flex; gap:8px; margin-top:14px; }
@@ -633,7 +649,14 @@
       <div class="lm-err" id="lgErr"></div>
       <button class="lm-btn primary full" id="lgSubmit" onclick="authLogin()" data-i18n="authLoginBtn">登 录</button>
       <div class="lm-or" id="lgOr" data-i18n="authOr">或</div>
-      <div class="lm-tg" id="tgSlot"></div>
+      <div class="lm-tg" id="tgSlot">
+        <div class="tg-round-wrap" title="Telegram">
+          <span class="tg-round" aria-hidden="true">
+            <svg viewBox="0 0 16 16"><path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471z"/></svg>
+          </span>
+          <span class="tg-hit" id="tgHit"></span>
+        </div>
+      </div>
       <div class="lm-err" id="tgErr"></div>
       <div class="lm-links">
         <a data-i18n="authForgot" onclick="authOpenReset()">忘记密码？</a>
@@ -1229,6 +1252,7 @@ loadAuthConfig();
 function renderTelegramWidget(){
   if (!tgCfg.enabled || !tgCfg.botUsername) return;
   const slot = $('tgSlot'); if (!slot || slot.dataset.rendered) return;
+  const hit = $('tgHit'); if (!hit) return;
   const or = $('lgOr'); if (or) or.style.display = 'flex';
   slot.style.display = 'flex';
   const s = document.createElement('script');
@@ -1236,9 +1260,9 @@ function renderTelegramWidget(){
   s.src = 'https://telegram.org/js/telegram-widget.js?22';
   s.setAttribute('data-telegram-login', tgCfg.botUsername);
   s.setAttribute('data-size', 'large');
-  s.setAttribute('data-radius', '10');
   s.setAttribute('data-onauth', 'onTelegramAuth(user)');
-  slot.appendChild(s);
+  /* 脚本在自己的父容器内注入官方 iframe；该容器被 CSS 透明化并裁成圆形，仅作点击热区 */
+  hit.appendChild(s);
   slot.dataset.rendered = '1';
 }
 window.onTelegramAuth = async function(user){
