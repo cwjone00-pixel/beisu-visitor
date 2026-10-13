@@ -53,8 +53,17 @@ function readLocalSeed(name){
 async function initCloud(uri){
   if (!uri){ console.log('[cloud] 未配置 MONGODB_URI，使用本地 JSON 文件存储'); return; }
   const { MongoClient } = require('mongodb');
-  const client = new MongoClient(uri, { serverSelectionTimeoutMS: 10000 });
-  await client.connect();
+  const connect = () => new MongoClient(uri, { serverSelectionTimeoutMS: 10000 }).connect();
+  let client;
+  try {
+    client = await connect();
+  } catch(e){
+    /* 部分网络的默认 DNS 无法解析 SRV 记录（querySrv ETIMEOUT）：退回公共 DNS 重试一次 */
+    if (!/querySrv|ETIMEOUT|ENOTFOUND|ESERVFAIL|EAI_AGAIN/i.test(String(e && e.message))) throw e;
+    console.log('[cloud] 默认 DNS 无法解析 SRV，改用公共 DNS 重试…');
+    try { require('dns').setServers(['8.8.8.8', '1.1.1.1']); } catch(_){}
+    client = await connect();
+  }
   cloud.col = client.db(process.env.MONGODB_DB || 'beisu').collection('singleton');
   for (const name of CLOUD_DOCS){
     const doc = await cloud.col.findOne({ _id:name });
