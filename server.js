@@ -22,6 +22,8 @@ const crypto = require('crypto');
 const PORT = process.env.PORT || 3210;
 const ROOT = __dirname;
 const DATA_FILE = path.join(ROOT, 'data', 'rules.json');
+/* 邮件里激活链接的对外基础地址：固定为线上域名，避免本地联调时邮件指向 localhost；可用环境变量 PUBLIC_BASE_URL 覆盖 */
+const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || 'https://beisu-visitor.onrender.com').trim().replace(/\/+$/, '');
 
 /* ---------------- 云存储（MongoDB Atlas 免费集群） ----------------
    配置 MONGODB_URI（环境变量或 secrets.json 的 mongo.uri）后，
@@ -822,10 +824,8 @@ const server = http.createServer(async (req, res) => {
       status:'pending', activateToken: token, activateExpires: Date.now() + ACTIVATE_TTL });
     if (!prev) loadUsers().users.push(user);
     saveUsers();
-    /* 生成激活链接：优先使用反向代理透传的协议头（Render 等平台为 https） */
-    const proto = String(req.headers['x-forwarded-proto'] || '').split(',')[0].trim() || 'http';
-    const origin = proto + '://' + (req.headers.host || ('localhost:' + PORT));
-    const link = origin + '/api/auth/activate?token=' + token;
+    /* 生成激活链接：前缀统一使用对外域名（PUBLIC_BASE_URL），确保线上邮件可直接打开 */
+    const link = PUBLIC_BASE_URL + '/api/auth/activate?token=' + token;
     let out;
     try { out = await sendActivationEmail(email, link); }
     catch(e){
