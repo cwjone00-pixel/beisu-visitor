@@ -677,15 +677,36 @@ function telegramNickname(v){
 const TG_STATES = new Map();          // 一次性 state → { createdAt, bindUserId }
 const TG_STATE_TTL = 10 * 60 * 1000;
 let TG_BOT_ID = '';                    // getMe 结果缓存（进程内）
+let TG_BOT_ID_PENDING = null;          // 并发首次请求复用同一次 getMe，避免重复外网调用
+function tgGetMe(token, timeout){
+  return new Promise((resolve, reject) => {
+    const req = https.get('https://api.telegram.org/bot' + token + '/getMe', { timeout: timeout || 15000 }, r => {
+      let d = '';
+      r.on('data', c => d += c);
+      r.on('end', () => resolve(d));
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+  });
+}
 async function tgBotId(){
   if (TG_BOT_ID) return TG_BOT_ID;
-  const g = loadSecrets().telegram;
-  if (!g.botToken) return '';
-  try {
-    const j = JSON.parse(await trFetch('https://api.telegram.org/bot' + g.botToken + '/getMe'));
-    if (j && j.ok && j.result && j.result.id) TG_BOT_ID = String(j.result.id);
-  } catch(e){ console.error('[Telegram] getMe 失败:', e.message); }
-  return TG_BOT_ID;
+  if (TG_BOT_ID_PENDING) return TG_BOT_ID_PENDING;
+  TG_BOT_ID_PENDING = (async () => {
+    const g = loadSecrets().telegram;
+    if (!g.botToken) return '';
+    /* 冷启动（Render 免费实例休眠后唤醒）时首次外网调用可能超时，故给足 15s 并重试一次 */
+    for (let i = 0; i < 2 && !TG_BOT_ID; i++){
+      try {
+        const j = JSON.parse(await tgGetMe(g.botToken, 15000));
+        if (j && j.ok && j.result && j.result.id) TG_BOT_ID = String(j.result.id);
+      } catch(e){ console.error('[Telegram] getMe 失败(' + (i+1) + '/2):', e.message); }
+    }
+    return TG_BOT_ID;
+  })();
+  const id = await TG_BOT_ID_PENDING;
+  TG_BOT_ID_PENDING = null;
+  return id;
 }
 
 /* ---------------- 第三方账号绑定 ----------------
@@ -1392,6 +1413,7 @@ setInterval(sweepSessions, 2000);
   try { await initCloud(loadSecrets().mongo.uri); }
   catch(e){ console.error('[cloud] 初始化失败，回退本地 JSON 文件存储:', e.message); }
   ensureDataFile();
+  tgBotId().catch(() => {});   // 启动即预热 Telegram Bot ID，避免用户首次点击时等待外网请求
   server.listen(PORT, () => {
     console.log(`[beisu-visitor] server running at http://localhost:${PORT}`);
     console.log(`  游客前端: http://localhost:${PORT}/`);
