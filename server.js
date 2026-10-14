@@ -995,10 +995,6 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(302, { 'Location': 'https://oauth.telegram.org/auth?' + qs });
     return res.end();
   }
-  /* ---- Telegram 快捷登录：校验控件回调签名 → 按 Telegram ID 建/取访客账号 → 返回会话 ----
-     Telegram 不提供邮箱，故此类账号 email 为空、注册即激活（status=active），
-     以 telegramId 唯一标识；重复登录复用同一账号与其历史会话。
-     带 state 时（来自 /api/auth/telegram/start 的绑定意图）不新建账号，而是把该 Telegram 身份绑定到指定账号。 */
   /* ---- Telegram 回跳现场诊断（临时排障用，排障结束后移除）----
      前端在回跳时把原始 URL 等上报到这里留痕；GET 可取回最近若干条，便于定位
      “回跳后到底带了哪些参数 / 前端解析成了什么”。 */
@@ -1013,6 +1009,10 @@ const server = http.createServer(async (req, res) => {
     try { lines = fs.readFileSync(D, 'utf8').trim().split('\n').slice(-20); } catch(e){}
     return send(res, 200, { ok:true, lines });
   }
+  /* ---- Telegram 快捷登录：校验控件回调签名 → 按 Telegram ID 建/取访客账号 → 返回会话 ----
+     Telegram 不提供邮箱，故此类账号 email 为空、注册即激活（status=active），
+     以 telegramId 唯一标识；重复登录复用同一账号与其历史会话。
+     带 state 时（来自 /api/auth/telegram/start 的绑定意图）不新建账号，而是把该 Telegram 身份绑定到指定账号。 */
   if (p === '/api/auth/telegram' && req.method === 'POST'){
     const body = await readBody(req);
     const v = verifyTelegramAuth(body.user);
