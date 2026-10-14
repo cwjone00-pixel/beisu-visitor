@@ -1299,30 +1299,35 @@ async function refreshLinks(){
   } catch(e){}
 }
 /* Telegram 授权回跳：return_to 为 /tg/<state>（路径承载 state，不带查询串），
-   Telegram 会在其后追加签名参数——分隔符可能是 &（正常）、?（与查询串冲突）或 #（片段）。
-   这里兼容三种写法取出 id/hash 等字段交给后端校验，随后清理地址栏。 */
+   Telegram **服务端**会在 return_to 之后追加签名参数，分隔符可能是 ?（无查询串时）、
+   &（拼在路径/查询串后）或 #（片段）。这里把「pathname 去掉 /tg/<state> 后的尾巴 +
+   search + hash」三处来源合并、把 ? 与 # 统一换成 & 后解析，任何追加写法都能取到全部字段；
+   并把除已知非签名字段外的**所有**参数原样转发（不再用白名单，避免漏字段导致 hash 对不上）。
+   同时把回跳原始 URL 上报服务端留痕，便于线上排障（失败不影响主流程）。 */
 async function handleTelegramRedirect(){
   const search = new URLSearchParams(location.search);
-  const pathState = (location.pathname.match(/^\/tg\/([0-9a-f]{16,})/i) || [])[1] || '';
-  if (!pathState && !search.has('tg')) return;
-  const state = pathState || search.get('s') || '';
-  /* 先按原样解析；若取不到 id+hash，再把 ? / # 统一成 & 重解析，保证三种追加写法都能取到 */
-  let src = search;
-  if (!(src.has('id') && src.has('hash'))){
-    const alt = new URLSearchParams((location.search + '&' + location.hash.replace(/^#/, ''))
-      .replace(/^[?#]/, '').replace(/[?#]/g, '&'));
-    if (alt.has('id') && alt.has('hash')) src = alt;
-  }
+  const m = location.pathname.match(/^\/tg\/([0-9a-f]{16,})/i);
+  if (!m && !search.has('tg')) return;
+  const state = (m ? m[1] : '') || search.get('s') || '';
+  const tail = m ? location.pathname.slice(m[0].length) : '';   // state 之后可能是 &id=..&hash=..
+  const src = new URLSearchParams(
+    (tail + '&' + location.search.replace(/^\?/, '') + '&' + location.hash.replace(/^#/, ''))
+      .replace(/[?#]/g, '&'));
+  /* 排除已知非签名字段（我们自己注入的），其余原样转发给后端验签 */
+  const SKIP = { state:1, tg:1, s:1, activated:1 };
   const user = {};
-  ['id','first_name','last_name','username','photo_url','auth_date','hash'].forEach(k => {
-    if (src.has(k)) user[k] = src.get(k);
-  });
+  src.forEach((v, k) => { if (!SKIP[k]) user[k] = v; });
+  /* 回跳现场留痕：原始 URL + 各段解析结果（诊断用，接口失败也不阻塞登录） */
+  try { fetch('/api/auth/tgdiag', { method:'POST', headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ raw: location.href, pathname: location.pathname, tail: tail,
+      search: location.search, hash: location.hash, state: state, keys: Object.keys(user) }) }); } catch(e){}
+  /* 解析失败：保留地址栏原始 URL 便于排查，不改写 URL */
+  if (!user.id || !user.hash){ toast(dict().tgLoginFail); return; }
   /* 清理地址栏：去掉 /tg/<state> 与授权参数，仅保留邮件激活标记 */
   const keep = new URLSearchParams();
   if (search.has('activated')) keep.set('activated', search.get('activated'));
   const qs = keep.toString();
   try { history.replaceState(null, '', '/' + (qs ? '?' + qs : '')); } catch(e){}
-  if (!user.id || !user.hash){ toast(dict().tgLoginFail); return; }
   try {
     const res = await fetch('/api/auth/telegram', { method:'POST', headers:{ 'Content-Type':'application/json' },
       body: JSON.stringify({ user, sessionId, lang, state }) });

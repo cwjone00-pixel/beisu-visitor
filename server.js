@@ -762,7 +762,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
       p === '/api/auth/activate' || p === '/api/auth/telegram' || p === '/api/auth/telegram/start' ||
-      p === '/api/auth/bind/telegram' || p === '/api/auth/links' ||
+      p === '/api/auth/bind/telegram' || p === '/api/auth/links' || p === '/api/auth/tgdiag' ||
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
@@ -999,6 +999,20 @@ const server = http.createServer(async (req, res) => {
      Telegram 不提供邮箱，故此类账号 email 为空、注册即激活（status=active），
      以 telegramId 唯一标识；重复登录复用同一账号与其历史会话。
      带 state 时（来自 /api/auth/telegram/start 的绑定意图）不新建账号，而是把该 Telegram 身份绑定到指定账号。 */
+  /* ---- Telegram 回跳现场诊断（临时排障用，排障结束后移除）----
+     前端在回跳时把原始 URL 等上报到这里留痕；GET 可取回最近若干条，便于定位
+     “回跳后到底带了哪些参数 / 前端解析成了什么”。 */
+  if (p === '/api/auth/tgdiag'){
+    const D = path.join(ROOT, 'data', 'tgdiag.log');
+    if (req.method === 'POST'){
+      const b = await readBody(req);
+      try { fs.mkdirSync(path.dirname(D), { recursive: true }); fs.appendFileSync(D, JSON.stringify(Object.assign({ t: Date.now() }, b)) + '\n'); } catch(e){}
+      return send(res, 200, { ok:true });
+    }
+    let lines = [];
+    try { lines = fs.readFileSync(D, 'utf8').trim().split('\n').slice(-20); } catch(e){}
+    return send(res, 200, { ok:true, lines });
+  }
   if (p === '/api/auth/telegram' && req.method === 'POST'){
     const body = await readBody(req);
     const v = verifyTelegramAuth(body.user);
