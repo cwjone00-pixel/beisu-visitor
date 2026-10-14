@@ -314,26 +314,6 @@ function trFetch(url){
     req.on('error', reject);
   });
 }
-/* 表单 POST（application/x-www-form-urlencoded），返回原始响应字符串。
-   Yandex 换取 access_token 的 /token 接口要求 body 传参的表单请求（取用户资料另走带 Authorization 头的 GET）。 */
-function trPostForm(url, params, timeout){
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const body = params.toString();
-    const req = https.request({
-      hostname: u.hostname, path: u.pathname + u.search, method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Content-Length': Buffer.byteLength(body) },
-      timeout: timeout || 8000
-    }, r => {
-      let d = '';
-      r.on('data', c => d += c);
-      r.on('end', () => resolve(d));
-    });
-    req.on('timeout', () => req.destroy(new Error('timeout')));
-    req.on('error', reject);
-    req.write(body); req.end();
-  });
-}
 /* translateText(text, 'zh-CN'|'en'|'ru') → 译文；失败返回 null（调用方按原文处理） */
 async function translateText(text, to){
   text = String(text || '').trim();
@@ -542,7 +522,6 @@ const SECRETS_TEMPLATE = {
   resend:    { apiKey: '', fromEmail: '', fromName: 'Beisu' },
   recaptcha: { version: 'v2', siteKey: '', secretKey: '' },
   telegram:  { botUsername: '', botToken: '' },   // Telegram 登录：botUsername 公开（前端控件用），botToken 仅后端校验用
-  yandex:    { clientId: '', clientSecret: '' },   // Yandex ID 登录：clientId 走授权跳转，clientSecret 仅后端换 token 用
   mongo:     { uri: '' }
 };
 function ensureSecretsFile(){
@@ -564,8 +543,6 @@ function loadSecrets(){
     recaptcha: { version: (str(s.recaptcha, 'version') || str(env, 'RECAPTCHA_VERSION')) === 'v3' ? 'v3' : 'v2',
                  siteKey: pick(str(s.recaptcha, 'siteKey'), 'RECAPTCHA_SITE_KEY'), secretKey: pick(str(s.recaptcha, 'secretKey'), 'RECAPTCHA_SECRET_KEY') },
     telegram:  { botUsername: pick(str(s.telegram, 'botUsername'), 'TELEGRAM_BOT_USERNAME'), botToken: pick(str(s.telegram, 'botToken'), 'TELEGRAM_BOT_TOKEN') },
-    yandex:    { clientId: pick(str(s.yandex, 'clientId'), 'YANDEX_CLIENT_ID'),
-                 clientSecret: pick(str(s.yandex, 'clientSecret'), 'YANDEX_CLIENT_SECRET') },
     mongo:     { uri: pick(str(s.mongo, 'uri'), 'MONGODB_URI') }
   };
 }
@@ -693,54 +670,31 @@ function telegramNickname(v){
   return nick.slice(0, 24);
 }
 
-/* ---------------- Yandex ID 网页登录 ----------------
-   Yandex 标准 OAuth 2.0 授权码流程（与 Telegram 的控件回调不同，需要浏览器跳转往返）：
-     1. 前端点击圆形 Yandex 图标 → 跳转 /api/auth/yandex/start
-     2. 服务端生成一次性 state，302 到 Yandex 授权页
-     3. Yandex 回跳 /api/auth/yandex/callback?code&state
-     4. 服务端用 code 换 access_token（clientSecret 仅后端使用，绝不下发前端），
-        再调 login.yandex.ru/info 取用户 ID / 姓名 / 头像 / 邮箱
-     5. 未登录 → 按 yandexId 建/取访客账号；已登录（绑定意图）→ 把 yandexId 绑到当前账号
-     6. 生成一次性握手串 → 302 回前端 /?ya=1&h=...，前端凭握手串取回结果完成登录/绑定
-        （账号信息不直接拼进地址栏，避免泄露与历史记录残留）
-   Yandex 身份以独立字段 yandexId 存储，与 telegramId 互不影响。 */
-const YD_TTL = 10 * 60 * 1000;       // state / 握手串有效期
-const YD_STATES = new Map();          // state → { createdAt, bindUserId }
-const YD_HANDSHAKES = new Map();      // 一次性握手串 → { user, bound, createdAt }
-const YD_AUTH_BASE = 'https://oauth.yandex.ru';
-function ydRedirectUri(){ return PUBLIC_BASE_URL + '/api/auth/yandex/callback'; }
-/* 带请求头的 GET（Yandex 取用户资料需 Authorization: OAuth <token>），返回原始响应字符串 */
-function ydGetJson(url, headers){
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'GET',
-      headers: headers || {}, timeout: 8000 }, r => {
-      let d = '';
-      r.on('data', c => d += c);
-      r.on('end', () => resolve(d));
-    });
-    req.on('timeout', () => req.destroy(new Error('timeout')));
-    req.on('error', reject);
-    req.end();
-  });
-}
-/* Yandex 头像：default_avatar_id 非空时拼成可直接访问的图片地址 */
-function ydAvatar(id){ const a = String(id || '').trim(); return a ? 'https://avatars.yandex.net/get-yapic/' + a + '/islands-200' : ''; }
-/* Yandex 昵称：优先「名 姓」，其次登录名，最后回退 YA+ID；与站内已用昵称冲突时自动加序号 */
-function ydNickname(first, last, login, id){
-  const base = ([String(first || '').trim(), String(last || '').trim()].filter(Boolean).join(' ') || String(login || '').trim() || ('YA' + id)).slice(0, 20);
-  let nick = base;
-  for (let i = 2; nicknameTaken(nick) && i < 1000; i++) nick = base + ' ' + i;
-  return nick.slice(0, 24);
+/* Telegram 登录采用「官方跳转授权」方式（不用可被第三方 Cookie 拦截 / 样式不可控的 iframe 控件）：
+   前端点击圆形按钮 → GET /api/auth/telegram/start → 302 到 oauth.telegram.org/auth
+   → 用户确认后 Telegram 带签名参数回跳本站 → 前端 POST /api/auth/telegram 完成登录。
+   Bot 数字 ID 由 Bot Token 调 getMe 取得并缓存，不写死在前端。 */
+const TG_STATES = new Map();          // 一次性 state → { createdAt, bindUserId }
+const TG_STATE_TTL = 10 * 60 * 1000;
+let TG_BOT_ID = '';                    // getMe 结果缓存（进程内）
+async function tgBotId(){
+  if (TG_BOT_ID) return TG_BOT_ID;
+  const g = loadSecrets().telegram;
+  if (!g.botToken) return '';
+  try {
+    const j = JSON.parse(await trFetch('https://api.telegram.org/bot' + g.botToken + '/getMe'));
+    if (j && j.ok && j.result && j.result.id) TG_BOT_ID = String(j.result.id);
+  } catch(e){ console.error('[Telegram] getMe 失败:', e.message); }
+  return TG_BOT_ID;
 }
 
 /* ---------------- 第三方账号绑定 ----------------
-   Telegram 与 Yandex 是两套彼此独立的授权流程，绑定的作用只是「把第三方身份写到同一个站点用户 ID 上」：
-   · 未登录时使用第三方登录 → 按第三方 ID 建/取账号（各自独立，互不影响）
-   · 已登录时使用第三方授权 → 把该第三方身份绑定到当前账号，之后任一方登录都进入同一账号
+   绑定的作用只是「把 Telegram 身份写到同一个站点用户 ID 上」：
+   · 未登录时使用 Telegram 登录 → 按 telegramId 建/取账号
+   · 已登录时使用 Telegram 授权 → 把该 Telegram 身份绑定到当前账号，之后任一方登录都进入同一账号
    归属证明：访客账号没有独立登录态，用「用户 ID + 会话 ID」配对校验操作者身份
    （会话 ID 是该账号浏览器本地持有的不可猜字符串，等同现有会话凭证）。 */
-const PROVIDER_FIELDS = { telegram: { id:'telegramId', name:'telegramName' }, yandex: { id:'yandexId', name:'yandexName' } };
+const PROVIDER_FIELDS = { telegram: { id:'telegramId', name:'telegramName' } };
 function userById(id){ return loadUsers().users.find(x => String(x.id || '') === String(id || '')) || null; }
 function userByCreds(uid, sid){
   const u = userById(uid);
@@ -751,7 +705,7 @@ function userByCreds(uid, sid){
 function publicUser(u){
   return { id:u.id, email:u.email || '', nickname:u.nickname, sessionId:u.sessionId,
            createdAt:u.createdAt, provider:u.provider || 'email',
-           bound: { telegram: !!u.telegramId, yandex: !!u.yandexId } };
+           bound: { telegram: !!u.telegramId } };
 }
 /* 把第三方身份写入目标账号；若该身份原先挂在别的账号上则先摘除
    （授权者本人即可证明该第三方身份的归属，故允许迁移，不会造成越权） */
@@ -786,9 +740,8 @@ const server = http.createServer(async (req, res) => {
       p === '/api/config' || p === '/api/match' ||
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
-      p === '/api/auth/activate' || p === '/api/auth/telegram' ||
+      p === '/api/auth/activate' || p === '/api/auth/telegram' || p === '/api/auth/telegram/start' ||
       p === '/api/auth/bind/telegram' || p === '/api/auth/links' ||
-      p === '/api/auth/yandex/start' || p === '/api/auth/yandex/callback' || p === '/api/auth/yandex/claim' ||
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
@@ -884,8 +837,7 @@ const server = http.createServer(async (req, res) => {
       recaptchaEnabled: !!r.siteKey,   // 未配置 → 前端使用模拟勾选框
       emailMode: emailLive() ? 'live' : 'demo',    // demo 时验证码回显前端，便于联调
       telegramEnabled: !!(tg.botUsername && tg.botToken),   // 两者齐备才展示 Telegram 登录控件
-      telegramBotUsername: tg.botUsername,                   // 公开：前端控件 data-telegram-login 使用
-      yandexEnabled: !!(sec.yandex.clientId && sec.yandex.clientSecret)   // 两者齐备才展示 Yandex 登录入口（clientId/clientSecret 均不下发）
+      telegramBotUsername: tg.botUsername                    // 公开：前端控件 data-telegram-login 使用
     });
   }
   /* ---- 访客账号：预校验（邮箱 格式与唯一性、昵称唯一） ---- */
@@ -1000,13 +952,46 @@ const server = http.createServer(async (req, res) => {
     u.sessionId = sid; saveUsers();
     return send(res, 200, { ok:true, user: { id:u.id, email:u.email, nickname:u.nickname, sessionId:sid, createdAt:u.createdAt } });
   }
+  /* ---- Telegram 快捷登录（发起）：302 到 Telegram 官方授权页 ----
+     带 bind=1&uid&sid 表示「把 Telegram 身份绑定到当前已登录账号」，凭据非法直接拒绝。
+     回跳地址固定为本站根路径，Telegram 会把签名参数追加其后（前端据此完成登录/绑定）。 */
+  if (p === '/api/auth/telegram/start' && req.method === 'GET'){
+    const botId = await tgBotId();
+    if (!botId) return send(res, 503, 'Telegram 登录未配置');
+    let bindUserId = '';
+    if (url.searchParams.get('bind') === '1'){
+      const tgt = userByCreds(url.searchParams.get('uid'), url.searchParams.get('sid'));
+      if (!tgt) return send(res, 401, '登录态已失效，请重新登录后再绑定');
+      bindUserId = tgt.id;
+    }
+    const state = crypto.randomBytes(16).toString('hex');
+    TG_STATES.set(state, { createdAt: Date.now(), bindUserId });
+    TG_STATES.forEach((rec, k) => { if (Date.now() - rec.createdAt > TG_STATE_TTL) TG_STATES.delete(k); });
+    const returnTo = PUBLIC_BASE_URL + '/?tg=1&s=' + state;
+    const qs = new URLSearchParams({ bot_id: botId, origin: PUBLIC_BASE_URL, return_to: returnTo }).toString();
+    res.writeHead(302, { 'Location': 'https://oauth.telegram.org/auth?' + qs });
+    return res.end();
+  }
   /* ---- Telegram 快捷登录：校验控件回调签名 → 按 Telegram ID 建/取访客账号 → 返回会话 ----
      Telegram 不提供邮箱，故此类账号 email 为空、注册即激活（status=active），
-     以 telegramId 唯一标识；重复登录复用同一账号与其历史会话。 */
+     以 telegramId 唯一标识；重复登录复用同一账号与其历史会话。
+     带 state 时（来自 /api/auth/telegram/start 的绑定意图）不新建账号，而是把该 Telegram 身份绑定到指定账号。 */
   if (p === '/api/auth/telegram' && req.method === 'POST'){
     const body = await readBody(req);
     const v = verifyTelegramAuth(body.user);
     if (!v.ok) return send(res, 401, { ok:false, error: v.error || 'Telegram 登录失败' });
+    /* 绑定意图：state 经服务端一次性映射到目标账号，避免把 uid/sid 暴露在回跳地址里 */
+    const st = body.state ? TG_STATES.get(String(body.state)) : null;
+    if (body.state) TG_STATES.delete(String(body.state));
+    if (st && Date.now() - st.createdAt <= TG_STATE_TTL && st.bindUserId){
+      const tgt = userById(st.bindUserId);
+      if (!tgt) return send(res, 401, { ok:false, error:'登录态已失效，请重新登录后再绑定' });
+      if (v.username) tgt.telegramUsername = v.username;
+      const name = [v.first, v.last].filter(Boolean).join(' ') || v.username || ('TG' + v.id);
+      linkThirdParty(tgt, 'telegram', v.id, { name, photo: v.photo });
+      console.log('[Telegram] 绑定成功: ' + v.id + ' → 用户 ' + tgt.id);
+      return send(res, 200, { ok:true, bound:true, user: publicUser(tgt) });
+    }
     const users = loadUsers().users;
     let u = users.find(x => String(x.telegramId || '') === v.id);
     if (!u){
@@ -1041,98 +1026,7 @@ const server = http.createServer(async (req, res) => {
     const u = userByCreds(url.searchParams.get('uid'), url.searchParams.get('sid'));
     if (!u) return send(res, 401, { ok:false, error:'登录态已失效，请重新登录' });
     return send(res, 200, { ok:true,
-      telegram: { bound: !!u.telegramId, name: u.telegramName || '' },
-      yandex:   { bound: !!u.yandexId, name: u.yandexName || '' } });
-  }
-  /* ---- Yandex ID 快捷登录（1/3）：生成一次性 state → 跳转 Yandex 授权页 ----
-     带 bind=1&uid&sid 表示「绑定到当前已登录账号」，否则为普通登录。
-     不显式传 scope：使用应用后台已开通的默认权限（显式请求未开通的 scope 会报 invalid_scope）。 */
-  if (p === '/api/auth/yandex/start' && req.method === 'GET'){
-    const ya = loadSecrets().yandex;
-    if (!(ya.clientId && ya.clientSecret)) return send(res, 503, 'Yandex 登录未配置');
-    let bindUserId = '';
-    if (url.searchParams.get('bind') === '1'){
-      const tgt = userByCreds(url.searchParams.get('uid'), url.searchParams.get('sid'));
-      if (!tgt) return send(res, 401, '登录态已失效，请重新登录后再绑定');
-      bindUserId = tgt.id;
-    }
-    const state = crypto.randomBytes(16).toString('hex');
-    YD_STATES.set(state, { createdAt: Date.now(), bindUserId });
-    YD_STATES.forEach((rec, k) => { if (Date.now() - rec.createdAt > YD_TTL) YD_STATES.delete(k); });
-    YD_HANDSHAKES.forEach((rec, k) => { if (Date.now() - rec.createdAt > YD_TTL) YD_HANDSHAKES.delete(k); });
-    const qs = new URLSearchParams({
-      response_type: 'code',
-      client_id: ya.clientId,
-      redirect_uri: ydRedirectUri(),
-      state
-    }).toString();
-    res.writeHead(302, { 'Location': YD_AUTH_BASE + '/authorize?' + qs });
-    return res.end();
-  }
-  /* ---- Yandex ID 快捷登录（2/3）：授权回跳 → 换 token 取资料 → 建号/绑定 → 回前端 ---- */
-  if (p === '/api/auth/yandex/callback' && req.method === 'GET'){
-    const code = url.searchParams.get('code') || '';
-    const state = url.searchParams.get('state') || '';
-    const errParam = url.searchParams.get('error') || '';
-    const back = query => { res.writeHead(302, { 'Location': '/?' + query }); return res.end(); };
-    const rec = state ? YD_STATES.get(state) : null;
-    if (rec) YD_STATES.delete(state);            // state 一次性，防止重放
-    if (!rec || Date.now() - rec.createdAt > YD_TTL){ console.error('[Yandex] state 无效或已过期'); return back('ya=0'); }
-    if (!code){ console.error('[Yandex] 用户未授权或取消授权' + (errParam ? '：' + errParam : '')); return back('ya=0'); }
-    const ya = loadSecrets().yandex;
-    /* 换 token：client_id / client_secret 走表单 body（也可用 Basic Auth，这里统一表单） */
-    let tokRaw = '', tok = null;
-    try {
-      tokRaw = await trPostForm(YD_AUTH_BASE + '/token', new URLSearchParams({
-        grant_type: 'authorization_code', code,
-        client_id: ya.clientId, client_secret: ya.clientSecret, redirect_uri: ydRedirectUri() }));
-      tok = JSON.parse(tokRaw);
-    } catch(e){ console.error('[Yandex] 换取 access_token 失败:', e.message); return back('ya=0'); }
-    if (!tok || !tok.access_token){ console.error('[Yandex] 换取 access_token 失败:', String(tokRaw).slice(0, 300)); return back('ya=0'); }
-    /* 取用户资料：token 用 Authorization: OAuth <token>；id 为账号唯一标识，取不到则无法建号 */
-    let prof = {};
-    try {
-      const profRaw = await ydGetJson('https://login.yandex.ru/info?format=json', { 'Authorization': 'OAuth ' + tok.access_token });
-      prof = JSON.parse(profRaw) || {};
-    } catch(e){ console.error('[Yandex] 获取用户资料失败:', e.message); return back('ya=0'); }
-    const yandexId = String(prof.id || '').trim();
-    if (!yandexId){ console.error('[Yandex] 未取得用户 ID：' + JSON.stringify(prof).slice(0, 300)); return back('ya=0'); }
-    const name = [prof.first_name, prof.last_name].filter(Boolean).join(' ') || prof.display_name || prof.login || ('YA' + yandexId);
-    const photo = prof.is_avatar_empty ? '' : ydAvatar(prof.default_avatar_id);   // 头像为空时用占位图会被拒，故留空
-    const users = loadUsers().users;
-    let u = null, bound = false;
-    if (rec.bindUserId){
-      u = userById(rec.bindUserId);
-      if (!u){ console.error('[Yandex] 绑定目标账号不存在'); return back('ya=0'); }
-      linkThirdParty(u, 'yandex', yandexId, { name, photo });
-      bound = true;
-      console.log('[Yandex] 绑定成功: ' + yandexId + ' → 用户 ' + u.id);
-    } else {
-      u = users.find(x => String(x.yandexId || '') === yandexId);
-      if (!u){
-        u = { id: crypto.randomUUID(), createdAt: Date.now(), provider:'yandex', yandexId, nickname: ydNickname(prof.first_name, prof.last_name, prof.login, yandexId), status:'active', sessionId: crypto.randomUUID() };
-        users.push(u);
-      }
-      u.yandexId = yandexId;
-      u.provider = 'yandex';
-      u.yandexName = name;
-      if (photo) u.photoUrl = photo;
-      u.status = 'active';                      // 已完成 Yandex 身份验证，无需邮箱激活
-      u.sessionId = u.sessionId || crypto.randomUUID();
-      saveUsers();
-      console.log('[Yandex] 登录成功: ' + u.nickname + '（' + yandexId + '）');
-    }
-    const handshake = crypto.randomBytes(24).toString('hex');
-    YD_HANDSHAKES.set(handshake, { createdAt: Date.now(), bound, user: publicUser(u) });
-    return back('ya=1&h=' + handshake);
-  }
-  /* ---- Yandex ID 快捷登录（3/3）：前端凭一次性握手串取回结果，随后清理地址栏 ---- */
-  if (p === '/api/auth/yandex/claim' && req.method === 'GET'){
-    const handshake = url.searchParams.get('h') || '';
-    const rec = handshake ? YD_HANDSHAKES.get(handshake) : null;
-    if (rec) YD_HANDSHAKES.delete(handshake);   // 一次性，取回即失效
-    if (!rec || Date.now() - rec.createdAt > YD_TTL) return send(res, 400, { ok:false, error:'登录凭据无效或已过期，请重新登录' });
-    return send(res, 200, { ok:true, bound: rec.bound, user: rec.user });
+      telegram: { bound: !!u.telegramId, name: u.telegramName || '' } });
   }
   /* ---- 忘记密码：邮箱验证码核验 → 重设密码 ---- */
   if (p === '/api/auth/reset' && req.method === 'POST'){
