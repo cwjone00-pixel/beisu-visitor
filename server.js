@@ -315,7 +315,7 @@ function trFetch(url){
   });
 }
 /* 表单 POST（application/x-www-form-urlencoded），返回原始响应字符串。
-   VK ID 的换 token / 取用户资料接口只接受 body 传参的表单请求（不接受 header / JSON）。 */
+   Yandex 换取 access_token 的 /token 接口要求 body 传参的表单请求（取用户资料另走带 Authorization 头的 GET）。 */
 function trPostForm(url, params, timeout){
   return new Promise((resolve, reject) => {
     const u = new URL(url);
@@ -542,7 +542,7 @@ const SECRETS_TEMPLATE = {
   resend:    { apiKey: '', fromEmail: '', fromName: 'Beisu' },
   recaptcha: { version: 'v2', siteKey: '', secretKey: '' },
   telegram:  { botUsername: '', botToken: '' },   // Telegram 登录：botUsername 公开（前端控件用），botToken 仅后端校验用
-  vk:        { clientId: '', clientSecret: '', idBase: '' },   // VK ID 登录：clientId 走授权跳转，clientSecret 仅后端换 token 用；idBase 可选覆盖 VK ID 接口域名
+  yandex:    { clientId: '', clientSecret: '' },   // Yandex ID 登录：clientId 走授权跳转，clientSecret 仅后端换 token 用
   mongo:     { uri: '' }
 };
 function ensureSecretsFile(){
@@ -564,9 +564,8 @@ function loadSecrets(){
     recaptcha: { version: (str(s.recaptcha, 'version') || str(env, 'RECAPTCHA_VERSION')) === 'v3' ? 'v3' : 'v2',
                  siteKey: pick(str(s.recaptcha, 'siteKey'), 'RECAPTCHA_SITE_KEY'), secretKey: pick(str(s.recaptcha, 'secretKey'), 'RECAPTCHA_SECRET_KEY') },
     telegram:  { botUsername: pick(str(s.telegram, 'botUsername'), 'TELEGRAM_BOT_USERNAME'), botToken: pick(str(s.telegram, 'botToken'), 'TELEGRAM_BOT_TOKEN') },
-    vk:        { clientId: pick(str(s.vk, 'clientId'), 'VK_CLIENT_ID'),
-                 clientSecret: pick(str(s.vk, 'clientSecret'), 'VK_CLIENT_SECRET'),
-                 idBase: pick(str(s.vk, 'idBase'), 'VK_ID_BASE') || 'https://id.vk.com' },
+    yandex:    { clientId: pick(str(s.yandex, 'clientId'), 'YANDEX_CLIENT_ID'),
+                 clientSecret: pick(str(s.yandex, 'clientSecret'), 'YANDEX_CLIENT_SECRET') },
     mongo:     { uri: pick(str(s.mongo, 'uri'), 'MONGODB_URI') }
   };
 }
@@ -694,36 +693,54 @@ function telegramNickname(v){
   return nick.slice(0, 24);
 }
 
-/* ---------------- VK ID 网页登录 ----------------
-   VK ID 授权码流程 + PKCE（与 Telegram 的控件回调不同，需要浏览器跳转往返）：
-     1. 前端点击圆形 VK 图标 → 跳转 /api/auth/vk/start
-     2. 服务端生成一次性 state 与 PKCE code_verifier（保存在内存），302 到 VK ID 授权页
-     3. VK ID 回跳 /api/auth/vk/callback?code&state&device_id
-     4. 服务端用 code + code_verifier + device_id 换 access_token（clientSecret 仅后端使用），
-        再调 user_info 取昵称与头像；只取基础资料（默认 vkid.personal_info），不申请邮箱/手机
-     5. 未登录 → 按 vkId 建/取访客账号；已登录（绑定意图）→ 把 vkId 绑到当前账号
-     6. 生成一次性握手串 → 302 回前端 /?vk=1&h=...，前端凭握手串取回结果完成登录/绑定
+/* ---------------- Yandex ID 网页登录 ----------------
+   Yandex 标准 OAuth 2.0 授权码流程（与 Telegram 的控件回调不同，需要浏览器跳转往返）：
+     1. 前端点击圆形 Yandex 图标 → 跳转 /api/auth/yandex/start
+     2. 服务端生成一次性 state，302 到 Yandex 授权页
+     3. Yandex 回跳 /api/auth/yandex/callback?code&state
+     4. 服务端用 code 换 access_token（clientSecret 仅后端使用，绝不下发前端），
+        再调 login.yandex.ru/info 取用户 ID / 姓名 / 头像 / 邮箱
+     5. 未登录 → 按 yandexId 建/取访客账号；已登录（绑定意图）→ 把 yandexId 绑到当前账号
+     6. 生成一次性握手串 → 302 回前端 /?ya=1&h=...，前端凭握手串取回结果完成登录/绑定
         （账号信息不直接拼进地址栏，避免泄露与历史记录残留）
-   VK 身份以独立字段 vkId 存储，与 telegramId 互不影响。 */
-const VK_TTL = 10 * 60 * 1000;       // state / 握手串有效期
-const VK_STATES = new Map();          // state → { createdAt, verifier, bindUserId }
-const VK_HANDSHAKES = new Map();      // 一次性握手串 → { user, bound, createdAt }
-function vkIdBase(){ return (loadSecrets().vk.idBase || 'https://id.vk.com').replace(/\/+$/, ''); }
-function vkRedirectUri(){ return PUBLIC_BASE_URL + '/api/auth/vk/callback'; }
-/* VK 昵称：优先取「名 姓」，其次回退 VK+ID；与站内已用昵称冲突时自动加序号 */
-function vkNickname(first, last, id){
-  const base = ([String(first || '').trim(), String(last || '').trim()].filter(Boolean).join(' ') || ('VK' + id)).slice(0, 20);
+   Yandex 身份以独立字段 yandexId 存储，与 telegramId 互不影响。 */
+const YD_TTL = 10 * 60 * 1000;       // state / 握手串有效期
+const YD_STATES = new Map();          // state → { createdAt, bindUserId }
+const YD_HANDSHAKES = new Map();      // 一次性握手串 → { user, bound, createdAt }
+const YD_AUTH_BASE = 'https://oauth.yandex.ru';
+function ydRedirectUri(){ return PUBLIC_BASE_URL + '/api/auth/yandex/callback'; }
+/* 带请求头的 GET（Yandex 取用户资料需 Authorization: OAuth <token>），返回原始响应字符串 */
+function ydGetJson(url, headers){
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = https.request({ hostname: u.hostname, path: u.pathname + u.search, method: 'GET',
+      headers: headers || {}, timeout: 8000 }, r => {
+      let d = '';
+      r.on('data', c => d += c);
+      r.on('end', () => resolve(d));
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    req.end();
+  });
+}
+/* Yandex 头像：default_avatar_id 非空时拼成可直接访问的图片地址 */
+function ydAvatar(id){ const a = String(id || '').trim(); return a ? 'https://avatars.yandex.net/get-yapic/' + a + '/islands-200' : ''; }
+/* Yandex 昵称：优先「名 姓」，其次登录名，最后回退 YA+ID；与站内已用昵称冲突时自动加序号 */
+function ydNickname(first, last, login, id){
+  const base = ([String(first || '').trim(), String(last || '').trim()].filter(Boolean).join(' ') || String(login || '').trim() || ('YA' + id)).slice(0, 20);
   let nick = base;
   for (let i = 2; nicknameTaken(nick) && i < 1000; i++) nick = base + ' ' + i;
   return nick.slice(0, 24);
 }
 
 /* ---------------- 第三方账号绑定 ----------------
-   Telegram 与 VK 是两套彼此独立的授权流程，绑定的作用只是「把第三方身份写到同一个站点用户 ID 上」：
+   Telegram 与 Yandex 是两套彼此独立的授权流程，绑定的作用只是「把第三方身份写到同一个站点用户 ID 上」：
    · 未登录时使用第三方登录 → 按第三方 ID 建/取账号（各自独立，互不影响）
    · 已登录时使用第三方授权 → 把该第三方身份绑定到当前账号，之后任一方登录都进入同一账号
    归属证明：访客账号没有独立登录态，用「用户 ID + 会话 ID」配对校验操作者身份
    （会话 ID 是该账号浏览器本地持有的不可猜字符串，等同现有会话凭证）。 */
+const PROVIDER_FIELDS = { telegram: { id:'telegramId', name:'telegramName' }, yandex: { id:'yandexId', name:'yandexName' } };
 function userById(id){ return loadUsers().users.find(x => String(x.id || '') === String(id || '')) || null; }
 function userByCreds(uid, sid){
   const u = userById(uid);
@@ -734,20 +751,20 @@ function userByCreds(uid, sid){
 function publicUser(u){
   return { id:u.id, email:u.email || '', nickname:u.nickname, sessionId:u.sessionId,
            createdAt:u.createdAt, provider:u.provider || 'email',
-           bound: { telegram: !!u.telegramId, vk: !!u.vkId } };
+           bound: { telegram: !!u.telegramId, yandex: !!u.yandexId } };
 }
 /* 把第三方身份写入目标账号；若该身份原先挂在别的账号上则先摘除
    （授权者本人即可证明该第三方身份的归属，故允许迁移，不会造成越权） */
 function linkThirdParty(u, provider, id, info){
-  const key = provider === 'telegram' ? 'telegramId' : 'vkId';
+  const f = PROVIDER_FIELDS[provider] || { id:'thirdPartyId', name:'thirdPartyName' };
   id = String(id || '');
   loadUsers().users.forEach(x => {
-    if (x !== u && String(x[key] || '') === id){ delete x[key]; console.log('[绑定] 第三方身份从旧账号摘除: ' + x.id); }
+    if (x !== u && String(x[f.id] || '') === id){ delete x[f.id]; console.log('[绑定] 第三方身份从旧账号摘除: ' + x.id); }
   });
-  u[key] = id;
+  u[f.id] = id;
   /* provider 仅在账号尚无主要来源时写入，避免覆盖邮箱注册账号的来源标记 */
   if (!u.provider || u.provider === 'email') u.provider = provider;
-  if (info && info.name) u[provider === 'telegram' ? 'telegramName' : 'vkName'] = String(info.name);
+  if (info && info.name) u[f.name] = String(info.name);
   if (info && info.photo) u.photoUrl = String(info.photo);
   saveUsers();
 }
@@ -771,7 +788,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
       p === '/api/auth/activate' || p === '/api/auth/telegram' ||
       p === '/api/auth/bind/telegram' || p === '/api/auth/links' ||
-      p === '/api/auth/vk/start' || p === '/api/auth/vk/callback' || p === '/api/auth/vk/claim' ||
+      p === '/api/auth/yandex/start' || p === '/api/auth/yandex/callback' || p === '/api/auth/yandex/claim' ||
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
@@ -868,7 +885,7 @@ const server = http.createServer(async (req, res) => {
       emailMode: emailLive() ? 'live' : 'demo',    // demo 时验证码回显前端，便于联调
       telegramEnabled: !!(tg.botUsername && tg.botToken),   // 两者齐备才展示 Telegram 登录控件
       telegramBotUsername: tg.botUsername,                   // 公开：前端控件 data-telegram-login 使用
-      vkEnabled: !!(sec.vk.clientId && sec.vk.clientSecret)   // 两者齐备才展示 VK 登录入口（clientId/clientSecret 均不下发）
+      yandexEnabled: !!(sec.yandex.clientId && sec.yandex.clientSecret)   // 两者齐备才展示 Yandex 登录入口（clientId/clientSecret 均不下发）
     });
   }
   /* ---- 访客账号：预校验（邮箱 格式与唯一性、昵称唯一） ---- */
@@ -1025,13 +1042,14 @@ const server = http.createServer(async (req, res) => {
     if (!u) return send(res, 401, { ok:false, error:'登录态已失效，请重新登录' });
     return send(res, 200, { ok:true,
       telegram: { bound: !!u.telegramId, name: u.telegramName || '' },
-      vk:       { bound: !!u.vkId, name: u.vkName || '' } });
+      yandex:   { bound: !!u.yandexId, name: u.yandexName || '' } });
   }
-  /* ---- VK ID 快捷登录（1/3）：生成 state 与 PKCE 校验串 → 跳转 VK ID 授权页 ----
-     带 bind=1&uid&sid 表示「绑定到当前已登录账号」，否则为普通登录。 */
-  if (p === '/api/auth/vk/start' && req.method === 'GET'){
-    const vk = loadSecrets().vk;
-    if (!(vk.clientId && vk.clientSecret)) return send(res, 503, 'VK 登录未配置');
+  /* ---- Yandex ID 快捷登录（1/3）：生成一次性 state → 跳转 Yandex 授权页 ----
+     带 bind=1&uid&sid 表示「绑定到当前已登录账号」，否则为普通登录。
+     不显式传 scope：使用应用后台已开通的默认权限（显式请求未开通的 scope 会报 invalid_scope）。 */
+  if (p === '/api/auth/yandex/start' && req.method === 'GET'){
+    const ya = loadSecrets().yandex;
+    if (!(ya.clientId && ya.clientSecret)) return send(res, 503, 'Yandex 登录未配置');
     let bindUserId = '';
     if (url.searchParams.get('bind') === '1'){
       const tgt = userByCreds(url.searchParams.get('uid'), url.searchParams.get('sid'));
@@ -1039,83 +1057,81 @@ const server = http.createServer(async (req, res) => {
       bindUserId = tgt.id;
     }
     const state = crypto.randomBytes(16).toString('hex');
-    /* PKCE：code_verifier 长 43~128、字符集 A-Za-z0-9-_；challenge 为其 SHA256 的 base64url 编码 */
-    const verifier = crypto.randomBytes(48).toString('base64url');
-    const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
-    VK_STATES.set(state, { createdAt: Date.now(), verifier, bindUserId });
-    VK_STATES.forEach((rec, k) => { if (Date.now() - rec.createdAt > VK_TTL) VK_STATES.delete(k); });
-    VK_HANDSHAKES.forEach((rec, k) => { if (Date.now() - rec.createdAt > VK_TTL) VK_HANDSHAKES.delete(k); });
+    YD_STATES.set(state, { createdAt: Date.now(), bindUserId });
+    YD_STATES.forEach((rec, k) => { if (Date.now() - rec.createdAt > YD_TTL) YD_STATES.delete(k); });
+    YD_HANDSHAKES.forEach((rec, k) => { if (Date.now() - rec.createdAt > YD_TTL) YD_HANDSHAKES.delete(k); });
     const qs = new URLSearchParams({
       response_type: 'code',
-      client_id: vk.clientId,
-      redirect_uri: vkRedirectUri(),
-      state,
-      code_challenge: challenge,
-      code_challenge_method: 'S256'
-    }).toString();   // 不传 scope → 只申请基础资料（默认 vkid.personal_info），不含邮箱/手机
-    res.writeHead(302, { 'Location': vkIdBase() + '/authorize?' + qs });
+      client_id: ya.clientId,
+      redirect_uri: ydRedirectUri(),
+      state
+    }).toString();
+    res.writeHead(302, { 'Location': YD_AUTH_BASE + '/authorize?' + qs });
     return res.end();
   }
-  /* ---- VK ID 快捷登录（2/3）：授权回跳 → 换 token 取资料 → 建号/绑定 → 回前端 ---- */
-  if (p === '/api/auth/vk/callback' && req.method === 'GET'){
+  /* ---- Yandex ID 快捷登录（2/3）：授权回跳 → 换 token 取资料 → 建号/绑定 → 回前端 ---- */
+  if (p === '/api/auth/yandex/callback' && req.method === 'GET'){
     const code = url.searchParams.get('code') || '';
     const state = url.searchParams.get('state') || '';
-    const deviceId = url.searchParams.get('device_id') || '';
+    const errParam = url.searchParams.get('error') || '';
     const back = query => { res.writeHead(302, { 'Location': '/?' + query }); return res.end(); };
-    const rec = state ? VK_STATES.get(state) : null;
-    if (rec) VK_STATES.delete(state);            // state 一次性，防止重放
-    if (!rec || Date.now() - rec.createdAt > VK_TTL){ console.error('[VK] state 无效或已过期'); return back('vk=0'); }
-    if (!code){ console.error('[VK] 用户未授权或取消授权'); return back('vk=0'); }
-    const vk = loadSecrets().vk;
+    const rec = state ? YD_STATES.get(state) : null;
+    if (rec) YD_STATES.delete(state);            // state 一次性，防止重放
+    if (!rec || Date.now() - rec.createdAt > YD_TTL){ console.error('[Yandex] state 无效或已过期'); return back('ya=0'); }
+    if (!code){ console.error('[Yandex] 用户未授权或取消授权' + (errParam ? '：' + errParam : '')); return back('ya=0'); }
+    const ya = loadSecrets().yandex;
+    /* 换 token：client_id / client_secret 走表单 body（也可用 Basic Auth，这里统一表单） */
     let tokRaw = '', tok = null;
     try {
-      tokRaw = await trPostForm(vkIdBase() + '/oauth2/auth', new URLSearchParams({
-        grant_type: 'authorization_code', code, code_verifier: rec.verifier,
-        client_id: vk.clientId, device_id: deviceId, redirect_uri: vkRedirectUri(), state }));
+      tokRaw = await trPostForm(YD_AUTH_BASE + '/token', new URLSearchParams({
+        grant_type: 'authorization_code', code,
+        client_id: ya.clientId, client_secret: ya.clientSecret, redirect_uri: ydRedirectUri() }));
       tok = JSON.parse(tokRaw);
-    } catch(e){ console.error('[VK] 换取 access_token 失败:', e.message); return back('vk=0'); }
-    if (!tok || !tok.access_token || !tok.user_id){ console.error('[VK] 换取 access_token 失败:', String(tokRaw).slice(0, 300)); return back('vk=0'); }
-    const vkId = String(tok.user_id);
+    } catch(e){ console.error('[Yandex] 换取 access_token 失败:', e.message); return back('ya=0'); }
+    if (!tok || !tok.access_token){ console.error('[Yandex] 换取 access_token 失败:', String(tokRaw).slice(0, 300)); return back('ya=0'); }
+    /* 取用户资料：token 用 Authorization: OAuth <token>；id 为账号唯一标识，取不到则无法建号 */
     let prof = {};
     try {
-      const profRaw = await trPostForm(vkIdBase() + '/oauth2/user_info', new URLSearchParams({
-        access_token: tok.access_token, client_id: vk.clientId }));
-      const pj = JSON.parse(profRaw);
-      prof = (pj && pj.user) || {};
-    } catch(e){ console.error('[VK] 获取用户资料失败:', e.message); }   // 资料失败不阻断，昵称回退 VK+ID
+      const profRaw = await ydGetJson('https://login.yandex.ru/info?format=json', { 'Authorization': 'OAuth ' + tok.access_token });
+      prof = JSON.parse(profRaw) || {};
+    } catch(e){ console.error('[Yandex] 获取用户资料失败:', e.message); return back('ya=0'); }
+    const yandexId = String(prof.id || '').trim();
+    if (!yandexId){ console.error('[Yandex] 未取得用户 ID：' + JSON.stringify(prof).slice(0, 300)); return back('ya=0'); }
+    const name = [prof.first_name, prof.last_name].filter(Boolean).join(' ') || prof.display_name || prof.login || ('YA' + yandexId);
+    const photo = prof.is_avatar_empty ? '' : ydAvatar(prof.default_avatar_id);   // 头像为空时用占位图会被拒，故留空
     const users = loadUsers().users;
     let u = null, bound = false;
     if (rec.bindUserId){
       u = userById(rec.bindUserId);
-      if (!u){ console.error('[VK] 绑定目标账号不存在'); return back('vk=0'); }
-      linkThirdParty(u, 'vk', vkId, { name: [prof.first_name, prof.last_name].filter(Boolean).join(' '), photo: prof.avatar });
+      if (!u){ console.error('[Yandex] 绑定目标账号不存在'); return back('ya=0'); }
+      linkThirdParty(u, 'yandex', yandexId, { name, photo });
       bound = true;
-      console.log('[VK] 绑定成功: ' + vkId + ' → 用户 ' + u.id);
+      console.log('[Yandex] 绑定成功: ' + yandexId + ' → 用户 ' + u.id);
     } else {
-      u = users.find(x => String(x.vkId || '') === vkId);
+      u = users.find(x => String(x.yandexId || '') === yandexId);
       if (!u){
-        u = { id: crypto.randomUUID(), createdAt: Date.now(), provider:'vk', vkId, nickname: vkNickname(prof.first_name, prof.last_name, vkId), status:'active', sessionId: crypto.randomUUID() };
+        u = { id: crypto.randomUUID(), createdAt: Date.now(), provider:'yandex', yandexId, nickname: ydNickname(prof.first_name, prof.last_name, prof.login, yandexId), status:'active', sessionId: crypto.randomUUID() };
         users.push(u);
       }
-      u.vkId = vkId;
-      u.provider = 'vk';
-      if (prof.first_name || prof.last_name) u.vkName = [prof.first_name, prof.last_name].filter(Boolean).join(' ');
-      if (prof.avatar) u.photoUrl = String(prof.avatar);
-      u.status = 'active';                      // 已完成 VK 身份验证，无需邮箱激活
+      u.yandexId = yandexId;
+      u.provider = 'yandex';
+      u.yandexName = name;
+      if (photo) u.photoUrl = photo;
+      u.status = 'active';                      // 已完成 Yandex 身份验证，无需邮箱激活
       u.sessionId = u.sessionId || crypto.randomUUID();
       saveUsers();
-      console.log('[VK] 登录成功: ' + u.nickname + '（' + vkId + '）');
+      console.log('[Yandex] 登录成功: ' + u.nickname + '（' + yandexId + '）');
     }
     const handshake = crypto.randomBytes(24).toString('hex');
-    VK_HANDSHAKES.set(handshake, { createdAt: Date.now(), bound, user: publicUser(u) });
-    return back('vk=1&h=' + handshake);
+    YD_HANDSHAKES.set(handshake, { createdAt: Date.now(), bound, user: publicUser(u) });
+    return back('ya=1&h=' + handshake);
   }
-  /* ---- VK ID 快捷登录（3/3）：前端凭一次性握手串取回结果，随后清理地址栏 ---- */
-  if (p === '/api/auth/vk/claim' && req.method === 'GET'){
+  /* ---- Yandex ID 快捷登录（3/3）：前端凭一次性握手串取回结果，随后清理地址栏 ---- */
+  if (p === '/api/auth/yandex/claim' && req.method === 'GET'){
     const handshake = url.searchParams.get('h') || '';
-    const rec = handshake ? VK_HANDSHAKES.get(handshake) : null;
-    if (rec) VK_HANDSHAKES.delete(handshake);   // 一次性，取回即失效
-    if (!rec || Date.now() - rec.createdAt > VK_TTL) return send(res, 400, { ok:false, error:'登录凭据无效或已过期，请重新登录' });
+    const rec = handshake ? YD_HANDSHAKES.get(handshake) : null;
+    if (rec) YD_HANDSHAKES.delete(handshake);   // 一次性，取回即失效
+    if (!rec || Date.now() - rec.createdAt > YD_TTL) return send(res, 400, { ok:false, error:'登录凭据无效或已过期，请重新登录' });
     return send(res, 200, { ok:true, bound: rec.bound, user: rec.user });
   }
   /* ---- 忘记密码：邮箱验证码核验 → 重设密码 ---- */

@@ -398,7 +398,7 @@
   .lm-or{ display:none; align-items:center; gap:10px; margin:16px 0 12px; font-size:12px; color:#9aa3ad; }
   .lm-or::before, .lm-or::after{ content:''; flex:1; height:1px; background:rgba(20,40,80,.12); }
   .lm-tg{ display:none; justify-content:center; min-height:0; margin-top:4px; }   /* 配置第三方登录后展示（圆形图标按钮） */
-  /* 圆形图标按钮：Telegram / VK 外观统一，仅图标颜色不同 */
+  /* 圆形图标按钮：Telegram / Yandex 外观统一，仅图标颜色不同 */
   .sso-row{ display:flex; align-items:center; justify-content:center; gap:12px; }
   .sso-round{
     position:relative; width:44px; height:44px; padding:0; border-radius:50%; background:#fff;
@@ -409,8 +409,8 @@
   .sso-round:active{ transform:translateY(0) scale(.95); }
   .sso-round svg{ width:21px; height:21px; display:block; }
   .tg-round svg{ fill:#2AABEE; }   /* Telegram 蓝 */
-  .vk-round svg{ fill:#0077FF; }   /* VK 蓝 */
-  .vk-round{ cursor:pointer; }
+  .yd-round{ cursor:pointer; }
+  .yd-round .yd-mark{ font:700 20px/1 Arial, Helvetica, sans-serif; color:#FC3F1D; }   /* Yandex 红「Я」标记 */
   /* Telegram 官方控件透明铺满圆形区：视觉上是圆钮，点击命中官方 iframe，授权流程不变 */
   .tg-hit{ position:absolute; inset:0; display:block; overflow:hidden; border-radius:50%; z-index:2; }
   .tg-hit iframe{
@@ -658,8 +658,8 @@
             <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887l.41.26.001.002 4.995 3.178 3.178 4.995.002.002.26.41a.5.5 0 0 0 .886-.083zm-1.833 1.89L6.637 10.07l-.215-.338a.5.5 0 0 0-.154-.154l-.338-.215 7.494-7.494 1.178-.471z"/></svg>
             <span class="tg-hit" id="tgHit"></span>
           </div>
-          <button class="sso-round vk-round" id="vkBtn" type="button" title="VK" onclick="startVkLogin()">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12.785 16.241s.288-.032.436-.194c.136-.148.132-.427.132-.427s-.02-1.304.576-1.496c.588-.19 1.341 1.26 2.14 1.818.605.422 1.064.33 1.064.33l2.137-.03s1.117-.071.587-.964c-.043-.073-.308-.661-1.588-1.87-1.34-1.264-1.16-1.059.453-3.246.983-1.332 1.376-2.145 1.253-2.493-.117-.332-.84-.244-.84-.244l-2.406.015s-.178-.025-.31.056c-.13.079-.212.262-.212.262s-.382 1.03-.89 1.907c-1.07 1.85-1.499 1.948-1.674 1.832-.407-.267-.305-1.075-.305-1.649 0-1.793.267-2.54-.521-2.733-.262-.065-.454-.107-1.123-.114-.858-.009-1.585.003-1.996.208-.274.136-.485.44-.356.457.159.022.519.099.71.363.247.34.238 1.104.238 1.104s.142 2.112-.265 2.373c-.26.174-.617-.181-1.384-1.805-.525-1.005-.922-2.116-.922-2.116s-.076-.19-.213-.292c-.165-.123-.395-.162-.395-.162l-2.286.015s-.343.01-.469.161c-.112.135-.009.413-.009.413s1.79 4.188 3.817 6.299c1.858 1.936 3.969 1.808 3.969 1.808h.956z"/></svg>
+          <button class="sso-round yd-round" id="yandexBtn" type="button" title="Yandex" onclick="startYandexLogin()">
+            <span class="yd-mark" aria-hidden="true">Я</span>
           </button>
         </div>
       </div>
@@ -956,7 +956,7 @@ const I18N = {
     authErrNickTaken:'该昵称已被占用，请更换其他昵称', authErrNickEmpty:'请填写昵称', authErrPwd:'密码至少 6 位', authErrPwdMismatch:'两次输入的密码不一致',
     authErrCaptcha:'请先完成人机验证', authErrCode:'验证码不正确', authErrNeedCode:'请先获取并填写验证码',
     authCodeDemo:'演示模式：本次验证码为 {c}（未真实发送）', authResendIn:'{s} 秒后可重发',
-    authWelcome:'注册成功，欢迎 {n}！', authResetDone:'密码已重置，请用新密码登录', vkLoginFail:'VK 登录失败，请重试',
+    authWelcome:'注册成功，欢迎 {n}！', authResetDone:'密码已重置，请用新密码登录', ydLoginFail:'Yandex 登录失败，请重试',
     authActivateSent:'激活链接已发送至 {e}，请查收邮件并点击链接完成注册（24 小时内有效）', authActivateDone:'邮箱激活成功，请登录', authActivateFail:'激活链接无效或已过期', authErrNotActivated:'该账号尚未激活，请点击邮件中的激活链接完成激活',
     authRequired:'请先登录后再发送消息', authInputPh:'请先点击左下角登录'
   },
@@ -987,7 +987,7 @@ const I18N = {
     authErrNickTaken:'This name is already taken, please choose another', authErrNickEmpty:'Please enter a name', authErrPwd:'Password must be at least 6 characters', authErrPwdMismatch:'The two passwords do not match',
     authErrCaptcha:'Please complete the human verification first', authErrCode:'Incorrect code', authErrNeedCode:'Please request and enter the code first',
     authCodeDemo:'Demo mode: your code is {c} (not actually sent)', authResendIn:'Resend in {s}s',
-    authWelcome:'Registered — welcome, {n}!', authResetDone:'Password reset. Please sign in with your new password.', vkLoginFail:'VK sign-in failed. Please try again.',
+    authWelcome:'Registered — welcome, {n}!', authResetDone:'Password reset. Please sign in with your new password.', ydLoginFail:'Yandex sign-in failed. Please try again.',
     authActivateSent:'Activation link sent to {e}. Open the email and click the link to finish (valid for 24 hours).', authActivateDone:'Email activated — please sign in', authActivateFail:'Activation link is invalid or expired', authErrNotActivated:'This account is not activated yet. Please click the activation link in your email.',
     authRequired:'Please sign in before sending messages', authInputPh:'Tap the login entry at bottom-left first'
   },
@@ -1018,7 +1018,7 @@ const I18N = {
     authErrNickTaken:'Это имя уже занято, выберите другое', authErrNickEmpty:'Введите имя', authErrPwd:'Пароль не менее 6 символов', authErrPwdMismatch:'Пароли не совпадают',
     authErrCaptcha:'Сначала пройдите проверку на человека', authErrCode:'Неверный код', authErrNeedCode:'Сначала запросите и введите код',
     authCodeDemo:'Демо-режим: ваш код {c} (не отправляется)', authResendIn:'Повтор через {s} с',
-    authWelcome:'Регистрация завершена, добро пожаловать, {n}!', authResetDone:'Пароль сброшен. Войдите с новым паролем.', vkLoginFail:'Не удалось войти через VK. Попробуйте ещё раз.',
+    authWelcome:'Регистрация завершена, добро пожаловать, {n}!', authResetDone:'Пароль сброшен. Войдите с новым паролем.', ydLoginFail:'Не удалось войти через Yandex. Попробуйте ещё раз.',
     authActivateSent:'Ссылка для активации отправлена на {e}. Откройте письмо и перейдите по ссылке (действует 24 часа).', authActivateDone:'Почта активирована — войдите', authActivateFail:'Ссылка активации недействительна или истекла', authErrNotActivated:'Аккаунт не активирован. Перейдите по ссылке активации в письме.',
     authRequired:'Сначала войдите, чтобы отправлять сообщения', authInputPh:'Сначала нажмите «Войти» внизу слева'
   }
@@ -1205,7 +1205,7 @@ function authToggleCaptcha(){
    未配置密钥 → 自动使用上方模拟勾选框，功能与联调不受影响。 */
 let capCfg = { recaptchaEnabled:false, siteKey:'', version:'v2', emailMode:'demo' };
 let tgCfg = { enabled:false, botUsername:'' };   // Telegram 登录配置（后端 /api/auth/config 下发）
-let vkCfg = { enabled:false };                    // VK 登录配置（后端 /api/auth/config 下发；clientId/clientSecret 不下发）
+let ydCfg = { enabled:false };                    // Yandex 登录配置（后端 /api/auth/config 下发；clientId/clientSecret 不下发）
 const CAP_VIEWS = { register:'rgRecaptcha', reset:'rsRecaptcha' };
 const recaptchaWidgets = {};
 window.onRecaptchaLoad = function(){
@@ -1231,7 +1231,7 @@ async function loadAuthConfig(){
     });
     tgCfg.enabled = !!(d && d.telegramEnabled);
     tgCfg.botUsername = (d && d.telegramBotUsername) || '';
-    vkCfg.enabled = !!(d && d.vkEnabled);
+    ydCfg.enabled = !!(d && d.yandexEnabled);
   } catch(e){ return; }
   if (!capCfg.recaptchaEnabled || !capCfg.siteKey) return;   // 模拟模式：保留原有勾选框
   const mock = $('rgCaptcha'); if (mock) mock.style.display = 'none';
@@ -1260,35 +1260,35 @@ function resetCaptcha(kind){
   try { grecaptcha.reset(recaptchaWidgets[kind]); } catch(e){}
 }
 loadAuthConfig();
-/* ---------------- 第三方快捷登录（Telegram / VK） ----------------
+/* ---------------- 第三方快捷登录（Telegram / Yandex） ----------------
    两者外观统一为圆形单图标按钮，同一区域排列；账号逻辑一致：
    以第三方 ID 唯一标识访客账号，首次授权即注册、重复授权复用同一账号。
    · Telegram：官方 Login Widget，用户授权后以 postMessage 回调 onTelegramAuth(user)，
      前端把用户数据交给后端做 HMAC 签名校验（无需邮箱）。
      前提：BotFather 里为该 Bot 执行 /setdomain 绑定本站域名，否则控件不显示。
-   · VK：VK ID 授权码流程（PKCE），前端跳转后端 /api/auth/vk/start 发起，
+   · Yandex：标准 OAuth 2.0 授权码流程，前端跳转后端 /api/auth/yandex/start 发起，
      授权后回跳后端回调完成换取资料与建号，再带一次性握手串回前端取回账号。
    两个入口是否展示均取决于后端 /api/auth/config 下发的开关，前端不硬编码。
    登录页与「我的账号」绑定区共用同一套圆形按钮：已登录时点击即「绑定」当前账号。 */
 function renderSsoButtons(){
   const tgOn = !!(tgCfg.enabled && tgCfg.botUsername);
-  const vkOn = !!vkCfg.enabled;
+  const ydOn = !!ydCfg.enabled;
   const srcSlot = $('ssoSlot'), bindSlot = $('bindSlot');
-  /* 绑定区按钮由登录区标记克隆而来（仅改 id 与 VK 点击参数），避免重复维护两份 SVG */
+  /* 绑定区按钮由登录区标记克隆而来（仅改 id 与 Yandex 点击参数），避免重复维护两份图标 */
   if (srcSlot && bindSlot && !bindSlot.dataset.filled){
     bindSlot.innerHTML = srcSlot.innerHTML
-      .replace(/tgHit/g, 'tgHitB').replace(/tgBtn/g, 'tgBtnB').replace(/vkBtn/g, 'vkBtnB')
-      .replace(/startVkLogin\(\)/g, 'startVkLogin(true)');
+      .replace(/tgHit/g, 'tgHitB').replace(/tgBtn/g, 'tgBtnB').replace(/yandexBtn/g, 'yandexBtnB')
+      .replace(/startYandexLogin\(\)/g, 'startYandexLogin(true)');
     bindSlot.dataset.filled = '1';
   }
   const rows = [
-    { slot: srcSlot,  show: (tgOn || vkOn) && !currentUser, tgBtn: $('tgBtn'),  vkBtn: $('vkBtn'),  hit: $('tgHit'),  flag: 'tgRendered' },
-    { slot: bindSlot, show: (tgOn || vkOn) && !!currentUser, tgBtn: $('tgBtnB'), vkBtn: $('vkBtnB'), hit: $('tgHitB'), flag: 'tgRenderedB' }
+    { slot: srcSlot,  show: (tgOn || ydOn) && !currentUser, tgBtn: $('tgBtn'),  ydBtn: $('yandexBtn'),  hit: $('tgHit'),  flag: 'tgRendered' },
+    { slot: bindSlot, show: (tgOn || ydOn) && !!currentUser, tgBtn: $('tgBtnB'), ydBtn: $('yandexBtnB'), hit: $('tgHitB'), flag: 'tgRenderedB' }
   ];
   rows.forEach(row => {
     if (!row.slot) return;
     if (row.tgBtn) row.tgBtn.style.display = tgOn ? 'flex' : 'none';
-    if (row.vkBtn) row.vkBtn.style.display = vkOn ? 'flex' : 'none';
+    if (row.ydBtn) row.ydBtn.style.display = ydOn ? 'flex' : 'none';
     row.slot.style.display = row.show ? 'flex' : 'none';
     /* 控件脚本必须在容器可见后再注入，否则官方 iframe 会渲染成 0 尺寸 */
     if (!row.show || !tgOn || !row.hit || row.slot.dataset[row.flag]) return;
@@ -1302,7 +1302,7 @@ function renderSsoButtons(){
     row.hit.appendChild(s);
     row.slot.dataset[row.flag] = '1';
   });
-  const or = $('lgOr'); if (or) or.style.display = (tgOn || vkOn) ? 'flex' : 'none';
+  const or = $('lgOr'); if (or) or.style.display = (tgOn || ydOn) ? 'flex' : 'none';
 }
 /* 已登录时点击第三方按钮 = 绑定到当前账号；未登录 = 普通登录注册 */
 window.onTelegramAuth = async function(user){
@@ -1323,12 +1323,12 @@ window.onTelegramAuth = async function(user){
     closeLogin();
   } catch(e){ if (err) err.textContent = dict().authErrLogin; }
 };
-/* VK 登录入口：交给后端生成 state 与 PKCE 校验串并跳转 VK ID 授权页（回调地址由后端按对外域名拼接）
-   已登录时带 bind=1&uid&sid，授权完成后把 VK 身份绑定到当前账号而非新建账号 */
-function startVkLogin(bind){
-  if (!vkCfg.enabled) return;
+/* Yandex 登录入口：交给后端生成一次性 state 并跳转 Yandex 授权页（回调地址由后端按对外域名拼接）
+   已登录时带 bind=1&uid&sid，授权完成后把 Yandex 身份绑定到当前账号而非新建账号 */
+function startYandexLogin(bind){
+  if (!ydCfg.enabled) return;
   const err = $(bind ? 'bindErr' : 'tgErr'); if (err) err.textContent = '';
-  let url = '/api/auth/vk/start';
+  let url = '/api/auth/yandex/start';
   if (bind && currentUser){
     url += '?bind=1&uid=' + encodeURIComponent(currentUser.id) + '&sid=' + encodeURIComponent(currentUser.sessionId || '');
   }
@@ -1339,7 +1339,7 @@ async function refreshLinks(){
   const box = $('acLinks'); if (!box) return;
   if (!currentUser){ box.innerHTML = ''; return; }
   const on = dict().boundOn, off = dict().boundOff;
-  box.innerHTML = '<div>Telegram：<b>' + on + '</b></div><div>VK：<b>' + on + '</b></div>';
+  box.innerHTML = '<div>Telegram：<b>' + on + '</b></div><div>Yandex：<b>' + on + '</b></div>';
   try {
     const res = await fetch('/api/auth/links?uid=' + encodeURIComponent(currentUser.id)
       + '&sid=' + encodeURIComponent(currentUser.sessionId || ''), { cache:'no-store' });
@@ -1347,22 +1347,22 @@ async function refreshLinks(){
     if (!res.ok || !d.ok) return;
     box.innerHTML =
       '<div>Telegram：<b>' + (d.telegram.bound ? on : off) + '</b></div>' +
-      '<div>VK：<b>' + (d.vk.bound ? on : off) + '</b></div>';
+      '<div>Yandex：<b>' + (d.yandex.bound ? on : off) + '</b></div>';
   } catch(e){}
 }
-/* VK 授权回跳：URL 带 ?vk=1&h=... 时用一次性握手串取回结果，并清理地址栏 */
-async function handleVkRedirect(){
+/* Yandex 授权回跳：URL 带 ?ya=1&h=... 时用一次性握手串取回结果，并清理地址栏 */
+async function handleYandexRedirect(){
   const params = new URLSearchParams(location.search);
-  if (!params.has('vk')) return;
+  if (!params.has('ya')) return;
   const handshake = params.get('h') || '';
-  params.delete('vk'); params.delete('h');
+  params.delete('ya'); params.delete('h');
   const qs = params.toString();
   try { history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '')); } catch(e){}
-  if (!handshake){ toast(dict().vkLoginFail); return; }
+  if (!handshake){ toast(dict().ydLoginFail); return; }
   try {
-    const res = await fetch('/api/auth/vk/claim?h=' + encodeURIComponent(handshake), { cache:'no-store' });
+    const res = await fetch('/api/auth/yandex/claim?h=' + encodeURIComponent(handshake), { cache:'no-store' });
     const d = await res.json().catch(() => ({}));
-    if (!res.ok || !d.ok){ toast((d && d.error) || dict().vkLoginFail); return; }
+    if (!res.ok || !d.ok){ toast((d && d.error) || dict().ydLoginFail); return; }
     if (d.bound){                       // 绑定结果：账号不变，仅刷新绑定状态并回到「我的账号」
       toast(dict().bindOk);
       applyAuthState(); refreshLinks(); authOpen();
@@ -1371,7 +1371,7 @@ async function handleVkRedirect(){
     acceptUser(d.user, true);
     toast(dict().authWelcome.replace('{n}', d.user.nickname));
     closeLogin();
-  } catch(e){ toast(dict().vkLoginFail); }
+  } catch(e){ toast(dict().ydLoginFail); }
 }
 /* 邮件激活回跳：读取 URL 上的 ?activated=1|0 → 弹提示并清理地址栏 */
 function handleActivateRedirect(){
@@ -1778,7 +1778,7 @@ renderEvents();
 renderArticles();
 applyI18n();
 handleActivateRedirect();   // 处理邮件激活回跳（?activated=1|0）提示
-handleVkRedirect();   // 处理 VK 授权回跳（?vk=1&h=...）完成登录
+handleYandexRedirect();   // 处理 Yandex 授权回跳（?ya=1&h=...）完成登录
 loadConfig();          // 拉取后台配置的首页快捷按钮并渲染
 syncMessages();        // 拉取会话历史（含后台人工消息），刷新页面后不丢对话
 loadMoreArticles(); // 若占位卡片不满一屏，自动补足至出现纵向滚动
