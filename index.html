@@ -413,6 +413,10 @@
   .tg-round svg{ fill:#2AABEE; }   /* Telegram 蓝 */
   .lm-demo{ margin-top:10px; font-size:11.5px; color:#c97a10; background:#fdf3e3; border-radius:8px; padding:7px 10px; display:none; word-break:break-all; }
   .lm-demo.show{ display:block; }
+  /* 通用提示弹窗（注册成功等文案提示）：层级高于登录弹窗 */
+  .overlay.alert-modal{ z-index:10003; }
+  .alert-box{ width:340px; max-width:88vw; background:#fff; border-radius:16px; padding:24px 22px 18px; box-shadow:0 18px 50px rgba(20,40,80,.22); }
+  .alert-text{ font-size:13.5px; color:#2a3140; line-height:1.75; text-align:center; }
   .lm-tabs{ display:flex; gap:8px; margin-top:14px; }
   .lm-tab{
     flex:1; padding:9px 8px; font-size:12.5px; font-weight:600; color:#4a5260; text-align:center;
@@ -715,6 +719,14 @@
   </div>
 </div>
 
+<!-- 通用提示弹窗（注册成功等文案提示） -->
+<div class="overlay alert-modal" id="alertOverlay">
+  <div class="alert-box">
+    <div class="alert-text" id="alertText" data-i18n="authActivatePopup">已发送激活邮件，完成激活后，直接刷新页面，输入账号密码登录</div>
+    <button class="lm-btn primary full" onclick="closeAlert()" data-i18n="authPopupOk">知道了</button>
+  </div>
+</div>
+
 <div class="restore-chip" id="restoreChip">
   <span class="dot"></span>
   <span data-i18n="restore">重新打开悖速窗口</span>
@@ -950,6 +962,7 @@ const I18N = {
     authCodeDemo:'演示模式：本次验证码为 {c}（未真实发送）', authResendIn:'{s} 秒后可重发',
     authWelcome:'注册成功，欢迎 {n}！', authResetDone:'密码已重置，请用新密码登录', tgLoginFail:'Telegram 登录失败，请重试',
     authActivateSent:'激活链接已发送至 {e}，请查收邮件并点击链接完成注册（24 小时内有效）', authActivateDone:'邮箱激活成功，请登录', authActivateFail:'激活链接无效或已过期', authErrNotActivated:'该账号尚未激活，请点击邮件中的激活链接完成激活',
+    authActivatePopup:'已发送激活邮件，完成激活后，直接刷新页面，输入账号密码登录', authPopupOk:'知道了',
     authRequired:'请先登录后再发送消息', authInputPh:'请先点击左下角登录',
     authGuestBtn:'免注册，以游客身份进入', authGuestName:'游客', authGuestDone:'已以游客身份进入',
     authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能'
@@ -983,6 +996,7 @@ const I18N = {
     authCodeDemo:'Demo mode: your code is {c} (not actually sent)', authResendIn:'Resend in {s}s',
     authWelcome:'Registered — welcome, {n}!', authResetDone:'Password reset. Please sign in with your new password.', tgLoginFail:'Telegram sign-in failed. Please try again.',
     authActivateSent:'Activation link sent to {e}. Open the email and click the link to finish (valid for 24 hours).', authActivateDone:'Email activated — please sign in', authActivateFail:'Activation link is invalid or expired', authErrNotActivated:'This account is not activated yet. Please click the activation link in your email.',
+    authActivatePopup:'Activation email sent. After activating, refresh this page and sign in with your email and password.', authPopupOk:'Got it',
     authRequired:'Please sign in before sending messages', authInputPh:'Tap the login entry at bottom-left first',
     authGuestBtn:'Continue as guest (no sign-up)', authGuestName:'Guest', authGuestDone:'Entered as guest',
     authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.'
@@ -1016,6 +1030,7 @@ const I18N = {
     authCodeDemo:'Демо-режим: ваш код {c} (не отправляется)', authResendIn:'Повтор через {s} с',
     authWelcome:'Регистрация завершена, добро пожаловать, {n}!', authResetDone:'Пароль сброшен. Войдите с новым паролем.', tgLoginFail:'Не удалось войти через Telegram. Попробуйте ещё раз.',
     authActivateSent:'Ссылка для активации отправлена на {e}. Откройте письмо и перейдите по ссылке (действует 24 часа).', authActivateDone:'Почта активирована — войдите', authActivateFail:'Ссылка активации недействительна или истекла', authErrNotActivated:'Аккаунт не активирован. Перейдите по ссылке активации в письме.',
+    authActivatePopup:'Письмо для активации отправлено. После активации обновите страницу и войдите, указав почту и пароль.', authPopupOk:'Понятно',
     authRequired:'Сначала войдите, чтобы отправлять сообщения', authInputPh:'Сначала нажмите «Войти» внизу слева',
     authGuestBtn:'Продолжить как гость (без регистрации)', authGuestName:'Гость', authGuestDone:'Вы вошли как гость',
     authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.'
@@ -1198,6 +1213,11 @@ function authOpenReset(){
 }
 $('loginEntry').addEventListener('click', authOpen);
 $('loginOverlay').addEventListener('click', e => { if (e.target === $('loginOverlay')) closeLogin(); });
+
+/* 通用提示弹窗：显示/关闭（文案由 data-i18n 按当前语种渲染，切换语言自动同步） */
+function showAlert(){ $('alertOverlay').classList.add('show'); }
+function closeAlert(){ $('alertOverlay').classList.remove('show'); }
+$('alertOverlay').addEventListener('click', e => { if (e.target === $('alertOverlay')) closeAlert(); });
 
 /* 模拟人机验证：未配置 reCAPTCHA 密钥时使用（点击即视为通过） */
 function authToggleCaptcha(){
@@ -1475,6 +1495,7 @@ async function authRegister(){
     // 注册成功 → 提示查收激活邮件，等待用户点击链接完成激活（不直接登录）
     notice.textContent = dict().authActivateSent.replace('{e}', raw);
     notice.classList.add('show');
+    showAlert();   // 弹出提示弹窗：已发送激活邮件，完成激活后刷新页面并登录
   } catch(e){ err.textContent = dict().authErrCode; }
   finally { btn.disabled = false; }
 }
