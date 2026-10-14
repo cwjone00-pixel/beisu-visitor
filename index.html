@@ -1298,12 +1298,12 @@ async function refreshLinks(){
     box.innerHTML = '<div>Telegram：<b>' + (d.telegram.bound ? on : off) + '</b></div>';
   } catch(e){}
 }
-/* Telegram 授权回跳：return_to 为 /tg/<state>（路径承载 state，不带查询串），
-   Telegram **服务端**会在 return_to 之后追加签名参数，分隔符可能是 ?（无查询串时）、
-   &（拼在路径/查询串后）或 #（片段）。这里把「pathname 去掉 /tg/<state> 后的尾巴 +
-   search + hash」三处来源合并、把 ? 与 # 统一换成 & 后解析，任何追加写法都能取到全部字段；
-   并把除已知非签名字段外的**所有**参数原样转发（不再用白名单，避免漏字段导致 hash 对不上）。
-   同时把回跳原始 URL 上报服务端留痕，便于线上排障（失败不影响主流程）。 */
+/* Telegram 授权回跳：return_to 为 /tg/<state>（路径承载 state，不带查询串）。
+   【实测确认·2026-10-14】Telegram 真实回跳格式是把整个签名数据 base64url 成 JSON 放在片段里：
+   …/tg/<state>#tgAuthResult=eyJpZCI6…（解出 id/first_name/last_name/photo_url/auth_date/hash，
+   其 hash 用后端现有算法即可验签通过）。故按此优先解析；同时兼容「参数平铺」的追加写法
+   （路径尾巴 / search / hash 三种来源，分隔符 ?、# 统一成 &）。解析出的字段原样提交后端验签。
+   另把回跳原始 URL 上报服务端留痕，便于线上排障（失败不影响主流程）。 */
 async function handleTelegramRedirect(){
   const search = new URLSearchParams(location.search);
   const m = location.pathname.match(/^\/tg\/([0-9a-f]{16,})/i);
@@ -1313,10 +1313,22 @@ async function handleTelegramRedirect(){
   const src = new URLSearchParams(
     (tail + '&' + location.search.replace(/^\?/, '') + '&' + location.hash.replace(/^#/, ''))
       .replace(/[?#]/g, '&'));
-  /* 排除已知非签名字段（我们自己注入的），其余原样转发给后端验签 */
-  const SKIP = { state:1, tg:1, s:1, activated:1 };
-  const user = {};
-  src.forEach((v, k) => { if (!SKIP[k]) user[k] = v; });
+  /* ① 首选：tgAuthResult = base64url(JSON)，解出全部签名字段 */
+  let user = {};
+  const tgResult = src.get('tgAuthResult') || search.get('tgAuthResult');
+  if (tgResult){
+    try {
+      let b = tgResult.replace(/-/g, '+').replace(/_/g, '/');
+      while (b.length % 4) b += '=';
+      user = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b), c => c.charCodeAt(0))));
+      if (!user || typeof user !== 'object') user = {};
+    } catch(e){ user = {}; }
+  }
+  /* ② 兼容：参数平铺在 query/片段里（排除我们自己注入的非签名字段） */
+  if (!user.id){
+    const SKIP = { state:1, tg:1, s:1, activated:1, tgAuthResult:1 };
+    src.forEach((v, k) => { if (!SKIP[k] && user[k] === undefined) user[k] = v; });
+  }
   /* 回跳现场留痕：原始 URL + 各段解析结果（诊断用，接口失败也不阻塞登录） */
   try { fetch('/api/auth/tgdiag', { method:'POST', headers:{ 'Content-Type':'application/json' },
     body: JSON.stringify({ raw: location.href, pathname: location.pathname, tail: tail,
