@@ -1298,21 +1298,30 @@ async function refreshLinks(){
     box.innerHTML = '<div>Telegram：<b>' + (d.telegram.bound ? on : off) + '</b></div>';
   } catch(e){}
 }
-/* Telegram 授权回跳：Telegram 把签名参数追加在 ?tg=1&s=<state> 之后，
-   这里取出 id/hash 等字段交给后端校验，随后清理地址栏（避免凭证与 state 留在 URL） */
+/* Telegram 授权回跳：return_to 为 /tg/<state>（路径承载 state，不带查询串），
+   Telegram 会在其后追加签名参数——分隔符可能是 &（正常）、?（与查询串冲突）或 #（片段）。
+   这里兼容三种写法取出 id/hash 等字段交给后端校验，随后清理地址栏。 */
 async function handleTelegramRedirect(){
-  const params = new URLSearchParams(location.search);
-  if (!params.has('tg')) return;
-  const state = params.get('s') || '';
+  const search = new URLSearchParams(location.search);
+  const pathState = (location.pathname.match(/^\/tg\/([0-9a-f]{16,})/i) || [])[1] || '';
+  if (!pathState && !search.has('tg')) return;
+  const state = pathState || search.get('s') || '';
+  /* 先按原样解析；若取不到 id+hash，再把 ? / # 统一成 & 重解析，保证三种追加写法都能取到 */
+  let src = search;
+  if (!(src.has('id') && src.has('hash'))){
+    const alt = new URLSearchParams((location.search + '&' + location.hash.replace(/^#/, ''))
+      .replace(/^[?#]/, '').replace(/[?#]/g, '&'));
+    if (alt.has('id') && alt.has('hash')) src = alt;
+  }
   const user = {};
   ['id','first_name','last_name','username','photo_url','auth_date','hash'].forEach(k => {
-    if (params.has(k)) user[k] = params.get(k);
+    if (src.has(k)) user[k] = src.get(k);
   });
-  /* 清理地址栏：仅保留邮件激活标记，避免授权凭证与 state 留在 URL */
+  /* 清理地址栏：去掉 /tg/<state> 与授权参数，仅保留邮件激活标记 */
   const keep = new URLSearchParams();
-  if (params.has('activated')) keep.set('activated', params.get('activated'));
+  if (search.has('activated')) keep.set('activated', search.get('activated'));
   const qs = keep.toString();
-  try { history.replaceState(null, '', location.pathname + (qs ? '?' + qs : '')); } catch(e){}
+  try { history.replaceState(null, '', '/' + (qs ? '?' + qs : '')); } catch(e){}
   if (!user.id || !user.hash){ toast(dict().tgLoginFail); return; }
   try {
     const res = await fetch('/api/auth/telegram', { method:'POST', headers:{ 'Content-Type':'application/json' },

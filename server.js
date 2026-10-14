@@ -286,7 +286,7 @@ const MIME = {
 function serveStatic(req, res){
   let urlPath = req.url.split('?')[0];
   try { urlPath = decodeURIComponent(urlPath); } catch(e){}
-  if (urlPath === '/') urlPath = '/index.html';
+  if (urlPath === '/' || /^\/tg\/[A-Za-z0-9_-]+$/.test(urlPath)) urlPath = '/index.html';
   /* 安全：禁止通过静态资源访问 data 目录（users/auth/secrets 等敏感数据），杜绝密钥泄露 */
   if (/^\/data(\/|$)/i.test(urlPath)) return send(res, 404, 'Not Found');
   const filePath = path.normalize(path.join(ROOT, urlPath));
@@ -975,7 +975,9 @@ const server = http.createServer(async (req, res) => {
   }
   /* ---- Telegram 快捷登录（发起）：302 到 Telegram 官方授权页 ----
      带 bind=1&uid&sid 表示「把 Telegram 身份绑定到当前已登录账号」，凭据非法直接拒绝。
-     回跳地址固定为本站根路径，Telegram 会把签名参数追加其后（前端据此完成登录/绑定）。 */
+     回跳地址用「路径」承载一次性 state（/tg/<state>），不带查询串：Telegram 会把签名参数
+     追加到 return_to 之后，若 return_to 本身已含 "?" 会与追加的 "?" 冲突，导致 id 被并进
+     相邻参数而解析不到（曾因此出现回跳后弹「Telegram 登录失败」）。用路径可彻底避免歧义。 */
   if (p === '/api/auth/telegram/start' && req.method === 'GET'){
     const botId = await tgBotId();
     if (!botId) return send(res, 503, 'Telegram 登录未配置');
@@ -988,7 +990,7 @@ const server = http.createServer(async (req, res) => {
     const state = crypto.randomBytes(16).toString('hex');
     TG_STATES.set(state, { createdAt: Date.now(), bindUserId });
     TG_STATES.forEach((rec, k) => { if (Date.now() - rec.createdAt > TG_STATE_TTL) TG_STATES.delete(k); });
-    const returnTo = PUBLIC_BASE_URL + '/?tg=1&s=' + state;
+    const returnTo = PUBLIC_BASE_URL + '/tg/' + state;
     const qs = new URLSearchParams({ bot_id: botId, origin: PUBLIC_BASE_URL, return_to: returnTo }).toString();
     res.writeHead(302, { 'Location': 'https://oauth.telegram.org/auth?' + qs });
     return res.end();
