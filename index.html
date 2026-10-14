@@ -712,6 +712,10 @@
       <div class="lm-title" data-i18n="authAccountTitle">我的账号</div>
       <div class="lm-sub" data-i18n="authAccountSub">已登录，可继续之前的对话</div>
       <div class="lm-acct"><div><span data-i18n="authNickLabel">昵称</span>：<b id="acNick"></b></div><div><span data-i18n="authEmailLabel">邮箱</span>：<b id="acEmail"></b></div></div>
+      <div class="lm-or" id="acOr" data-i18n="authBindTitle">账号绑定</div>
+      <div class="lm-acct" id="acLinks"></div>
+      <div class="lm-tg" id="bindSlot"></div>
+      <div class="lm-err" id="bindErr"></div>
       <button class="lm-btn primary full" onclick="closeLogin()" data-i18n="authContinue">继续对话</button>
       <button class="lm-btn ghost full" onclick="authLogout()" data-i18n="authLogout">退出登录</button>
     </div>
@@ -945,6 +949,7 @@ const I18N = {
     authSendCode:'发送验证码', authCodePh:'6位数字验证码', authRegBtn:'注册并发送激活邮件',
     authResetTitle:'重置密码', authResetSub:'邮箱验证码核验后设置新密码', authNewPwd:'新密码', authResetBtn:'重置密码',
     authAccountTitle:'我的账号', authAccountSub:'已登录，可继续之前的对话', authNickLabel:'昵称', authEmailLabel:'邮箱', authContinue:'继续对话', authLogout:'退出登录',
+    authBindTitle:'账号绑定', boundOn:'已绑定', boundOff:'未绑定', bindOk:'绑定成功',
     authErrEmailFormat:'邮箱格式不正确', authErrEmailDisposable:'该邮箱为一次性临时邮箱，禁止注册',
     authErrEmailTaken:'该邮箱已被注册', authErrEmailNotReg:'该邮箱尚未注册',
     authErrIdEmpty:'请输入邮箱', authErrIdFormat:'请输入正确的邮箱地址', authErrLogin:'账号或密码不正确',
@@ -975,6 +980,7 @@ const I18N = {
     authSendCode:'Send code', authCodePh:'6-digit code', authRegBtn:'Sign up & send link',
     authResetTitle:'Reset password', authResetSub:'Verify by email code, then set a new password', authNewPwd:'New password', authResetBtn:'Reset password',
     authAccountTitle:'My account', authAccountSub:'Signed in — you can continue your previous chat', authNickLabel:'Name', authEmailLabel:'Email', authContinue:'Continue chatting', authLogout:'Sign out',
+    authBindTitle:'Account linking', boundOn:'Linked', boundOff:'Not linked', bindOk:'Linked successfully',
     authErrEmailFormat:'Invalid email format', authErrEmailDisposable:'Disposable email addresses are not allowed',
     authErrEmailTaken:'This email is already registered', authErrEmailNotReg:'This email is not registered',
     authErrIdEmpty:'Please enter your email', authErrIdFormat:'Please enter a valid email', authErrLogin:'Incorrect account or password',
@@ -1005,6 +1011,7 @@ const I18N = {
     authSendCode:'Отправить код', authCodePh:'Код из 6 цифр', authRegBtn:'Регистрация + ссылка',
     authResetTitle:'Сброс пароля', authResetSub:'Подтвердите кодом из письма и задайте новый пароль', authNewPwd:'Новый пароль', authResetBtn:'Сбросить пароль',
     authAccountTitle:'Мой аккаунт', authAccountSub:'Вы вошли — можно продолжить прошлый диалог', authNickLabel:'Имя', authEmailLabel:'Почта', authContinue:'Продолжить диалог', authLogout:'Выйти',
+    authBindTitle:'Привязка аккаунтов', boundOn:'Привязан', boundOff:'Не привязан', bindOk:'Аккаунт привязан',
     authErrEmailFormat:'Неверный формат почты', authErrEmailDisposable:'Одноразовые почты запрещены',
     authErrEmailTaken:'Эта почта уже зарегистрирована', authErrEmailNotReg:'Эта почта не зарегистрирована',
     authErrIdEmpty:'Введите почту', authErrIdFormat:'Введите корректную почту', authErrLogin:'Неверный аккаунт или пароль',
@@ -1169,6 +1176,7 @@ function authGoto(view){
   if (view === 'account' && currentUser){
     $('acNick').textContent = currentUser.nickname || '';
     $('acEmail').textContent = currentUser.email || '—';
+    refreshLinks();   // 展示已绑定的第三方身份
   }
 }
 /* 侧边栏入口：未登录 → 登录/注册；已登录 → 我的账号 */
@@ -1258,53 +1266,91 @@ loadAuthConfig();
    · Telegram：官方 Login Widget，用户授权后以 postMessage 回调 onTelegramAuth(user)，
      前端把用户数据交给后端做 HMAC 签名校验（无需邮箱）。
      前提：BotFather 里为该 Bot 执行 /setdomain 绑定本站域名，否则控件不显示。
-   · VK：标准 OAuth 2.0 授权码流程，前端跳转后端 /api/auth/vk/start 发起，
+   · VK：VK ID 授权码流程（PKCE），前端跳转后端 /api/auth/vk/start 发起，
      授权后回跳后端回调完成换取资料与建号，再带一次性握手串回前端取回账号。
-   两个入口是否展示均取决于后端 /api/auth/config 下发的开关，前端不硬编码。 */
+   两个入口是否展示均取决于后端 /api/auth/config 下发的开关，前端不硬编码。
+   登录页与「我的账号」绑定区共用同一套圆形按钮：已登录时点击即「绑定」当前账号。 */
 function renderSsoButtons(){
-  const slot = $('ssoSlot'); if (!slot) return;
   const tgOn = !!(tgCfg.enabled && tgCfg.botUsername);
   const vkOn = !!vkCfg.enabled;
-  const tgBtn = $('tgBtn'), vkBtn = $('vkBtn');
-  if (tgBtn) tgBtn.style.display = tgOn ? 'flex' : 'none';
-  if (vkBtn) vkBtn.style.display = vkOn ? 'flex' : 'none';
-  if (!tgOn && !vkOn) return;
-  const or = $('lgOr'); if (or) or.style.display = 'flex';
-  slot.style.display = 'flex';
-  if (!tgOn || slot.dataset.tgRendered) return;
-  const hit = $('tgHit'); if (!hit) return;
-  const s = document.createElement('script');
-  s.async = true;
-  s.src = 'https://telegram.org/js/telegram-widget.js?22';
-  s.setAttribute('data-telegram-login', tgCfg.botUsername);
-  s.setAttribute('data-size', 'large');
-  s.setAttribute('data-onauth', 'onTelegramAuth(user)');
-  /* 脚本在自己的父容器内注入官方 iframe；该容器被 CSS 透明化并裁成圆形，仅作点击热区 */
-  hit.appendChild(s);
-  slot.dataset.tgRendered = '1';
+  const srcSlot = $('ssoSlot'), bindSlot = $('bindSlot');
+  /* 绑定区按钮由登录区标记克隆而来（仅改 id 与 VK 点击参数），避免重复维护两份 SVG */
+  if (srcSlot && bindSlot && !bindSlot.dataset.filled){
+    bindSlot.innerHTML = srcSlot.innerHTML
+      .replace(/tgHit/g, 'tgHitB').replace(/tgBtn/g, 'tgBtnB').replace(/vkBtn/g, 'vkBtnB')
+      .replace(/startVkLogin\(\)/g, 'startVkLogin(true)');
+    bindSlot.dataset.filled = '1';
+  }
+  const rows = [
+    { slot: srcSlot,  show: (tgOn || vkOn) && !currentUser, tgBtn: $('tgBtn'),  vkBtn: $('vkBtn'),  hit: $('tgHit'),  flag: 'tgRendered' },
+    { slot: bindSlot, show: (tgOn || vkOn) && !!currentUser, tgBtn: $('tgBtnB'), vkBtn: $('vkBtnB'), hit: $('tgHitB'), flag: 'tgRenderedB' }
+  ];
+  rows.forEach(row => {
+    if (!row.slot) return;
+    if (row.tgBtn) row.tgBtn.style.display = tgOn ? 'flex' : 'none';
+    if (row.vkBtn) row.vkBtn.style.display = vkOn ? 'flex' : 'none';
+    row.slot.style.display = row.show ? 'flex' : 'none';
+    /* 控件脚本必须在容器可见后再注入，否则官方 iframe 会渲染成 0 尺寸 */
+    if (!row.show || !tgOn || !row.hit || row.slot.dataset[row.flag]) return;
+    const s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://telegram.org/js/telegram-widget.js?22';
+    s.setAttribute('data-telegram-login', tgCfg.botUsername);
+    s.setAttribute('data-size', 'large');
+    s.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    /* 脚本在自己的父容器内注入官方 iframe；该容器被 CSS 透明化并裁成圆形，仅作点击热区 */
+    row.hit.appendChild(s);
+    row.slot.dataset[row.flag] = '1';
+  });
+  const or = $('lgOr'); if (or) or.style.display = (tgOn || vkOn) ? 'flex' : 'none';
 }
+/* 已登录时点击第三方按钮 = 绑定到当前账号；未登录 = 普通登录注册 */
 window.onTelegramAuth = async function(user){
-  const err = $('tgErr'); if (err) err.textContent = '';
   if (!user) return;
+  const binding = !!currentUser;
+  const err = $(binding ? 'bindErr' : 'tgErr'); if (err) err.textContent = '';
   try {
-    const res = await fetch('/api/auth/telegram', {
-      method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ user, sessionId, lang })
-    });
+    const res = binding
+      ? await fetch('/api/auth/bind/telegram', { method:'POST', headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ user, uid: currentUser.id, sid: currentUser.sessionId || '' }) })
+      : await fetch('/api/auth/telegram', { method:'POST', headers:{ 'Content-Type':'application/json' },
+          body: JSON.stringify({ user, sessionId, lang }) });
     const d = await res.json().catch(() => ({}));
     if (!res.ok || !d.ok){ if (err) err.textContent = (d && d.error) || dict().authErrLogin; return; }
+    if (binding){ toast(dict().bindOk); refreshLinks(); return; }
     acceptUser(d.user, true);
     toast(dict().authWelcome.replace('{n}', d.user.nickname));
     closeLogin();
   } catch(e){ if (err) err.textContent = dict().authErrLogin; }
 };
-/* VK 登录入口：交给后端生成 state 并跳转 VK 授权页（回调地址由后端按对外域名拼接） */
-function startVkLogin(){
+/* VK 登录入口：交给后端生成 state 与 PKCE 校验串并跳转 VK ID 授权页（回调地址由后端按对外域名拼接）
+   已登录时带 bind=1&uid&sid，授权完成后把 VK 身份绑定到当前账号而非新建账号 */
+function startVkLogin(bind){
   if (!vkCfg.enabled) return;
-  const err = $('tgErr'); if (err) err.textContent = '';
-  location.href = '/api/auth/vk/start';
+  const err = $(bind ? 'bindErr' : 'tgErr'); if (err) err.textContent = '';
+  let url = '/api/auth/vk/start';
+  if (bind && currentUser){
+    url += '?bind=1&uid=' + encodeURIComponent(currentUser.id) + '&sid=' + encodeURIComponent(currentUser.sessionId || '');
+  }
+  location.href = url;
 }
-/* VK 授权回跳：URL 带 ?vk=1&h=... 时用一次性握手串取回账号完成登录，并清理地址栏 */
+/* 「我的账号」绑定状态：查询当前账号已绑定的第三方身份并展示 */
+async function refreshLinks(){
+  const box = $('acLinks'); if (!box) return;
+  if (!currentUser){ box.innerHTML = ''; return; }
+  const on = dict().boundOn, off = dict().boundOff;
+  box.innerHTML = '<div>Telegram：<b>' + on + '</b></div><div>VK：<b>' + on + '</b></div>';
+  try {
+    const res = await fetch('/api/auth/links?uid=' + encodeURIComponent(currentUser.id)
+      + '&sid=' + encodeURIComponent(currentUser.sessionId || ''), { cache:'no-store' });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok) return;
+    box.innerHTML =
+      '<div>Telegram：<b>' + (d.telegram.bound ? on : off) + '</b></div>' +
+      '<div>VK：<b>' + (d.vk.bound ? on : off) + '</b></div>';
+  } catch(e){}
+}
+/* VK 授权回跳：URL 带 ?vk=1&h=... 时用一次性握手串取回结果，并清理地址栏 */
 async function handleVkRedirect(){
   const params = new URLSearchParams(location.search);
   if (!params.has('vk')) return;
@@ -1317,6 +1363,11 @@ async function handleVkRedirect(){
     const res = await fetch('/api/auth/vk/claim?h=' + encodeURIComponent(handshake), { cache:'no-store' });
     const d = await res.json().catch(() => ({}));
     if (!res.ok || !d.ok){ toast((d && d.error) || dict().vkLoginFail); return; }
+    if (d.bound){                       // 绑定结果：账号不变，仅刷新绑定状态并回到「我的账号」
+      toast(dict().bindOk);
+      applyAuthState(); refreshLinks(); authOpen();
+      return;
+    }
     acceptUser(d.user, true);
     toast(dict().authWelcome.replace('{n}', d.user.nickname));
     closeLogin();
