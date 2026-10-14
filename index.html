@@ -381,6 +381,8 @@
   .lm-links{ margin-top:14px; display:flex; justify-content:space-between; gap:10px; }
   .lm-links a{ font-size:12px; color:#2f7cf6; cursor:pointer; }
   .lm-links a:hover{ text-decoration:underline; }
+  .lm-tip{ margin-top:14px; font-size:12px; color:#8b94a0; text-align:center; line-height:1.6; display:none; }
+  .lm-tip.show{ display:block; }
   .lm-codrow{ display:flex; gap:8px; margin-top:12px; align-items:stretch; }
   .lm-codrow .lm-input{ flex:1; min-width:0; }
   .lm-codrow .lm-btn{ flex:none; padding:0 14px; }
@@ -656,6 +658,8 @@
         <a data-i18n="authForgot" onclick="authOpenReset()">忘记密码？</a>
         <a data-i18n="authToRegister" onclick="authGoto('register')">还没有账号？注册</a>
       </div>
+      <div class="lm-tip" id="lgGuestTip" data-i18n="authGuestTip"></div>
+      <button class="lm-btn ghost full" id="lgGuestBtn" onclick="authGuestLogin()" data-i18n="authGuestBtn">免注册，以游客身份进入</button>
     </div>
 
     <!-- 注册 -->
@@ -946,7 +950,9 @@ const I18N = {
     authCodeDemo:'演示模式：本次验证码为 {c}（未真实发送）', authResendIn:'{s} 秒后可重发',
     authWelcome:'注册成功，欢迎 {n}！', authResetDone:'密码已重置，请用新密码登录', tgLoginFail:'Telegram 登录失败，请重试',
     authActivateSent:'激活链接已发送至 {e}，请查收邮件并点击链接完成注册（24 小时内有效）', authActivateDone:'邮箱激活成功，请登录', authActivateFail:'激活链接无效或已过期', authErrNotActivated:'该账号尚未激活，请点击邮件中的激活链接完成激活',
-    authRequired:'请先登录后再发送消息', authInputPh:'请先点击左下角登录'
+    authRequired:'请先登录后再发送消息', authInputPh:'请先点击左下角登录',
+    authGuestBtn:'免注册，以游客身份进入', authGuestName:'游客', authGuestDone:'已以游客身份进入',
+    authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能'
   },
   en: {
     brandTitle:'Beisu', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
@@ -977,7 +983,9 @@ const I18N = {
     authCodeDemo:'Demo mode: your code is {c} (not actually sent)', authResendIn:'Resend in {s}s',
     authWelcome:'Registered — welcome, {n}!', authResetDone:'Password reset. Please sign in with your new password.', tgLoginFail:'Telegram sign-in failed. Please try again.',
     authActivateSent:'Activation link sent to {e}. Open the email and click the link to finish (valid for 24 hours).', authActivateDone:'Email activated — please sign in', authActivateFail:'Activation link is invalid or expired', authErrNotActivated:'This account is not activated yet. Please click the activation link in your email.',
-    authRequired:'Please sign in before sending messages', authInputPh:'Tap the login entry at bottom-left first'
+    authRequired:'Please sign in before sending messages', authInputPh:'Tap the login entry at bottom-left first',
+    authGuestBtn:'Continue as guest (no sign-up)', authGuestName:'Guest', authGuestDone:'Entered as guest',
+    authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.'
   },
   ru: {
     brandTitle:'Beisu', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
@@ -1008,7 +1016,9 @@ const I18N = {
     authCodeDemo:'Демо-режим: ваш код {c} (не отправляется)', authResendIn:'Повтор через {s} с',
     authWelcome:'Регистрация завершена, добро пожаловать, {n}!', authResetDone:'Пароль сброшен. Войдите с новым паролем.', tgLoginFail:'Не удалось войти через Telegram. Попробуйте ещё раз.',
     authActivateSent:'Ссылка для активации отправлена на {e}. Откройте письмо и перейдите по ссылке (действует 24 часа).', authActivateDone:'Почта активирована — войдите', authActivateFail:'Ссылка активации недействительна или истекла', authErrNotActivated:'Аккаунт не активирован. Перейдите по ссылке активации в письме.',
-    authRequired:'Сначала войдите, чтобы отправлять сообщения', authInputPh:'Сначала нажмите «Войти» внизу слева'
+    authRequired:'Сначала войдите, чтобы отправлять сообщения', authInputPh:'Сначала нажмите «Войти» внизу слева',
+    authGuestBtn:'Продолжить как гость (без регистрации)', authGuestName:'Гость', authGuestDone:'Вы вошли как гость',
+    authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.'
   }
 };
 const LANG_LABEL = { zh:'中文', en:'English', ru:'Русский' };
@@ -1167,11 +1177,19 @@ function authGoto(view){
     refreshLinks();   // 展示已绑定的第三方身份
   }
 }
-/* 侧边栏入口：未登录 → 登录/注册；已登录 → 我的账号 */
+/* 游客提示：以游客身份进入时展示升级提示，并隐藏游客入口按钮（避免重复点击） */
+function applyGuestTip(){
+  const asGuest = !!(currentUser && currentUser.isGuest);
+  const tip = $('lgGuestTip'); if (tip) tip.classList.toggle('show', asGuest);
+  const btn = $('lgGuestBtn'); if (btn) btn.style.display = asGuest ? 'none' : '';
+}
+/* 侧边栏入口：未登录 → 登录/注册；已登录 → 我的账号；游客 → 登录/注册（可升级为完整账号） */
 function authOpen(){
-  authGoto(currentUser ? 'account' : 'login');
+  const asGuest = !!(currentUser && currentUser.isGuest);
+  authGoto(currentUser && !asGuest ? 'account' : 'login');
   $('loginOverlay').classList.add('show');
   renderSsoButtons();   // 弹窗可见后再注入控件，避免在隐藏容器里渲染成 0 尺寸
+  applyGuestTip();
 }
 function authOpenReset(){
   $('rsId').value = $('lgId').value.trim();
@@ -1262,9 +1280,10 @@ function renderSsoButtons(){
       .replace(/startTelegramLogin\(\)/g, 'startTelegramLogin(true)');
     bindSlot.dataset.filled = '1';
   }
+  const asGuest = !!(currentUser && currentUser.isGuest);
   const rows = [
-    { slot: srcSlot,  show: tgOn && !currentUser, tgBtn: $('tgBtn') },
-    { slot: bindSlot, show: tgOn && !!currentUser, tgBtn: $('tgBtnB') }
+    { slot: srcSlot,  show: tgOn && (!currentUser || asGuest), tgBtn: $('tgBtn') },   // 未登录/游客：展示登录入口（游客可借此升级为完整账号）
+    { slot: bindSlot, show: tgOn && !!currentUser && !asGuest, tgBtn: $('tgBtnB') }    // 仅完整账号才展示绑定入口
   ];
   rows.forEach(row => {
     if (!row.slot) return;
@@ -1501,8 +1520,25 @@ async function authResetPwd(){
     toast(dict().authResetDone);
     $('lgId').value = id; $('lgPwd').value = '';
     authGoto('login');
-  } catch(e){ err.textContent = dict().authErrCode; }
+  } catch(e){ err.textContent = dict().authErrPwd; }
   finally { btn.disabled = false; }
+}
+/* 游客匿名登录：免注册直接进入网站；后端不写入用户列表，仅开放浏览与机器人问答权限 */
+async function authGuestLogin(){
+  const err = $('lgErr'); if (err) err.textContent = '';
+  const btn = $('lgGuestBtn'); if (btn) btn.disabled = true;
+  try {
+    const res = await fetch('/api/auth/guest', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ lang })
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok || !d.user){ if (err) err.textContent = authErrMsg(res.status, d); return; }
+    acceptUser(d.user, true);
+    toast(dict().authGuestDone);
+    closeLogin();
+  } catch(e){ if (err) err.textContent = dict().authErrLogin; }
+  finally { if (btn) btn.disabled = false; }
 }
 /* 退出登录：回到访客会话，避免展示他人历史 */
 function authLogout(){
@@ -1515,7 +1551,8 @@ function authLogout(){
 }
 /* 账号登录成功：写入本地 + 若切换了会话则清空本地缓存并拉取该账号历史 */
 function acceptUser(user, switchSession){
-  currentUser = { id:user.id, email:user.email, nickname:user.nickname, sessionId:user.sessionId, createdAt:user.createdAt };
+  currentUser = { id:user.id, email:user.email, nickname:user.nickname, sessionId:user.sessionId, createdAt:user.createdAt,
+                  provider:user.provider || '', isGuest:!!user.isGuest };
   localStorage.setItem('beisu_user', JSON.stringify(currentUser));
   if (user.sessionId && user.sessionId !== sessionId){
     sessionId = user.sessionId;
@@ -1534,7 +1571,7 @@ function applyAuthState(){
   if (currentUser){
     row.classList.add('bound');
     txt.removeAttribute('data-i18n');
-    txt.textContent = currentUser.nickname;
+    txt.textContent = currentUser.isGuest ? dict().authGuestName : currentUser.nickname;   // 游客身份按当前语种展示
   } else {
     row.classList.remove('bound');
     txt.setAttribute('data-i18n', 'signIn');
@@ -1645,7 +1682,7 @@ async function requestMatch(text){
     const res = await fetch('/api/match', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ text, lang, sessionId })  // 界面语种 + 会话 ID（后台人工介入用）
+      body: JSON.stringify({ text, lang, sessionId, guest: !!(currentUser && currentUser.isGuest) })  // 界面语种 + 会话 ID + 游客标记
     });
     return await res.json();
   } catch(e){

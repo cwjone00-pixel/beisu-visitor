@@ -763,6 +763,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/config' || p === '/api/match' ||
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
+      p === '/api/auth/guest' ||
       p === '/api/auth/activate' || p === '/api/auth/telegram' || p === '/api/auth/telegram/start' ||
       p === '/api/auth/bind/telegram' || p === '/api/auth/links' ||
       (p === '/api/auth/config' && req.method === 'GET') ||
@@ -862,6 +863,20 @@ const server = http.createServer(async (req, res) => {
       telegramEnabled: !!(tg.botUsername && tg.botToken),   // 两者齐备才展示 Telegram 登录控件
       telegramBotUsername: tg.botUsername                    // 公开：前端控件 data-telegram-login 使用
     });
+  }
+  /* ---- 游客匿名登录：免注册直接进入网站 ----
+     仅开放浏览与机器人问答权限：不写入访客用户列表（loadUsers），不提供账号管理（改密码/绑定第三方），
+     身份只作为浏览器本地会话使用；会话打上 guest 标记，后端据此禁止人工客服接管。 */
+  if (p === '/api/auth/guest' && req.method === 'POST'){
+    return send(res, 200, { ok:true, user: {
+      id: 'guest-' + crypto.randomUUID(),
+      email: '',
+      nickname: '游客',
+      sessionId: crypto.randomUUID(),
+      createdAt: Date.now(),
+      provider: 'guest',
+      isGuest: true
+    } });
   }
   /* ---- 访客账号：预校验（邮箱 格式与唯一性、昵称唯一） ---- */
   if (p === '/api/auth/check' && req.method === 'POST'){
@@ -1124,6 +1139,7 @@ const server = http.createServer(async (req, res) => {
     }
     const sess = activeSid ? getSession(activeSid) : null;
     if (sess && (body.lang === 'zh' || body.lang === 'en' || body.lang === 'ru')) sess.lang = body.lang;
+    if (sess && body.guest === true) sess.guest = true;   // 游客会话：仅机器人问答，禁止人工接管
     if (activeSid) addMsg(activeSid, { role:'visitor', text:String(body.text || '').slice(0, 2000) });
     // 人工接管中：暂停机器人自动关键词回复（后台仍可手动发言）
     if (sess && sess.mode === 'agent'){
@@ -1189,6 +1205,7 @@ const server = http.createServer(async (req, res) => {
     if (!text) return send(res, 400, { error:'empty text' });
     const s = getSession(sid);
     if (s.ended) return send(res, 409, { error:'session ended' });
+    if (s.guest) return send(res, 403, { ok:false, error:'游客会话仅支持机器人问答，不支持人工接管' });
     // 人工手动发送：总开关开启且客户界面语种非中文时，自动翻译为客户语种
     // （无论会话处于机器人自动回复还是人工接管模式，人工发的消息都走此逻辑；机器人自动回复不经过翻译）
     let out = text, origText = null;
@@ -1240,6 +1257,7 @@ const server = http.createServer(async (req, res) => {
     const sid = decodeURIComponent(p.slice('/api/chat/'.length, -'/mode'.length));
     const body = await readBody(req);
     const s = getSession(sid);
+    if (s.guest && body.mode === 'agent') return send(res, 403, { ok:false, error:'游客会话仅支持机器人问答，不支持人工接管' });
     s.mode = (body.mode === 'agent') ? 'agent' : 'bot';
     saveChats();
     return send(res, 200, { ok:true, mode:s.mode });
