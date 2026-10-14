@@ -5,7 +5,8 @@
   "description": "悖速游客端聊天服务（Node.js）",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test-tg-auth.js"
   },
   "dependencies": {
     "mongodb": "^6"

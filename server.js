@@ -642,6 +642,7 @@ function verifyRecaptcha(token, remoteip){
      data_check_string = 除 hash 外所有键值对按 "key=value" 升序用 \n 连接
      校验 hash == HMAC_SHA256(data_check_string, secret_key)
    auth_date 超过 1 天视为过期，防止重放。未配置 Bot Token 时不可用。 */
+/*==TG_VERIFY_BEGIN==*/
 const TG_AUTH_TTL = 24 * 60 * 60 * 1000;
 function verifyTelegramAuth(user){
   const g = loadSecrets().telegram;
@@ -662,6 +663,7 @@ function verifyTelegramAuth(user){
   return { ok:true, id:tgId, first:String(data.first_name || '').trim(), last:String(data.last_name || '').trim(),
            username:String(data.username || '').trim(), photo:String(data.photo_url || '').trim() };
 }
+/*==TG_VERIFY_END==*/
 /* Telegram 昵称：优先「名 姓」，其次用户名，最后回退；与站内已用昵称冲突时自动加序号 */
 function telegramNickname(v){
   const base = ([v.first, v.last].filter(Boolean).join(' ') || v.username || ('TG' + v.id)).slice(0, 20);
@@ -762,7 +764,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
       p === '/api/auth/activate' || p === '/api/auth/telegram' || p === '/api/auth/telegram/start' ||
-      p === '/api/auth/bind/telegram' || p === '/api/auth/links' || p === '/api/auth/tgdiag' ||
+      p === '/api/auth/bind/telegram' || p === '/api/auth/links' ||
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
@@ -994,20 +996,6 @@ const server = http.createServer(async (req, res) => {
     const qs = new URLSearchParams({ bot_id: botId, origin: PUBLIC_BASE_URL, return_to: returnTo }).toString();
     res.writeHead(302, { 'Location': 'https://oauth.telegram.org/auth?' + qs });
     return res.end();
-  }
-  /* ---- Telegram 回跳现场诊断（临时排障用，排障结束后移除）----
-     前端在回跳时把原始 URL 等上报到这里留痕；GET 可取回最近若干条，便于定位
-     “回跳后到底带了哪些参数 / 前端解析成了什么”。 */
-  if (p === '/api/auth/tgdiag'){
-    const D = path.join(ROOT, 'data', 'tgdiag.log');
-    if (req.method === 'POST'){
-      const b = await readBody(req);
-      try { fs.mkdirSync(path.dirname(D), { recursive: true }); fs.appendFileSync(D, JSON.stringify(Object.assign({ t: Date.now() }, b)) + '\n'); } catch(e){}
-      return send(res, 200, { ok:true });
-    }
-    let lines = [];
-    try { lines = fs.readFileSync(D, 'utf8').trim().split('\n').slice(-20); } catch(e){}
-    return send(res, 200, { ok:true, lines });
   }
   /* ---- Telegram 快捷登录：校验控件回调签名 → 按 Telegram ID 建/取访客账号 → 返回会话 ----
      Telegram 不提供邮箱，故此类账号 email 为空、注册即激活（status=active），

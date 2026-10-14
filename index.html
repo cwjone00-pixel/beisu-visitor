@@ -1298,46 +1298,56 @@ async function refreshLinks(){
     box.innerHTML = '<div>Telegram：<b>' + (d.telegram.bound ? on : off) + '</b></div>';
   } catch(e){}
 }
-/* Telegram 授权回跳：return_to 为 /tg/<state>（路径承载 state，不带查询串）。
-   【实测确认·2026-10-14】Telegram 真实回跳格式是把整个签名数据 base64url 成 JSON 放在片段里：
-   …/tg/<state>#tgAuthResult=eyJpZCI6…（解出 id/first_name/last_name/photo_url/auth_date/hash，
-   其 hash 用后端现有算法即可验签通过）。故按此优先解析；同时兼容「参数平铺」的追加写法
-   （路径尾巴 / search / hash 三种来源，分隔符 ?、# 统一成 &）。解析出的字段原样提交后端验签。
-   另把回跳原始 URL 上报服务端留痕，便于线上排障（失败不影响主流程）。 */
-async function handleTelegramRedirect(){
-  const search = new URLSearchParams(location.search);
-  const m = location.pathname.match(/^\/tg\/([0-9a-f]{16,})/i);
-  if (!m && !search.has('tg')) return;
-  const state = (m ? m[1] : '') || search.get('s') || '';
-  const tail = m ? location.pathname.slice(m[0].length) : '';   // state 之后可能是 &id=..&hash=..
-  const src = new URLSearchParams(
-    (tail + '&' + location.search.replace(/^\?/, '') + '&' + location.hash.replace(/^#/, ''))
-      .replace(/[?#]/g, '&'));
-  /* ① 首选：tgAuthResult = base64url(JSON)，解出全部签名字段 */
-  let user = {};
-  const tgResult = src.get('tgAuthResult') || search.get('tgAuthResult');
-  if (tgResult){
-    try {
-      let b = tgResult.replace(/-/g, '+').replace(/_/g, '/');
-      while (b.length % 4) b += '=';
-      user = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(b), c => c.charCodeAt(0))));
-      if (!user || typeof user !== 'object') user = {};
-    } catch(e){ user = {}; }
+/* ---- Telegram 回跳解析（抽成纯函数 tgParseCallback，便于 test-tg-auth.js 自动自测）----
+   【实测·2026-10-14】Telegram 登录控件 data-auth-url 模式回跳格式为：
+     <return_to>#tgAuthResult=<base64url(JSON)>   （JSON 内含 id/first_name/last_name/photo_url/auth_date/hash）
+   同时兼容「参数平铺」写法：state 走 pathname（/tg/<state>），其余参数散落在 path/search/hash，
+   分隔符可能是 ? / & / #。解析器把三处来源合并、分隔符归一成 & 后逐字段取，任何写法都能取到。
+   解析出的字段原样提交后端验签（后端算法不变）。 */
+/*==TG_PARSE_BEGIN==*/
+/* tgAuthResult → 对象：支持 base64url / 标准 base64 / 缺 padding / 明文 JSON；解不出时返回 {} */
+function tgDecodeAuthResult(raw){
+  const s = String(raw == null ? '' : raw).trim();
+  if (!s) return {};
+  if (s.charAt(0) === '{'){
+    try { const o = JSON.parse(s); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; } catch(e){ return {}; }
   }
-  /* ② 兼容：参数平铺在 query/片段里（排除我们自己注入的非签名字段） */
+  let b = s.replace(/-/g, '+').replace(/_/g, '/').replace(/\s+/g, '');
+  while (b.length % 4) b += '=';
+  try {
+    const bin = (typeof atob === 'function') ? atob(b) : Buffer.from(b, 'base64').toString('binary');
+    const o = JSON.parse(new TextDecoder('utf-8').decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch(e){ return {}; }
+}
+/* 解析回跳地址：非 TG 回跳返回 null；否则 { state, user }（user 为 {} 表示解析不到字段） */
+function tgParseCallback(loc){
+  const search = new URLSearchParams(String((loc && loc.search) || ''));
+  const pathname = String((loc && loc.pathname) || '');
+  const hash = String((loc && loc.hash) || '');
+  const m = pathname.match(/^\/tg\/([0-9a-f]{16,})/i);
+  if (!m && !search.has('tg')) return null;
+  const state = (m ? m[1] : '') || search.get('s') || '';
+  const tail = m ? pathname.slice(m[0].length) : '';
+  const src = new URLSearchParams((tail + '&' + search.toString() + '&' + hash.replace(/^#/, '')).replace(/[?#]/g, '&'));
+  let user = tgDecodeAuthResult(src.get('tgAuthResult') || search.get('tgAuthResult'));
   if (!user.id){
     const SKIP = { state:1, tg:1, s:1, activated:1, tgAuthResult:1 };
     src.forEach((v, k) => { if (!SKIP[k] && user[k] === undefined) user[k] = v; });
   }
-  /* 回跳现场留痕：原始 URL + 各段解析结果（诊断用，接口失败也不阻塞登录） */
-  try { fetch('/api/auth/tgdiag', { method:'POST', headers:{ 'Content-Type':'application/json' },
-    body: JSON.stringify({ raw: location.href, pathname: location.pathname, tail: tail,
-      search: location.search, hash: location.hash, state: state, keys: Object.keys(user) }) }); } catch(e){}
+  return { state: state, user: user };
+}
+/*==TG_PARSE_END==*/
+async function handleTelegramRedirect(){
+  const parsed = tgParseCallback(location);
+  if (!parsed) return;
+  const state = parsed.state, user = parsed.user;
   /* 解析失败：保留地址栏原始 URL 便于排查，不改写 URL */
   if (!user.id || !user.hash){ toast(dict().tgLoginFail); return; }
   /* 清理地址栏：去掉 /tg/<state> 与授权参数，仅保留邮件激活标记 */
   const keep = new URLSearchParams();
-  if (search.has('activated')) keep.set('activated', search.get('activated'));
+  const act = new URLSearchParams(location.search).get('activated');
+  if (act !== null) keep.set('activated', act);
   const qs = keep.toString();
   try { history.replaceState(null, '', '/' + (qs ? '?' + qs : '')); } catch(e){}
   try {
