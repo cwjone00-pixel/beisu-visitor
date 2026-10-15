@@ -805,16 +805,14 @@ function renderChatPanel(msgs, reset){
       let text = '', extra = '';
       if (m.role === 'bot' && m.reply){
         text = m.reply.zh || m.reply.en || m.reply.ru || '';
-        if (m.reply.en && m.reply.en !== text) extra += trLine('英译', m.reply.en);
-        if (m.reply.ru && m.reply.ru !== text) extra += trLine('俄译', m.reply.ru);
+        if (m.reply.en) extra += trLine('英译', m.reply.en);
+        if (m.reply.ru) extra += trLine('俄译', m.reply.ru);
       } else {
         text = m.origText || m.text || '';
-        /* 三语展示：原文 + 英译 + 俄译（译文与原文相同则不重复展示） */
+        /* 三语展示：原文 + 英译 + 俄译；有译文就展示（同语种重复属正常，缺失才是真的不可用） */
         if (m.role === 'visitor' || m.role === 'agent'){
-          const en = (m.transEn && m.transEn !== text) ? m.transEn : '';
-          const ru = (m.transRu && m.transRu !== text) ? m.transRu : '';
-          extra += trLine('英译', en);
-          extra += trLine('俄译', ru);
+          extra += trLine('英译', m.transEn || '');
+          extra += trLine('俄译', m.transRu || '');
         }
       }
       /* 原有展示保持不变：客户消息附中文译文；人工消息附实际发送给客户的译文 */

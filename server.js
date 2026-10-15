@@ -1430,8 +1430,9 @@ const server = http.createServer(async (req, res) => {
           const src = (m.role === 'agent' && m.origText) ? m.origText : m.text;
           const jobs = [];
           if (m.role === 'visitor' && !m.transZh) jobs.push(translateText(src, 'zh-CN').then(t => { if (t && t !== src) m.transZh = t; }));
-          if (!m.transEn) jobs.push(translateText(src, 'en').then(t => { if (t && t !== src) m.transEn = t; }));
-          if (!m.transRu) jobs.push(translateText(src, 'ru').then(t => { if (t && t !== src) m.transRu = t; }));
+          /* 英译/俄译一律落库（即使与原文同语种），保证弹窗三语行始终有内容，不出现"暂不可用"的误判 */
+          if (!m.transEn) jobs.push(translateText(src, 'en').then(t => { if (t) m.transEn = t; }));
+          if (!m.transRu) jobs.push(translateText(src, 'ru').then(t => { if (t) m.transRu = t; }));
           await Promise.all(jobs);
         })).then(() => saveChats()).catch(() => {}).finally(() => TR_INFLIGHT.delete(s.id));
       }
