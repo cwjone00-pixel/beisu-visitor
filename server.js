@@ -552,6 +552,30 @@ function saveChats(){
   if (cloud.enabled) return cloudSave('chats', loadChats());
   fs.writeFileSync(CHAT_FILE, JSON.stringify(loadChats(), null, 2), 'utf-8');
 }
+/* 后台三语展示：异步为会话消息补齐译文（客户消息 transZh/transEn/transRu，人工消息按原文补 transEn/transRu）。
+   不阻塞本次响应，完成后落库；同会话并发去重（TR_INFLIGHT）。英译/俄译一律落库，避免"暂不可用"误判。
+   ?since= 增量路由与 GET /api/chat/:id 全量路由共用此函数。 */
+function scheduleTrFill(s){
+  if (!s || s.ended || !loadData().agentChat.translate) return;
+  const msgs = s.messages || [];
+  const need = msgs.filter(m => {
+    if (!m || !m.text) return false;
+    if (m.role === 'visitor') return !m.transZh || !m.transEn || !m.transRu;
+    if (m.role === 'agent') return !m.transEn || !m.transRu;
+    return false;
+  });
+  const TR_INFLIGHT = (global.__trInflight = global.__trInflight || new Set());
+  if (!need.length || TR_INFLIGHT.has(s.id)) return;
+  TR_INFLIGHT.add(s.id);
+  Promise.all(need.map(async m => {
+    const src = (m.role === 'agent' && m.origText) ? m.origText : m.text;
+    const jobs = [];
+    if (m.role === 'visitor' && !m.transZh) jobs.push(translateText(src, 'zh-CN').then(t => { if (t && t !== src) m.transZh = t; }));
+    if (!m.transEn) jobs.push(translateText(src, 'en').then(t => { if (t) m.transEn = t; }));
+    if (!m.transRu) jobs.push(translateText(src, 'ru').then(t => { if (t) m.transRu = t; }));
+    await Promise.all(jobs);
+  })).then(() => saveChats()).catch(() => {}).finally(() => TR_INFLIGHT.delete(s.id));
+}
 function getSession(id){
   const db = loadChats();
   if (!db.sessions[id]) db.sessions[id] = { id, mode:'bot', createdAt:Date.now(), messages:[] };
@@ -1413,30 +1437,7 @@ const server = http.createServer(async (req, res) => {
     const since = parseInt(url.searchParams.get('since') || '0', 10) || 0;
     const s = loadChats().sessions[sid];   // 不主动创建会话
     const msgs = s ? s.messages : [];
-    // 人工消息自动翻译开启时，为访客消息后台补齐中文译文（不阻塞本次响应，完成后的下次轮询可见）
-    const TR_INFLIGHT = (global.__trInflight = global.__trInflight || new Set());
-    if (s && !s.ended && loadData().agentChat.translate){
-      /* 后台三语展示：客户消息补 transZh（原有行为保留）+ transEn/transRu；人工消息按人工输入原文补 transEn/transRu。
-         仅在译文与原文不同时才落库，避免把原文当译文存储。纯新增字段，原有字段格式不变。 */
-      const need = msgs.filter(m => {
-        if (!m || !m.text) return false;
-        if (m.role === 'visitor') return !m.transZh || !m.transEn || !m.transRu;
-        if (m.role === 'agent') return !m.transEn || !m.transRu;
-        return false;
-      });
-      if (need.length && !TR_INFLIGHT.has(s.id)){
-        TR_INFLIGHT.add(s.id);
-        Promise.all(need.map(async m => {
-          const src = (m.role === 'agent' && m.origText) ? m.origText : m.text;
-          const jobs = [];
-          if (m.role === 'visitor' && !m.transZh) jobs.push(translateText(src, 'zh-CN').then(t => { if (t && t !== src) m.transZh = t; }));
-          /* 英译/俄译一律落库（即使与原文同语种），保证弹窗三语行始终有内容，不出现"暂不可用"的误判 */
-          if (!m.transEn) jobs.push(translateText(src, 'en').then(t => { if (t) m.transEn = t; }));
-          if (!m.transRu) jobs.push(translateText(src, 'ru').then(t => { if (t) m.transRu = t; }));
-          await Promise.all(jobs);
-        })).then(() => saveChats()).catch(() => {}).finally(() => TR_INFLIGHT.delete(s.id));
-      }
-    }
+    scheduleTrFill(s);   // 异步补齐三语译文，不阻塞本次响应
     return send(res, 200, {
       mode: s ? s.mode : 'bot',
       ended: !!(s && s.ended),
@@ -1510,6 +1511,7 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/api/chat/') && req.method === 'GET'){
     const sid = decodeURIComponent(p.slice('/api/chat/'.length));
     const s = getSession(sid);
+    scheduleTrFill(s);   // 后台打开会话即触发三语补齐，不阻塞本次响应
     return send(res, 200, { id:s.id, mode:s.mode, messages:s.messages });
   }
 
