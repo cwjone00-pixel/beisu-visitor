@@ -66,7 +66,9 @@ async function initCloud(uri){
     try { require('dns').setServers(['8.8.8.8', '1.1.1.1']); } catch(_){}
     client = await connect();
   }
-  cloud.col = client.db(process.env.MONGODB_DB || 'beisu').collection('singleton');
+  cloud.db = client.db(process.env.MONGODB_DB || 'beisu');
+  cloud.col = cloud.db.collection('singleton');
+  cloud.mediaCol = cloud.db.collection('media');   // 图片媒体：独立集合，避免撑爆 chats 单文档 16MB 上限
   for (const name of CLOUD_DOCS){
     const doc = await cloud.col.findOne({ _id:name });
     if (doc && doc.value !== undefined){ cloud.docs[name] = doc.value; }
@@ -264,11 +266,18 @@ function send(res, status, body){
   });
   res.end(isJson ? JSON.stringify(body) : body);
 }
-function readBody(req){
+function readBody(req, maxBytes){
   return new Promise((resolve) => {
-    let raw = '';
-    req.on('data', c => raw += c);
+    let raw = '', size = 0, over = false;
+    const limit = maxBytes || 0;                 // 传入上限时超限即截断（防止超大请求打爆内存）
+    req.on('data', c => {
+      if (over) return;
+      size += c.length;
+      if (limit && size > limit){ over = true; raw = ''; return; }
+      raw += c;
+    });
     req.on('end', () => {
+      if (over) return resolve({ __tooLarge:true });
       try { resolve(JSON.parse(raw || '{}')); }
       catch { resolve({}); }
     });
@@ -388,6 +397,33 @@ function addMsg(sid, m){
   if (s.messages.length > 500) s.messages.splice(0, s.messages.length - 500);
   saveChats();
   return m;
+}
+
+/* ---------------- 图片媒体：独立存储（避免把 base64 塞进 chats 单体文档撑爆 16MB 上限） ----------------
+   有云库 → 单独集合 media 一图一文；无云库 → data/media/<id>.bin + <id>.json（服务器不对外暴露 data 目录） */
+const MEDIA_DIR = path.join(ROOT, 'data', 'media');
+const MEDIA_MAX = 4 * 1024 * 1024;             // 单张图片原始字节上限 4MB
+async function saveMedia(buf, mime){
+  const id = crypto.randomUUID();
+  if (cloud.enabled && cloud.mediaCol){
+    await cloud.mediaCol.replaceOne({ _id:id }, { _id:id, mime, data:buf.toString('base64'), createdAt:Date.now() }, { upsert:true });
+  } else {
+    fs.mkdirSync(MEDIA_DIR, { recursive:true });
+    fs.writeFileSync(path.join(MEDIA_DIR, id + '.bin'), buf);
+    fs.writeFileSync(path.join(MEDIA_DIR, id + '.json'), JSON.stringify({ mime, createdAt:Date.now() }));
+  }
+  return id;
+}
+async function loadMedia(id){
+  if (cloud.enabled && cloud.mediaCol){
+    const doc = await cloud.mediaCol.findOne({ _id:id });
+    if (!doc || !doc.data) return null;
+    return { mime: doc.mime || 'image/jpeg', buf: Buffer.from(doc.data, 'base64') };
+  }
+  try {
+    const meta = JSON.parse(fs.readFileSync(path.join(MEDIA_DIR, id + '.json'), 'utf-8'));
+    return { mime: meta.mime || 'image/jpeg', buf: fs.readFileSync(path.join(MEDIA_DIR, id + '.bin')) };
+  } catch(e){ return null; }
 }
 
 /* ---------------- 人工客服账号与在线状态 ----------------
@@ -760,7 +796,7 @@ const server = http.createServer(async (req, res) => {
     const open =
       p === '/api/auth/status' || p === '/api/auth/login' || p === '/api/auth/logout' ||
       p === '/api/auth/heartbeat' || p === '/api/auth/close' ||
-      p === '/api/config' || p === '/api/match' ||
+      p === '/api/config' || p === '/api/match' || p === '/api/media' ||
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
       p === '/api/auth/guest' ||
@@ -768,6 +804,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/bind/telegram' || p === '/api/auth/links' ||
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
+      (p.startsWith('/api/media/') && req.method === 'GET') ||
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
     if (!open && !sessionUser(req.headers['x-op-token'] || url.searchParams.get('token') || '')){
       return send(res, 401, { ok:false, error:'未登录或登录态已失效，请重新登录' });
@@ -1126,6 +1163,28 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok:true, guide: d.guide });
   }
 
+  /* ---- 图片媒体：上传（前端已压缩的 dataURL）与读取 ----
+     上传开放给游客前端使用；严格限定为图片 dataURL 并限制体积，避免被滥用 */
+  if (p === '/api/media' && req.method === 'POST'){
+    const body = await readBody(req, 8 * 1024 * 1024);
+    if (body && body.__tooLarge) return send(res, 413, { ok:false, error:'图片过大，请压缩后再试' });
+    const m = /^data:(image\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(body.dataUrl || ''));
+    if (!m) return send(res, 400, { ok:false, error:'仅支持图片文件' });
+    let buf;
+    try { buf = Buffer.from(m[2], 'base64'); } catch(e){ return send(res, 400, { ok:false, error:'仅支持图片文件' }); }
+    if (!buf.length || buf.length > MEDIA_MAX) return send(res, 413, { ok:false, error:'图片过大，请压缩后再试' });
+    const id = await saveMedia(buf, m[1] === 'image/jpg' ? 'image/jpeg' : m[1]);
+    return send(res, 200, { ok:true, id, url:'/api/media/' + id });
+  }
+  if (p.startsWith('/api/media/') && req.method === 'GET'){
+    const id = decodeURIComponent(p.slice('/api/media/'.length));
+    if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) return send(res, 404, 'Not Found');   // 限定 id 形态，杜绝路径穿越
+    const med = await loadMedia(id);
+    if (!med) return send(res, 404, 'Not Found');
+    res.writeHead(200, { 'Content-Type': med.mime, 'Content-Length': med.buf.length, 'Cache-Control': 'public, max-age=31536000, immutable' });
+    return res.end(med.buf);
+  }
+
   /* ---- 匹配接口（游客前端调用，返回三语数据；带会话时记录消息并支持人工接管） ---- */
   if (p === '/api/match' && req.method === 'POST'){
     const body = await readBody(req);
@@ -1140,7 +1199,12 @@ const server = http.createServer(async (req, res) => {
     const sess = activeSid ? getSession(activeSid) : null;
     if (sess && (body.lang === 'zh' || body.lang === 'en' || body.lang === 'ru')) sess.lang = body.lang;
     if (sess && body.guest === true) sess.guest = true;   // 游客会话：仅机器人问答，禁止人工接管
-    if (activeSid) addMsg(activeSid, { role:'visitor', text:String(body.text || '').slice(0, 2000) });
+    if (activeSid){
+      const vm = { role:'visitor', text:String(body.text || '').slice(0, 2000) };
+      const imgId = String(body.imageId || '').trim();
+      if (/^[A-Za-z0-9_-]{8,64}$/.test(imgId)) vm.image = '/api/media/' + imgId;   // 图片消息仅存引用，图片本体在 media 集合
+      addMsg(activeSid, vm);
+    }
     // 人工接管中：暂停机器人自动关键词回复（后台仍可手动发言）
     if (sess && sess.mode === 'agent'){
       return send(res, 200, { reply:{ zh:'', en:'', ru:'' }, quickButtons:[], matched:false, agentMode:true, link:null, sid: activeSid, reset });
@@ -1169,7 +1233,7 @@ const server = http.createServer(async (req, res) => {
         const last = s.messages[s.messages.length - 1];
         return {
           id: s.id, mode: s.mode, createdAt: s.createdAt, count: s.messages.length,
-          last: { role: last.role, text: last.text || (last.reply && last.reply.zh) || '', ts: last.ts }
+          last: { role: last.role, text: last.text || (last.image ? '[图片]' : '') || (last.reply && last.reply.zh) || '', ts: last.ts }
         };
       })
       .sort((a, b) => b.last.ts - a.last.ts);

@@ -272,6 +272,8 @@
   .msg-tag{ display:inline-block; font-size:11px; line-height:1; padding:3px 8px; border-radius:6px; margin-bottom:6px; letter-spacing:.5px; }
   .msg-row.bot .msg-tag{ background:rgba(30,55,100,.08); color:#6a7686; }
   .msg-row.agent .msg-tag{ background:rgba(47,124,246,.14); color:#2b6fd8; font-weight:600; }
+  /* 图片消息：等比缩略图，点击可查看原图 */
+  .msg-img{ display:block; max-width:240px; max-height:240px; border-radius:12px; margin:2px 0; cursor:zoom-in; }
 
   .tabs{
     margin-top:26px; display:inline-flex; padding:4px; border-radius:999px;
@@ -609,6 +611,9 @@
           </button>
         </div>
         <div class="composer-chips" id="composerChips"></div>
+        <!-- 拍照 / 上传图片：原生文件控件（拍照在移动端直接唤起相机，桌面端回退为选择文件） -->
+        <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
+        <input id="uploadInput" type="file" accept="image/*" hidden>
       </div>
     </main>
   </div>
@@ -965,7 +970,8 @@ const I18N = {
     authActivatePopup:'已发送激活邮件，完成激活后，直接刷新页面，输入账号密码登录', authPopupOk:'知道了',
     authRequired:'请先登录后再发送消息', authInputPh:'请先点击左下角登录',
     authGuestBtn:'免注册，以游客身份进入', authGuestName:'游客', authGuestDone:'已以游客身份进入',
-    authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能'
+    authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能',
+    imgUploading:'图片处理中，请稍候…', imgFail:'图片上传失败，请重试', imgTooLarge:'图片过大，请换一张', imgTypeErr:'请选择图片文件'
   },
   en: {
     brandTitle:'Beisu', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
@@ -999,7 +1005,8 @@ const I18N = {
     authActivatePopup:'Activation email sent. After activating, refresh this page and sign in with your email and password.', authPopupOk:'Got it',
     authRequired:'Please sign in before sending messages', authInputPh:'Tap the login entry at bottom-left first',
     authGuestBtn:'Continue as guest (no sign-up)', authGuestName:'Guest', authGuestDone:'Entered as guest',
-    authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.'
+    authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.',
+    imgUploading:'Processing image, please wait…', imgFail:'Image upload failed, please try again', imgTooLarge:'Image is too large, please pick another', imgTypeErr:'Please choose an image file'
   },
   ru: {
     brandTitle:'Beisu', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
@@ -1033,7 +1040,8 @@ const I18N = {
     authActivatePopup:'Письмо для активации отправлено. После активации обновите страницу и войдите, указав почту и пароль.', authPopupOk:'Понятно',
     authRequired:'Сначала войдите, чтобы отправлять сообщения', authInputPh:'Сначала нажмите «Войти» внизу слева',
     authGuestBtn:'Продолжить как гость (без регистрации)', authGuestName:'Гость', authGuestDone:'Вы вошли как гость',
-    authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.'
+    authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.',
+    imgUploading:'Обработка изображения, подождите…', imgFail:'Не удалось загрузить изображение, попробуйте ещё раз', imgTooLarge:'Изображение слишком большое, выберите другое', imgTypeErr:'Выберите файл изображения'
   }
 };
 const LANG_LABEL = { zh:'中文', en:'English', ru:'Русский' };
@@ -1698,12 +1706,12 @@ function renderHomeButtons(){
   }));
 }
 /* 向后端请求匹配，返回 { reply:{zh,en,ru}, quickButtons:[{label:{...}}], matched } */
-async function requestMatch(text){
+async function requestMatch(text, imageId){
   try {
     const res = await fetch('/api/match', {
       method:'POST',
       headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ text, lang, sessionId, guest: !!(currentUser && currentUser.isGuest) })  // 界面语种 + 会话 ID + 游客标记
+      body: JSON.stringify({ text, lang, sessionId, imageId: imageId || '', guest: !!(currentUser && currentUser.isGuest) })  // 界面语种 + 会话 ID + 图片引用 + 游客标记
     });
     return await res.json();
   } catch(e){
@@ -1716,7 +1724,10 @@ function renderChat(){
   const roleTag = { bot:{zh:'机器人',en:'Robot',ru:'Бот'}, agent:{zh:'人工客服',en:'Agent',ru:'Оператор'} };
   area.innerHTML = chatLog.map(m => {
     if (m.role === 'visitor'){
-      return `<div class="msg-row user"><div class="msg-bubble">${escapeHtml(m.text)}</div></div>`;
+      let inner = '';
+      if (m.image) inner += `<img class="msg-img" src="${escapeAttr(m.image)}" alt="" onclick="window.open(this.src,'_blank')">`;
+      if (m.text) inner += (inner ? '<br>' : '') + escapeHtml(m.text);
+      return `<div class="msg-row user"><div class="msg-bubble">${inner}</div></div>`;
     }
     if (m.role === 'agent'){
       // 人工客服消息：与机器人同侧，带蓝色徽标区分
@@ -1761,11 +1772,11 @@ function escapeAttr(s){
   return String(s == null ? '' : s).replace(/"/g, '&quot;');
 }
 /* 发送消息：后端记录会话消息 → 增量同步（包含机器人自动回复与后台人工消息） */
-async function sendMessage(text){
+async function sendMessage(text, imageId){
   const t = (text || '').trim();
-  if (!t) return;
+  if (!t && !imageId) return;
   if (!currentUser){ toast(dict().authRequired); authOpen(); return; }   // 强制登录：未登录不允许发消息
-  const d = await requestMatch(t);
+  const d = await requestMatch(t, imageId);
   // 旧会话已被后台人工结束：服务端分配了全新会话，本地清空旧对话后按新会话重新同步
   if (d && d.reset && d.sid){
     sessionId = d.sid;
@@ -1792,9 +1803,70 @@ setInterval(syncMessages, 3000);
 document.querySelectorAll('.topbar .icon-btn').forEach(el => {
   el.addEventListener('click', () => toast(dict().toastDemo));
 });
-/* 底部拍照 / 上传图片：mock 点击 */
-$('btnPhoto').addEventListener('click', () => toast(dict().toastDemo));
-$('btnUpload').addEventListener('click', () => toast(dict().toastDemo));
+/* ---------------- 底部拍照 / 上传图片：真实上传（选中即提交） ----------------
+   前端先压缩到最长边 ≤1280px 的 JPEG，再上传为媒体，最后带上媒体 id 发送图片消息 */
+function pickImage(kind){
+  if (!currentUser){ toast(dict().authRequired); authOpen(); return; }   // 与文字消息一致：未登录先登录
+  const el = $(kind === 'photo' ? 'photoInput' : 'uploadInput');
+  if (el) el.click();
+}
+$('btnPhoto').addEventListener('click', () => pickImage('photo'));
+$('btnUpload').addEventListener('click', () => pickImage('upload'));
+['photoInput','uploadInput'].forEach(id => {
+  const el = $(id);
+  el.addEventListener('change', () => {
+    const f = el.files && el.files[0];
+    el.value = '';                       // 清空取值，允许连续选择同一张图片
+    if (f) submitImageFile(f);
+  });
+});
+function readAsDataURL(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result || ''));
+    r.onerror = () => reject(new Error('read fail'));
+    r.readAsDataURL(file);
+  });
+}
+/* 等比压缩：最长边 1280px + JPEG 质量 0.82；压缩不可用时回退原图 dataURL */
+async function compressImage(file){
+  const raw = await readAsDataURL(file);
+  try {
+    const img = await new Promise((resolve, reject) => {
+      const im = new Image();
+      im.onload = () => resolve(im);
+      im.onerror = () => reject(new Error('img fail'));
+      im.src = raw;
+    });
+    const max = 1280;
+    let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (w > max || h > max){
+      const k = Math.min(max / w, max / h);
+      w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+    }
+    const cv = document.createElement('canvas');
+    cv.width = w; cv.height = h;
+    cv.getContext('2d').drawImage(img, 0, 0, w, h);
+    return cv.toDataURL('image/jpeg', 0.82);
+  } catch(e){ return raw; }
+}
+async function submitImageFile(file){
+  if (!file || !file.type || file.type.indexOf('image/') !== 0){ toast(dict().imgTypeErr); return; }
+  if (file.size > 20 * 1024 * 1024){ toast(dict().imgTooLarge); return; }
+  toast(dict().imgUploading);
+  const caption = input.value;                       // 附带输入框中的文字说明（可为空）
+  try {
+    const dataUrl = await compressImage(file);
+    const res = await fetch('/api/media', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ dataUrl })
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.ok || !d.id){ toast(d.error || dict().imgFail); return; }
+    input.value = '';
+    await sendMessage(caption, d.id);                // 选中即提交：图片（可带文字）一起发送
+  } catch(e){ toast(dict().imgFail); }
+}
 
 /* 输入框：回车发送消息 */
 const input = $('composerInput');
