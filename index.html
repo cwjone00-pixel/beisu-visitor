@@ -498,8 +498,15 @@
         </span>
       </div>
 
-      <!-- 功能按钮组：租房 / 租车 / 项目体验评价 / 合作 -->
+      <!-- 功能按钮组：全岛游 / 租房 / 租车 / 项目体验评价 / 合作 -->
       <nav class="menu" id="catMenu">
+        <div class="menu-item">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.6" cy="5.6" r="2.3"/><path d="M12 17c0-3.2.1-5.6.6-8.2"/><path d="M12.6 8.8c-1.5-1.7-3.5-2.4-5.7-2.1"/><path d="M12.6 8.8c1.5-1.7 3.5-2.4 5.7-2.1"/><path d="M12.6 8.8c-.2-2.3-.9-4.2-2-5.6"/><path d="M2.5 17.5c2.6-1.5 5.9-2.2 9.5-2.2s6.9.7 9.5 2.2"/></svg>
+          <div class="menu-text">
+            <span class="menu-title" data-i18n="m0">全岛游</span>
+            <span class="menu-sub" data-i18n="m0d">最高性价比的旅游体验</span>
+          </div>
+        </div>
         <div class="menu-item active">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>
           <div class="menu-text">
@@ -945,7 +952,7 @@ const articlesState = { count: PH_COUNT.articles, max: 12, loading: false };
 /* ---------------- i18n ---------------- */
 const I18N = {
   zh: {
-    brandTitle:'悖速', m1:'租房', m1d:'解决你的租房纠纷', m2:'租车', m2d:'包含司机，可以带你走遍整个海南', m3:'海南项目体验评价', m3d:'包括项目评价、体验分享和真实反馈', m4:'加入我们合作', m4d:'欢迎各类资源和项目合作',
+    brandTitle:'悖速', m0:'全岛游', m0d:'最高性价比的旅游体验', m1:'租房', m1d:'解决你的租房纠纷', m2:'租车', m2d:'包含司机，可以带你走遍整个海南', m3:'海南项目体验评价', m3d:'包括项目评价、体验分享和真实反馈', m4:'加入我们合作', m4d:'欢迎各类资源和项目合作',
     secEvents:'商业活动', secArticles:'文章资讯', signIn:'点击登录',
     heroTitle:'请问你过来有什么需求？',
     r1:'查看最新赛事资讯', r2:'近期商业活动', r3:'车队故事专栏', r4:'合作与创意',
@@ -980,7 +987,7 @@ const I18N = {
     imgUploading:'图片处理中，请稍候…', imgFail:'图片上传失败，请重试', imgTooLarge:'图片过大，请换一张', imgTypeErr:'请选择图片文件'
   },
   en: {
-    brandTitle:'Beisu', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
+    brandTitle:'Beisu', m0:'Island-wide tours', m0d:'The best-value travel experience', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
     secEvents:'Business Events', secArticles:'Articles', signIn:'Sign in',
     heroTitle:'How can we help you today?',
     r1:'Latest race news', r2:'Upcoming events', r3:'Team stories', r4:'Partnership & ideas',
@@ -1015,7 +1022,7 @@ const I18N = {
     imgUploading:'Processing image, please wait…', imgFail:'Image upload failed, please try again', imgTooLarge:'Image is too large, please pick another', imgTypeErr:'Please choose an image file'
   },
   ru: {
-    brandTitle:'Beisu', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
+    brandTitle:'Beisu', m0:'Туры по всему острову', m0d:'Лучшее соотношение цены и качества', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
     secEvents:'Мероприятия', secArticles:'Статьи', signIn:'Войти',
     heroTitle:'Чем мы можем вам помочь?',
     r1:'Свежие новости гонок', r2:'Ближайшие события', r3:'Истории команды', r4:'Партнёрство и идеи',
