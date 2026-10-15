@@ -1416,12 +1416,23 @@ const server = http.createServer(async (req, res) => {
     // 人工消息自动翻译开启时，为访客消息后台补齐中文译文（不阻塞本次响应，完成后的下次轮询可见）
     const TR_INFLIGHT = (global.__trInflight = global.__trInflight || new Set());
     if (s && !s.ended && loadData().agentChat.translate){
-      const need = msgs.filter(m => m.role === 'visitor' && m.text && !m.transZh);
+      /* 后台三语展示：客户消息补 transZh（原有行为保留）+ transEn/transRu；人工消息按人工输入原文补 transEn/transRu。
+         仅在译文与原文不同时才落库，避免把原文当译文存储。纯新增字段，原有字段格式不变。 */
+      const need = msgs.filter(m => {
+        if (!m || !m.text) return false;
+        if (m.role === 'visitor') return !m.transZh || !m.transEn || !m.transRu;
+        if (m.role === 'agent') return !m.transEn || !m.transRu;
+        return false;
+      });
       if (need.length && !TR_INFLIGHT.has(s.id)){
         TR_INFLIGHT.add(s.id);
         Promise.all(need.map(async m => {
-          const t = await translateText(m.text, 'zh-CN');
-          if (t && t !== m.text) m.transZh = t;
+          const src = (m.role === 'agent' && m.origText) ? m.origText : m.text;
+          const jobs = [];
+          if (m.role === 'visitor' && !m.transZh) jobs.push(translateText(src, 'zh-CN').then(t => { if (t && t !== src) m.transZh = t; }));
+          if (!m.transEn) jobs.push(translateText(src, 'en').then(t => { if (t && t !== src) m.transEn = t; }));
+          if (!m.transRu) jobs.push(translateText(src, 'ru').then(t => { if (t && t !== src) m.transRu = t; }));
+          await Promise.all(jobs);
         })).then(() => saveChats()).catch(() => {}).finally(() => TR_INFLIGHT.delete(s.id));
       }
     }
