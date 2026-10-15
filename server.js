@@ -359,6 +359,8 @@ function artHasTitle(body){
   return ART_LANGS.some(l => String(((src[l] || {}).title) || '').trim()) || String((body && body.title) || '').trim();
 }
 function articlePath(a){ return '/article/' + a.slug; }
+/* 爬虫识别：Yandex 系 UA（YandexBot / YandexImages / YandexMobileBot 等）统一命中 */
+function isYandexBot(ua){ return /yandex/i.test(String(ua || '')); }
 /* 某 slug 被当前文章启用后，把它从其它文章的历史别名里摘除，避免留下指向别处的死重定向 */
 function pruneAliases(all, art){
   for (const a of all){
@@ -384,8 +386,10 @@ function bodyToHtml(body){
   const paras = String(body || '').replace(/\r\n?/g, '\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
   return paras.map(p => '<p>' + escHtml(p).replace(/\n/g, '<br>') + '</p>').join('\n') || '<p></p>';
 }
-function sendHtml(res, status, html){
-  res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff' });
+function sendHtml(res, status, html, varyUA){
+  const h = { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff' };
+  if (varyUA) h['Vary'] = 'User-Agent';   // 文章页内容随 UA 变化（Yandex 定向俄语），需声明 Vary 避免中间缓存串内容
+  res.writeHead(status, h);
   res.end(html);
 }
 const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",Roboto,sans-serif;line-height:1.75}'
@@ -395,8 +399,9 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.meta{color:#8b94a0;font-size:13px;margin-bottom:20px}'
   + '.cover{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin:0 0 24px}'
   + 'article p{margin:0 0 16px;font-size:16px}';
-/* 文章独立页面：服务端直出，含 title/description/canonical/og/JSON-LD，便于爬虫抓取收录
-   同一篇文章共用同一 URL/slug；按 lang 参数输出对应语种内容（缺省用主语言），canonical 始终指向不带参数的干净地址 */
+/* 文章独立页面：服务端直出，含 title/description/canonical/hreflang/og/JSON-LD，便于爬虫抓取收录
+   同一篇文章共用同一 URL/slug；按 lang 参数输出对应语种内容（缺省用主语言），canonical 始终指向不带参数的干净地址
+   hreflang 交替标签声明 zh/en/ru 三个语言版本，避免多语言同源内容被判重复 */
 function articlePageHtml(art, preview, l){
   const c = artLang(art.i18n, l || '');
   const title = c.title || art.title;
@@ -409,11 +414,14 @@ function articlePageHtml(art, preview, l){
   const ld = { '@context':'https://schema.org', '@type':'Article', headline:title, datePublished:published, dateModified:modified, mainEntityOfPage:url };
   if (img) ld.image = [img];
   const htmlLang = (l === 'zh') ? 'zh-CN' : (ART_LANGS.includes(l) ? l : 'zh-CN');
+  const alternates = ART_LANGS.map(x => '<link rel="alternate" hreflang="' + x + '" href="' + escHtml(url + '?lang=' + x) + '">').join('\n')
+    + '\n<link rel="alternate" hreflang="x-default" href="' + escHtml(url) + '">';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
     + '<title>' + escHtml(title) + '</title>\n'
     + '<meta name="description" content="' + escHtml(desc) + '">\n'
     + '<link rel="canonical" href="' + escHtml(url) + '">\n'
+    + alternates + '\n'
     + '<meta property="og:type" content="article">\n'
     + '<meta property="og:title" content="' + escHtml(title) + '">\n'
     + '<meta property="og:description" content="' + escHtml(desc) + '">\n'
@@ -1647,19 +1655,23 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/article/') && req.method === 'GET'){
     const slug = decodeURIComponent(p.slice('/article/'.length));
     const q = url.searchParams.get('lang') || '';
-    const al = ART_LANGS.includes(q) ? q : '';                                           // 前台按全局语言传入；爬虫不带时用主语言
+    /* 普通访客按 ?lang 显示对应语种（缺省主语言）；识别到 Yandex 爬虫时定向返回俄语版本，HTML lang 固定为 ru */
+    const yandex = isYandexBot(req.headers['user-agent']);
+    const al = yandex ? 'ru' : (ART_LANGS.includes(q) ? q : '');
     const { art, redirect } = resolveArticleSlug(slug);
     const preview = !!sessionUser(url.searchParams.get('preview') || '');
     if (!art){
-      /* 命中历史别名：301 永久跳转到当前地址（同语言），保证已收录链接与外部访问不中断 */
+      /* 命中历史别名：301 永久跳转到当前地址，保证已收录链接与外部访问不中断
+         Yandex 走干净地址（它本就定向取俄语），其余访客保留显式语言参数 */
       if (redirect && !preview){
-        res.writeHead(301, { Location: redirect + (al ? '?lang=' + al : ''), 'Cache-Control':'no-cache' });
+        const loc = redirect + ((!yandex && al) ? '?lang=' + al : '');
+        res.writeHead(301, { Location: loc, 'Cache-Control':'no-cache', 'Vary':'User-Agent' });
         return res.end();
       }
       return sendHtml(res, 404, articleNotFoundHtml());
     }
     if (art.status !== 'published' && !preview) return sendHtml(res, 404, articleNotFoundHtml());
-    return sendHtml(res, 200, articlePageHtml(art, art.status !== 'published', al));
+    return sendHtml(res, 200, articlePageHtml(art, art.status !== 'published', al), true);
   }
   /* ---- sitemap.xml / robots.txt：帮助搜索引擎（Yandex 等）发现并收录已发布文章 ---- */
   if (p === '/sitemap.xml' && req.method === 'GET'){
