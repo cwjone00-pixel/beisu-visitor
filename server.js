@@ -295,11 +295,42 @@ function slugify(s){
   return String(s || '').toLowerCase().trim()
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
 }
+const ART_LANGS = ['zh', 'en', 'ru'];
+/* 一篇文章的三语内容：中文/英文/俄语各自独立录入（不自动翻译、不预设文案） */
+function normArtI18n(a){
+  const src = (a && typeof a.i18n === 'object' && a.i18n) ? a.i18n : {};
+  const out = {};
+  ART_LANGS.forEach(l => {
+    /* 兼容旧数据：无 i18n 时，把原单语 title/body 视为中文 */
+    const v = (src[l] && typeof src[l] === 'object') ? src[l]
+      : (l === 'zh' && (a.title || a.body) ? { title:a.title, body:a.body } : {});
+    out[l] = { title: String(v.title || '').slice(0, 200), body: String(v.body || '').slice(0, 20000) };
+  });
+  return out;
+}
+/* 主语言：优先中文，其次英文/俄语（用于无 lang 参数时的默认渲染、slug 生成回退、后台列表展示） */
+function artPrimary(i18n){
+  for (const l of ART_LANGS){
+    const v = (i18n && i18n[l]) || {};
+    if (String(v.title || '').trim() || String(v.body || '').trim()) return { lang:l, title:v.title, body:v.body };
+  }
+  return { lang:'zh', title:'', body:'' };
+}
+/* 取指定语言内容；该语种为空时回退主语言，保证任何语言下都有内容可显示 */
+function artLang(i18n, l){
+  const v = (i18n && i18n[l]) || {};
+  if (String(v.title || '').trim() || String(v.body || '').trim()) return v;
+  const p = artPrimary(i18n);
+  return { title:p.title, body:p.body };
+}
 function normArticle(input, all){
   const a = (input && typeof input === 'object') ? input : {};
   const id = a.id || crypto.randomUUID();
   const others = (all || []).filter(x => x && x.id !== id);
-  const base = slugify(a.slug || a.title)
+  const i18n = normArtI18n(a);
+  const primary = artPrimary(i18n);
+  const base = slugify(a.slug)
+    || slugify(i18n.en.title) || slugify(i18n.zh.title) || slugify(i18n.ru.title)
     || ('a' + crypto.createHash('sha1').update(String(id)).digest('hex').slice(0, 8));   // 纯中文标题无可用 ASCII 时回退短码
   let slug = base, n = 2;
   while (others.some(x => x.slug === slug)) slug = base + '-' + (n++);                   // 保证 slug 全局唯一
@@ -310,16 +341,22 @@ function normArticle(input, all){
     .filter(s => s !== slug);
   return {
     id,
-    title: String(a.title || '').slice(0, 200),
     slug,
     prevSlugs,
-    body: String(a.body || '').slice(0, 20000),
+    i18n,                        // 三语正文与标题（唯一内容源）
+    title: primary.title,        // 兼容/展示字段：主语言标题
+    body: primary.body,          // 兼容字段：主语言正文
     cover: String(a.cover || '').slice(0, 300),
     status,
     createdAt,
     updatedAt: a.updatedAt || createdAt,
     publishedAt: status === 'published' ? (a.publishedAt || createdAt) : (a.publishedAt || 0)
   };
+}
+/* 校验：至少填写一种语言的标题（前端三框可任填） */
+function artHasTitle(body){
+  const src = (body && typeof body.i18n === 'object' && body.i18n) ? body.i18n : {};
+  return ART_LANGS.some(l => String(((src[l] || {}).title) || '').trim()) || String((body && body.title) || '').trim();
 }
 function articlePath(a){ return '/article/' + a.slug; }
 /* 某 slug 被当前文章启用后，把它从其它文章的历史别名里摘除，避免留下指向别处的死重定向 */
@@ -358,22 +395,27 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.meta{color:#8b94a0;font-size:13px;margin-bottom:20px}'
   + '.cover{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin:0 0 24px}'
   + 'article p{margin:0 0 16px;font-size:16px}';
-/* 文章独立页面：服务端直出，含 title/description/canonical/og/JSON-LD，便于爬虫抓取收录 */
-function articlePageHtml(art, preview){
+/* 文章独立页面：服务端直出，含 title/description/canonical/og/JSON-LD，便于爬虫抓取收录
+   同一篇文章共用同一 URL/slug；按 lang 参数输出对应语种内容（缺省用主语言），canonical 始终指向不带参数的干净地址 */
+function articlePageHtml(art, preview, l){
+  const c = artLang(art.i18n, l || '');
+  const title = c.title || art.title;
+  const body = c.body || art.body;
   const url = PUBLIC_BASE_URL + articlePath(art);
-  const desc = String(art.body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const desc = String(body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   const img = art.cover ? (/^https?:/i.test(art.cover) ? art.cover : PUBLIC_BASE_URL + art.cover) : '';
   const published = new Date(art.publishedAt || art.createdAt).toISOString();
   const modified = new Date(art.updatedAt || art.createdAt).toISOString();
-  const ld = { '@context':'https://schema.org', '@type':'Article', headline:art.title, datePublished:published, dateModified:modified, mainEntityOfPage:url };
+  const ld = { '@context':'https://schema.org', '@type':'Article', headline:title, datePublished:published, dateModified:modified, mainEntityOfPage:url };
   if (img) ld.image = [img];
-  return '<!DOCTYPE html>\n<html lang="zh">\n<head>\n'
+  const htmlLang = (l === 'zh') ? 'zh-CN' : (ART_LANGS.includes(l) ? l : 'zh-CN');
+  return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
-    + '<title>' + escHtml(art.title) + '</title>\n'
+    + '<title>' + escHtml(title) + '</title>\n'
     + '<meta name="description" content="' + escHtml(desc) + '">\n'
     + '<link rel="canonical" href="' + escHtml(url) + '">\n'
     + '<meta property="og:type" content="article">\n'
-    + '<meta property="og:title" content="' + escHtml(art.title) + '">\n'
+    + '<meta property="og:title" content="' + escHtml(title) + '">\n'
     + '<meta property="og:description" content="' + escHtml(desc) + '">\n'
     + '<meta property="og:url" content="' + escHtml(url) + '">\n'
     + (img ? '<meta property="og:image" content="' + escHtml(img) + '">\n' : '')
@@ -381,10 +423,10 @@ function articlePageHtml(art, preview){
     + '<script type="application/ld+json">' + JSON.stringify(ld) + '</script>\n'
     + '<style>' + ARTICLE_CSS + '</style>\n</head>\n<body>\n<main>\n'
     + '<a class="back" href="/">← 返回首页</a>\n'
-    + '<h1>' + escHtml(art.title) + '</h1>\n'
+    + '<h1>' + escHtml(title) + '</h1>\n'
     + '<div class="meta">' + published.slice(0, 10) + (preview ? ' · 草稿预览（未发布，不收录）' : '') + '</div>\n'
-    + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(art.title) + '">\n' : '')
-    + '<article>\n' + bodyToHtml(art.body) + '\n</article>\n</main>\n</body>\n</html>';
+    + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '">\n' : '')
+    + '<article>\n' + bodyToHtml(body) + '\n</article>\n</main>\n</body>\n</html>';
 }
 function articleNotFoundHtml(){
   return '<!DOCTYPE html>\n<html lang="zh">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -1492,11 +1534,15 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok:true, composerButtons: d.composerButtons });
   }
 
-  /* ---- 文章资讯：前台只返回已发布（草稿不外泄），按发布时间倒序 ---- */
+  /* ---- 文章资讯：前台只返回已发布（草稿不外泄），按发布时间倒序；标题三语一并下发，前端按当前语言渲染 ---- */
   if (p === '/api/articles' && req.method === 'GET'){
     const list = loadData().articles.filter(a => a.status === 'published')
       .sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0))
-      .map(a => ({ id:a.id, title:a.title, url:articlePath(a), cover:a.cover, publishedAt:a.publishedAt }));
+      .map(a => {
+        const titles = {};
+        ART_LANGS.forEach(l => { titles[l] = String(((a.i18n || {})[l] || {}).title || ''); });
+        return { id:a.id, title:a.title, titles, url:articlePath(a), cover:a.cover, publishedAt:a.publishedAt };
+      });
     return send(res, 200, list);
   }
 
@@ -1541,7 +1587,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (p === '/api/admin/articles' && req.method === 'POST'){
     const body = await readBody(req);
-    if (!String(body.title || '').trim()) return send(res, 400, { error:'请填写标题' });
+    if (!artHasTitle(body)) return send(res, 400, { error:'请至少填写一种语言的标题' });
     const d = loadData();
     const art = normArticle({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() }, d.articles);
     d.articles.unshift(art);
@@ -1551,7 +1597,7 @@ const server = http.createServer(async (req, res) => {
   }
   if ((m = p.match(/^\/api\/admin\/articles\/([^/]+)$/)) && req.method === 'PUT'){
     const body = await readBody(req);
-    if (!String(body.title || '').trim()) return send(res, 400, { error:'请填写标题' });
+    if (!artHasTitle(body)) return send(res, 400, { error:'请至少填写一种语言的标题' });
     const d = loadData();
     const i = d.articles.findIndex(a => a.id === m[1]);
     if (i < 0) return send(res, 404, { error:'article not found' });
@@ -1600,18 +1646,20 @@ const server = http.createServer(async (req, res) => {
          草稿不对外：公开访问 404；后台带 ?preview=<登录token> 可预览（页面标注 noindex） ---- */
   if (p.startsWith('/article/') && req.method === 'GET'){
     const slug = decodeURIComponent(p.slice('/article/'.length));
+    const q = url.searchParams.get('lang') || '';
+    const al = ART_LANGS.includes(q) ? q : '';                                           // 前台按全局语言传入；爬虫不带时用主语言
     const { art, redirect } = resolveArticleSlug(slug);
     const preview = !!sessionUser(url.searchParams.get('preview') || '');
     if (!art){
-      /* 命中历史别名：301 永久跳转到当前地址，保证已收录链接与外部访问不中断 */
+      /* 命中历史别名：301 永久跳转到当前地址（同语言），保证已收录链接与外部访问不中断 */
       if (redirect && !preview){
-        res.writeHead(301, { Location: redirect, 'Cache-Control':'no-cache' });
+        res.writeHead(301, { Location: redirect + (al ? '?lang=' + al : ''), 'Cache-Control':'no-cache' });
         return res.end();
       }
       return sendHtml(res, 404, articleNotFoundHtml());
     }
     if (art.status !== 'published' && !preview) return sendHtml(res, 404, articleNotFoundHtml());
-    return sendHtml(res, 200, articlePageHtml(art, art.status !== 'published'));
+    return sendHtml(res, 200, articlePageHtml(art, art.status !== 'published', al));
   }
   /* ---- sitemap.xml / robots.txt：帮助搜索引擎（Yandex 等）发现并收录已发布文章 ---- */
   if (p === '/sitemap.xml' && req.method === 'GET'){

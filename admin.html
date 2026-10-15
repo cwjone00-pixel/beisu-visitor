@@ -342,8 +342,10 @@
   <div class="modal" style="max-width:640px;">
     <h3 id="artModalTitle">新建文章</h3>
     <div class="field">
-      <label>标题（必填）</label>
-      <input class="input" id="amTitle" placeholder="例如：海南冬季避寒攻略">
+      <label>标题（三语独立录入，至少填写一种；前台按网站当前语言显示对应内容）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="amTitleZh" placeholder="例如：海南冬季避寒攻略"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="amTitleEn" placeholder="e.g. Hainan Winter Guide"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="amTitleRu" placeholder="напр. Зимний Хайнань"></div>
     </div>
     <div class="field">
       <label>链接别名 slug（可选；仅英文/数字/连字符，留空则按标题自动生成）</label>
@@ -351,8 +353,10 @@
       <div style="color:#9aa3ad;font-size:12px;margin-top:6px;">修改别名后旧链接不失效：系统会自动 301 跳转到新地址，保证已收录与外部访问不中断。</div>
     </div>
     <div class="field">
-      <label>正文（空行分段，段内换行自动保留）</label>
-      <textarea class="textarea" id="amBody" style="min-height:180px;" placeholder="请输入正文…"></textarea>
+      <label>正文（三语独立录入，不自动翻译；空行分段，段内换行自动保留）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><textarea class="textarea" id="amBodyZh" style="min-height:120px" placeholder="请输入中文正文…"></textarea></div>
+      <div class="tri-row"><span class="lang-chip">English</span><textarea class="textarea" id="amBodyEn" style="min-height:120px" placeholder="English content…"></textarea></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><textarea class="textarea" id="amBodyRu" style="min-height:120px" placeholder="Текст на русском…"></textarea></div>
     </div>
     <div class="field">
       <label>配图（可选，用作封面与分享图）</label>
@@ -945,6 +949,8 @@ async function loadArts(){
       <div class="rule-head">
         <span class="rule-type ${a.status === 'published' ? 'type-exact' : 'type-fuzzy'}">${a.status === 'published' ? '已发布' : '草稿'}</span>
         <span class="rule-title">${esc(a.title)}</span>
+        <span style="margin-left:8px">${['zh','en','ru'].filter(l => a.i18n && a.i18n[l] && String(a.i18n[l].title || '').trim())
+          .map(l => `<span class="chip">${l === 'zh' ? '中' : (l === 'en' ? 'EN' : 'РУ')}</span>`).join('')}</span>
         <div class="rule-actions">
           ${a.status === 'published'
             ? `<a class="btn btn-ghost btn-sm" href="/article/${esc(a.slug)}" target="_blank" rel="noopener">查看页面</a>`
@@ -965,9 +971,15 @@ function openArtEditor(id){
   editingArt = id || null;
   const a = id ? arts.find(x => x.id === id) : null;
   document.getElementById('artModalTitle').textContent = id ? '编辑文章' : '新建文章';
-  document.getElementById('amTitle').value = a ? a.title : '';
+  const L = a ? (a.i18n || {}) : {};
+  const cell = l => (L[l] && typeof L[l] === 'object') ? L[l] : { title:'', body:'' };
+  document.getElementById('amTitleZh').value = cell('zh').title || '';
+  document.getElementById('amTitleEn').value = cell('en').title || '';
+  document.getElementById('amTitleRu').value = cell('ru').title || '';
+  document.getElementById('amBodyZh').value = cell('zh').body || '';
+  document.getElementById('amBodyEn').value = cell('en').body || '';
+  document.getElementById('amBodyRu').value = cell('ru').body || '';
   document.getElementById('amSlug').value = a ? a.slug : '';
-  document.getElementById('amBody').value = a ? a.body : '';
   artCover = (a && a.cover) ? a.cover : '';
   document.querySelectorAll('input[name="amStatus"]').forEach(r => { r.checked = (r.value === (a ? a.status : 'draft')); });
   document.getElementById('amCoverHint').textContent = '';
@@ -1013,14 +1025,18 @@ async function artCoverPick(input){
   } catch(e){ hint.textContent = '上传失败'; }
 }
 async function saveArticle(){
+  const i18n = {
+    zh: { title: val('amTitleZh'), body: document.getElementById('amBodyZh').value },
+    en: { title: val('amTitleEn'), body: document.getElementById('amBodyEn').value },
+    ru: { title: val('amTitleRu'), body: document.getElementById('amBodyRu').value }
+  };
+  if (!i18n.zh.title.trim() && !i18n.en.title.trim() && !i18n.ru.title.trim()){ alert('请至少填写一种语言的标题'); return; }
   const d = {
-    title: val('amTitle'),
+    i18n,
     slug: val('amSlug'),
-    body: document.getElementById('amBody').value,
     cover: artCover,
     status: (document.querySelector('input[name="amStatus"]:checked') || {}).value || 'draft'
   };
-  if (!d.title){ alert('请填写标题'); return; }
   const r = editingArt ? await API.artUpdate(editingArt, d) : await API.artCreate(d);
   if (!r || r.error){ alert((r && r.error) || '保存失败'); return; }
   closeModal('artModal'); loadArts();

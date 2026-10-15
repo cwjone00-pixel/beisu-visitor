@@ -1062,6 +1062,8 @@ function applyI18n(){
   applyPlaceholder();    // 输入框占位提示按当前语种与在线状态刷新
   applyAuthState();      // 侧边栏登录状态 + 未登录门控按当前语种刷新
   renderChat();          // 机器人回复与对话内按钮按当前语种刷新
+  renderArticles();      // 文章资讯卡片标题按当前语种刷新
+  refreshCardModal();    // 已打开的文章页面按当前语种切内容
   fitInput();
 }
 
@@ -1112,12 +1114,22 @@ function makePlaceholderCard(section){
   card.addEventListener('click', () => openCardModal(dict()[section === 'events' ? 'secEvents' : 'secArticles']));
   return card;
 }
+/* 文章资讯：三语独立录入（zh/en/ru），前台跟随全局语言显示对应语种内容 */
+function articleTitleOf(it){
+  if (it && it.titles && it.titles[lang]) return it.titles[lang];
+  return (it && it.title) || '';
+}
+/* 同一篇文章共用同一 URL/slug，仅以 ?lang= 指定显示的语种 */
+function withLang(u){ return u ? (u + (u.indexOf('?') >= 0 ? '&' : '?') + 'lang=' + lang) : u; }
 function makeRealCard(item, section){
+  const isArt = section === 'articles';
+  const title = isArt ? articleTitleOf(item) : (item.title || '');
+  const url = (isArt && item.url) ? withLang(item.url) : item.url;
   const card = document.createElement('div');
   card.className = 'ph-card';
   card.innerHTML = '<span class="card-title"></span><span class="ph-line short"></span>';
-  card.querySelector('.card-title').textContent = item.title || '';
-  card.addEventListener('click', () => openCardModal(item.title || dict()[section === 'events' ? 'secEvents' : 'secArticles'], item.url));
+  card.querySelector('.card-title').textContent = title;
+  card.addEventListener('click', () => openCardModal(title || dict()[section === 'events' ? 'secEvents' : 'secArticles'], url));
   return card;
 }
 function renderEvents(){
@@ -1161,7 +1173,9 @@ function loadMoreArticles(){
 $('articlesScroll').addEventListener('scroll', loadMoreArticles);
 
 /* ---------------- 卡片弹窗 ---------------- */
+let cardState = { title:'', url:'' };
 function openCardModal(title, url){
+  cardState = { title: title || '', url: url || '' };
   $('cardModalTitle').textContent = title;
   const frame = $('cardFrame'), ph = $('cardPlaceholder');
   if (url){
@@ -1174,6 +1188,11 @@ function openCardModal(title, url){
     ph.style.display = 'flex';
   }
   $('cardOverlay').classList.add('show');
+}
+/* 语言切换时，若文章弹窗正开着，按新语种重新载入同一篇文章（URL/slug 不变） */
+function refreshCardModal(){
+  if (!$('cardOverlay').classList.contains('show') || !cardState.url) return;
+  $('cardFrame').src = withLang(cardState.url);
 }
 function closeCardModal(){
   $('cardOverlay').classList.remove('show');
