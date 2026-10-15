@@ -305,10 +305,14 @@ function normArticle(input, all){
   while (others.some(x => x.slug === slug)) slug = base + '-' + (n++);                   // 保证 slug 全局唯一
   const status = a.status === 'published' ? 'published' : 'draft';
   const createdAt = a.createdAt || Date.now();
+  /* 历史别名：曾用过、现已改掉的 slug 保留下来，旧链接自动 301 跳到当前页面，保证已收录地址不失效 */
+  const prevSlugs = Array.from(new Set((Array.isArray(a.prevSlugs) ? a.prevSlugs : []).map(String).filter(Boolean)))
+    .filter(s => s !== slug);
   return {
     id,
     title: String(a.title || '').slice(0, 200),
     slug,
+    prevSlugs,
     body: String(a.body || '').slice(0, 20000),
     cover: String(a.cover || '').slice(0, 300),
     status,
@@ -318,6 +322,22 @@ function normArticle(input, all){
   };
 }
 function articlePath(a){ return '/article/' + a.slug; }
+/* 某 slug 被当前文章启用后，把它从其它文章的历史别名里摘除，避免留下指向别处的死重定向 */
+function pruneAliases(all, art){
+  for (const a of all){
+    if (a.id === art.id) continue;
+    if (Array.isArray(a.prevSlugs) && a.prevSlugs.length) a.prevSlugs = a.prevSlugs.filter(s => s !== art.slug);
+  }
+}
+/* 解析 /article/<slug>：优先命中当前 slug；未命中时看是否命中某篇的「历史别名」→ 返回新地址供 301 跳转 */
+function resolveArticleSlug(slug){
+  const arts = loadData().articles;
+  const art = arts.find(a => a.slug === slug);
+  if (art) return { art, redirect:'' };
+  const moved = arts.find(a => (a.prevSlugs || []).includes(slug));
+  if (moved && moved.status === 'published') return { art:null, redirect:articlePath(moved) };
+  return { art:null, redirect:'' };
+}
 function escHtml(s){
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -1525,6 +1545,7 @@ const server = http.createServer(async (req, res) => {
     const d = loadData();
     const art = normArticle({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() }, d.articles);
     d.articles.unshift(art);
+    pruneAliases(d.articles, art);                                                       // 该 slug 已被本文章启用，从其它文章的历史别名里摘除
     saveData(d);
     return send(res, 201, art);
   }
@@ -1535,7 +1556,12 @@ const server = http.createServer(async (req, res) => {
     const i = d.articles.findIndex(a => a.id === m[1]);
     if (i < 0) return send(res, 404, { error:'article not found' });
     const prev = d.articles[i];
-    d.articles[i] = normArticle({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, publishedAt:body.status === 'published' ? (prev.publishedAt || Date.now()) : prev.publishedAt, updatedAt:Date.now() }, d.articles);
+    const art = normArticle({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, publishedAt:body.status === 'published' ? (prev.publishedAt || Date.now()) : prev.publishedAt, updatedAt:Date.now() }, d.articles);
+    if (art.slug !== prev.slug){                                                          // 别名被改动：旧 slug 留存为历史别名，旧链接 301 跳新页
+      art.prevSlugs = Array.from(new Set([...(art.prevSlugs || []), prev.slug])).filter(s => s !== art.slug);
+    }
+    d.articles[i] = art;
+    pruneAliases(d.articles, art);
     saveData(d);
     return send(res, 200, d.articles[i]);
   }
@@ -1574,9 +1600,17 @@ const server = http.createServer(async (req, res) => {
          草稿不对外：公开访问 404；后台带 ?preview=<登录token> 可预览（页面标注 noindex） ---- */
   if (p.startsWith('/article/') && req.method === 'GET'){
     const slug = decodeURIComponent(p.slice('/article/'.length));
-    const art = loadData().articles.find(a => a.slug === slug);
+    const { art, redirect } = resolveArticleSlug(slug);
     const preview = !!sessionUser(url.searchParams.get('preview') || '');
-    if (!art || (art.status !== 'published' && !preview)) return sendHtml(res, 404, articleNotFoundHtml());
+    if (!art){
+      /* 命中历史别名：301 永久跳转到当前地址，保证已收录链接与外部访问不中断 */
+      if (redirect && !preview){
+        res.writeHead(301, { Location: redirect, 'Cache-Control':'no-cache' });
+        return res.end();
+      }
+      return sendHtml(res, 404, articleNotFoundHtml());
+    }
+    if (art.status !== 'published' && !preview) return sendHtml(res, 404, articleNotFoundHtml());
     return sendHtml(res, 200, articlePageHtml(art, art.status !== 'published'));
   }
   /* ---- sitemap.xml / robots.txt：帮助搜索引擎（Yandex 等）发现并收录已发布文章 ---- */

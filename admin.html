@@ -348,6 +348,7 @@
     <div class="field">
       <label>链接别名 slug（可选；仅英文/数字/连字符，留空则按标题自动生成）</label>
       <input class="input" id="amSlug" placeholder="例如：hainan-winter-guide">
+      <div style="color:#9aa3ad;font-size:12px;margin-top:6px;">修改别名后旧链接不失效：系统会自动 301 跳转到新地址，保证已收录与外部访问不中断。</div>
     </div>
     <div class="field">
       <label>正文（空行分段，段内换行自动保留）</label>
@@ -954,6 +955,7 @@ async function loadArts(){
       </div>
       <div class="meta">
         <span class="label">独立链接：</span><span class="chip">/article/${esc(a.slug)}</span>
+        ${(Array.isArray(a.prevSlugs) && a.prevSlugs.length) ? `<span class="chip" style="margin-left:6px">历史链接 +${a.prevSlugs.length} 自动跳转</span>` : ''}
         <span style="margin-left:10px;color:#9aa3ad">更新于 ${new Date(a.updatedAt || a.createdAt).toLocaleString()}</span>
       </div>
     </div>
@@ -971,7 +973,9 @@ function openArtEditor(id){
   document.getElementById('amCoverHint').textContent = '';
   artCoverPreview();
   const link = document.getElementById('amLink');
-  if (a){ link.style.display = 'block'; link.innerHTML = '独立页面：<span class="chip">/article/' + esc(a.slug) + '</span>（保存后生效）'; }
+  const oldN = (a && Array.isArray(a.prevSlugs)) ? a.prevSlugs.length : 0;
+  if (a){ link.style.display = 'block'; link.innerHTML = '独立页面：<span class="chip">/article/' + esc(a.slug) + '</span>（保存后生效）'
+    + (oldN ? ' · 已保留 ' + oldN + ' 个历史别名，旧链接将 301 跳转到此页' : ''); }
   else link.style.display = 'none';
   show('artModal');
 }
