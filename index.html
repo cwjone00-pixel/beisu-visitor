@@ -114,6 +114,10 @@
   .ph-line{ height:8px; border-radius:4px; background:rgba(35,60,105,.15); }
   .ph-line.short{ width:42%; height:7px; background:rgba(35,60,105,.08); }
   .card-title{ font-size:12.5px; color:#333a45; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* 文章卡片封面缩略图（带封面的文章才启用，活动卡片保持原样） */
+  .ph-card.has-cover{ flex-direction:row; align-items:center; gap:9px; padding:7px 10px; }
+  .card-thumb{ width:60px; height:40px; border-radius:7px; object-fit:cover; flex:0 0 auto; background:rgba(35,60,105,.08); display:block; }
+  .card-body{ flex:1; min-width:0; display:flex; flex-direction:column; gap:6px; }
 
   .articles-scroll{ flex:1; min-height:90px; overflow-y:auto; margin:0 -4px; padding:0 4px 4px; }
   .articles-scroll::-webkit-scrollbar{ width:5px; }
@@ -1125,9 +1129,15 @@ function makeRealCard(item, section){
   const isArt = section === 'articles';
   const title = isArt ? articleTitleOf(item) : (item.title || '');
   const url = (isArt && item.url) ? withLang(item.url) : item.url;
+  const cover = isArt ? (item.cover || '') : '';
   const card = document.createElement('div');
-  card.className = 'ph-card';
-  card.innerHTML = '<span class="card-title"></span><span class="ph-line short"></span>';
+  card.className = 'ph-card' + (cover ? ' has-cover' : '');
+  if (cover){
+    card.innerHTML = '<img class="card-thumb" alt=""><div class="card-body"><span class="card-title"></span><span class="ph-line short"></span></div>';
+    card.querySelector('.card-thumb').src = cover;   // 列表页展示文章封面
+  } else {
+    card.innerHTML = '<span class="card-title"></span><span class="ph-line short"></span>';
+  }
   card.querySelector('.card-title').textContent = title;
   card.addEventListener('click', () => openCardModal(title || dict()[section === 'events' ? 'secEvents' : 'secArticles'], url));
   return card;
