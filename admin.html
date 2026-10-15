@@ -311,6 +311,16 @@
     <button class="btn btn-primary" style="margin-top:12px;" onclick="saveCb()">保存输入框快捷按钮</button>
   </div>
 
+  <!-- 文章资讯（图文录入 → 自动生成独立页面） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>文章资讯 <span class="tag" id="artCount">0 篇</span></h2>
+      <button class="btn btn-primary" onclick="openArtEditor()">+ 新建文章</button>
+    </div>
+    <div class="desc">录入标题、正文、配图。「已发布」会自动生成独立页面与链接（<code>/article/…</code>），并写入 <code>sitemap.xml</code>，供 Yandex 等爬虫抓取收录；「草稿」仅后台可见，公开访问返回 404。</div>
+    <div id="artList" class="rule-list"></div>
+  </div>
+
   </div><!-- /main-col -->
 
   <!-- 右列：独立用户列表（支持搜索 + 内部滚动，客户再多也不挤压左列） -->
@@ -325,6 +335,47 @@
     <div class="users-scroll" id="userList"></div>
   </aside>
 
+</div>
+
+<!-- 文章编辑弹窗 -->
+<div class="modal-mask hidden" id="artModal">
+  <div class="modal" style="max-width:640px;">
+    <h3 id="artModalTitle">新建文章</h3>
+    <div class="field">
+      <label>标题（必填）</label>
+      <input class="input" id="amTitle" placeholder="例如：海南冬季避寒攻略">
+    </div>
+    <div class="field">
+      <label>链接别名 slug（可选；仅英文/数字/连字符，留空则按标题自动生成）</label>
+      <input class="input" id="amSlug" placeholder="例如：hainan-winter-guide">
+    </div>
+    <div class="field">
+      <label>正文（空行分段，段内换行自动保留）</label>
+      <textarea class="textarea" id="amBody" style="min-height:180px;" placeholder="请输入正文…"></textarea>
+    </div>
+    <div class="field">
+      <label>配图（可选，用作封面与分享图）</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="file" id="amCoverFile" accept="image/*" style="display:none" onchange="artCoverPick(this)">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('amCoverFile').click()">选择图片</button>
+        <button class="btn btn-ghost btn-sm" onclick="artCoverClear()">清除</button>
+        <span id="amCoverHint" style="color:#9aa3ad;font-size:12px;"></span>
+      </div>
+      <img id="amCoverPreview" alt="" style="display:none;max-width:100%;margin-top:10px;border-radius:10px;">
+    </div>
+    <div class="field">
+      <label>状态</label>
+      <div class="radio-group">
+        <label><input type="radio" name="amStatus" value="draft" checked> 草稿（不公开，仅后台可预览）</label>
+        <label><input type="radio" name="amStatus" value="published"> 已发布（生成独立页面，可被爬虫抓取）</label>
+      </div>
+    </div>
+    <div id="amLink" style="display:none;font-size:12px;margin-bottom:8px;color:#8b94a0;"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('artModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveArticle()">保存</button>
+    </div>
+  </div>
 </div>
 
 <!-- 首页按钮编辑弹窗 -->
@@ -452,6 +503,11 @@ const API = {
   /* 输入框占位提示（按在线状态区分，三语） */
   phGet: () => fetch('/api/placeholder').then(r=>r.json()),
   phSave: d => fetch('/api/placeholder', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  /* 文章资讯（图文录入；已发布自动生成独立页面） */
+  artList: () => fetch('/api/admin/articles').then(r=>r.json()),
+  artCreate: d => fetch('/api/admin/articles', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  artUpdate: (id,d) => fetch('/api/admin/articles/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  artDelete: id => fetch('/api/admin/articles/'+id, { method:'DELETE' }),
   /* 用户列表（邮箱注册用户，需登录） */
   usersList: () => fetch('/api/users').then(r=>r.json()),
   /* 人工客服账号与在线状态 */
@@ -516,6 +572,7 @@ async function unlockAdmin(loggedInAs){
   loadGuide();
   loadPh();
   loadCb();
+  loadArts();
   loadUsers();
 }
 /* 页面打开：本地 token 有效直接进入后台，无效弹出登录门 */
@@ -873,6 +930,104 @@ async function saveHome(){
   closeModal('homeModal'); loadHome();
 }
 async function delHome(id){ if (confirm('确定删除该按钮？')) { await API.qbDelete(id); loadHome(); } }
+
+/* ================= 文章资讯（图文录入 → 独立页面） ================= */
+let arts = [], editingArt = null, artCover = '';
+async function loadArts(){
+  arts = await API.artList();
+  arts = Array.isArray(arts) ? arts : [];
+  document.getElementById('artCount').textContent = arts.length + ' 篇';
+  const list = document.getElementById('artList');
+  if (!arts.length){ list.innerHTML = '<div class="empty">暂无文章，点击「新建文章」录入图文</div>'; return; }
+  list.innerHTML = arts.map(a => `
+    <div class="rule-item">
+      <div class="rule-head">
+        <span class="rule-type ${a.status === 'published' ? 'type-exact' : 'type-fuzzy'}">${a.status === 'published' ? '已发布' : '草稿'}</span>
+        <span class="rule-title">${esc(a.title)}</span>
+        <div class="rule-actions">
+          ${a.status === 'published'
+            ? `<a class="btn btn-ghost btn-sm" href="/article/${esc(a.slug)}" target="_blank" rel="noopener">查看页面</a>`
+            : `<button class="btn btn-ghost btn-sm" onclick="previewArt('${a.id}')">预览草稿</button>`}
+          <button class="btn btn-ghost btn-sm" onclick="openArtEditor('${a.id}')">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="delArticle('${a.id}')">删除</button>
+        </div>
+      </div>
+      <div class="meta">
+        <span class="label">独立链接：</span><span class="chip">/article/${esc(a.slug)}</span>
+        <span style="margin-left:10px;color:#9aa3ad">更新于 ${new Date(a.updatedAt || a.createdAt).toLocaleString()}</span>
+      </div>
+    </div>
+  `).join('');
+}
+function openArtEditor(id){
+  editingArt = id || null;
+  const a = id ? arts.find(x => x.id === id) : null;
+  document.getElementById('artModalTitle').textContent = id ? '编辑文章' : '新建文章';
+  document.getElementById('amTitle').value = a ? a.title : '';
+  document.getElementById('amSlug').value = a ? a.slug : '';
+  document.getElementById('amBody').value = a ? a.body : '';
+  artCover = (a && a.cover) ? a.cover : '';
+  document.querySelectorAll('input[name="amStatus"]').forEach(r => { r.checked = (r.value === (a ? a.status : 'draft')); });
+  document.getElementById('amCoverHint').textContent = '';
+  artCoverPreview();
+  const link = document.getElementById('amLink');
+  if (a){ link.style.display = 'block'; link.innerHTML = '独立页面：<span class="chip">/article/' + esc(a.slug) + '</span>（保存后生效）'; }
+  else link.style.display = 'none';
+  show('artModal');
+}
+function artCoverPreview(){
+  const img = document.getElementById('amCoverPreview');
+  if (artCover){ img.src = artCover; img.style.display = 'block'; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; }
+}
+function artCoverClear(){ artCover = ''; artCoverPreview(); }
+/* 图片先压缩（最长边 1600px）再上传，避免超大原图超过服务端 4MB 限制 */
+async function artCompress(file){
+  const raw = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result || '')); r.onerror = rej; r.readAsDataURL(file); });
+  try {
+    const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = raw; });
+    const max = 1600; let w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    if (w > max || h > max){ const k = Math.min(max / w, max / h); w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k)); }
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    cv.getContext('2d').drawImage(img, 0, 0, w, h);
+    return cv.toDataURL('image/jpeg', 0.85);
+  } catch(e){ return raw; }
+}
+async function artCoverPick(input){
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  if (f.type.indexOf('image/') !== 0){ alert('请选择图片文件'); return; }
+  const hint = document.getElementById('amCoverHint');
+  hint.textContent = '上传中…';
+  try {
+    const dataUrl = await artCompress(f);
+    const res = await fetch('/api/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dataUrl }) });
+    const d = await res.json();
+    if (!res.ok || !d.ok){ hint.textContent = d.error || '上传失败'; return; }
+    artCover = d.url; artCoverPreview(); hint.textContent = '';
+  } catch(e){ hint.textContent = '上传失败'; }
+}
+async function saveArticle(){
+  const d = {
+    title: val('amTitle'),
+    slug: val('amSlug'),
+    body: document.getElementById('amBody').value,
+    cover: artCover,
+    status: (document.querySelector('input[name="amStatus"]:checked') || {}).value || 'draft'
+  };
+  if (!d.title){ alert('请填写标题'); return; }
+  const r = editingArt ? await API.artUpdate(editingArt, d) : await API.artCreate(d);
+  if (!r || r.error){ alert((r && r.error) || '保存失败'); return; }
+  closeModal('artModal'); loadArts();
+}
+async function delArticle(id){
+  if (confirm('确定删除该文章？删除后其独立页面将立即失效。')){ await API.artDelete(id); loadArts(); }
+}
+function previewArt(id){
+  const a = arts.find(x => x.id === id);
+  if (a) window.open('/article/' + encodeURIComponent(a.slug) + '?preview=' + encodeURIComponent(opToken), '_blank');
+}
 
 /* ================= 关键词规则 ================= */
 /* 规则关键词三语分存 {zh:[],en:[],ru:[]} */

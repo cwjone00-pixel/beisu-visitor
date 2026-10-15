@@ -1656,6 +1656,14 @@ async function loadConfig(){
   applyHeroTitle();
   applyPlaceholder();
 }
+/* 拉取后台录入的「已发布」文章，渲染到左侧「文章资讯」栏目（点击卡片打开其独立页面） */
+async function loadArticles(){
+  try {
+    const res = await fetch('/api/articles');
+    const list = await res.json();
+    BeisuAPI.setArticles(Array.isArray(list) ? list : []);
+  } catch(e){ /* 拉取失败时保留占位卡片 */ }
+}
 /* 渲染输入框内快捷按钮（语言切换后自动刷新文字；全部语种均为空的按钮隐藏） */
 function renderComposerButtons(){
   const box = $('composerChips');
@@ -1902,6 +1910,7 @@ applyI18n();
 handleActivateRedirect();   // 处理邮件激活回跳（?activated=1|0）提示
 handleTelegramRedirect();   // 处理 Telegram 授权回跳（?tg=1&s=...）完成登录
 loadConfig();          // 拉取后台配置的首页快捷按钮并渲染
+loadArticles();        // 拉取后台录入的已发布文章，渲染「文章资讯」栏目
 syncMessages();        // 拉取会话历史（含后台人工消息），刷新页面后不丢对话
 loadMoreArticles(); // 若占位卡片不满一屏，自动补足至出现纵向滚动
 </script>

@@ -94,6 +94,7 @@ function ensureDataFile(){
       link: { text: { zh:'', en:'', ru:'' }, url: '' },
       guide: { text: { zh:'', en:'', ru:'' } },
       placeholder: { bot: { zh:'', en:'', ru:'' }, agent: { zh:'', en:'', ru:'' } },
+      articles: [],
       agentChat: { translate: true }
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf-8');
@@ -132,6 +133,9 @@ function shapeData(raw){
     } else {
       d.composerButtons = d.composerButtons.map(normalizeHomeButton);
     }
+    /* 文章资讯（后台录入的图文；draft 草稿 / published 已发布） */
+    if (!Array.isArray(d.articles)) d.articles = [];
+    d.articles = d.articles.map(a => normArticle(a, d.articles));
     /* 人工消息自动翻译总开关（缺省开启）+ 机器人总开关（缺省开启） */
     if (!d.agentChat || typeof d.agentChat !== 'object') d.agentChat = {};
     d.agentChat.translate = d.agentChat.translate !== false;
@@ -282,6 +286,100 @@ function readBody(req, maxBytes){
       catch { resolve({}); }
     });
   });
+}
+
+/* ---------------- 文章资讯：数据结构与工具 ----------------
+   文章与站点配置同存于 rules 文档的 articles 数组；配图只存媒体引用（/api/media/<id>），不落 base64。
+   状态：draft（草稿，公开页面 404，仅后台可预览）| published（已发布，生成独立页面供 Yandex 等爬虫抓取） */
+function slugify(s){
+  return String(s || '').toLowerCase().trim()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+}
+function normArticle(input, all){
+  const a = (input && typeof input === 'object') ? input : {};
+  const id = a.id || crypto.randomUUID();
+  const others = (all || []).filter(x => x && x.id !== id);
+  const base = slugify(a.slug || a.title)
+    || ('a' + crypto.createHash('sha1').update(String(id)).digest('hex').slice(0, 8));   // 纯中文标题无可用 ASCII 时回退短码
+  let slug = base, n = 2;
+  while (others.some(x => x.slug === slug)) slug = base + '-' + (n++);                   // 保证 slug 全局唯一
+  const status = a.status === 'published' ? 'published' : 'draft';
+  const createdAt = a.createdAt || Date.now();
+  return {
+    id,
+    title: String(a.title || '').slice(0, 200),
+    slug,
+    body: String(a.body || '').slice(0, 20000),
+    cover: String(a.cover || '').slice(0, 300),
+    status,
+    createdAt,
+    updatedAt: a.updatedAt || createdAt,
+    publishedAt: status === 'published' ? (a.publishedAt || createdAt) : (a.publishedAt || 0)
+  };
+}
+function articlePath(a){ return '/article/' + a.slug; }
+function escHtml(s){
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+/* 正文按空行分段、段内换行转 <br>，整体转义（防止录入内容注入脚本） */
+function bodyToHtml(body){
+  const paras = String(body || '').replace(/\r\n?/g, '\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  return paras.map(p => '<p>' + escHtml(p).replace(/\n/g, '<br>') + '</p>').join('\n') || '<p></p>';
+}
+function sendHtml(res, status, html){
+  res.writeHead(status, { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff' });
+  res.end(html);
+}
+const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",Roboto,sans-serif;line-height:1.75}'
+  + 'main{max-width:760px;margin:0 auto;padding:32px 20px 64px;background:#fff;min-height:100vh;box-sizing:border-box}'
+  + '.back{display:inline-block;margin-bottom:18px;font-size:13px;color:#2f7cf6;text-decoration:none}'
+  + 'h1{font-size:26px;line-height:1.35;margin:0 0 10px}'
+  + '.meta{color:#8b94a0;font-size:13px;margin-bottom:20px}'
+  + '.cover{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin:0 0 24px}'
+  + 'article p{margin:0 0 16px;font-size:16px}';
+/* 文章独立页面：服务端直出，含 title/description/canonical/og/JSON-LD，便于爬虫抓取收录 */
+function articlePageHtml(art, preview){
+  const url = PUBLIC_BASE_URL + articlePath(art);
+  const desc = String(art.body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const img = art.cover ? (/^https?:/i.test(art.cover) ? art.cover : PUBLIC_BASE_URL + art.cover) : '';
+  const published = new Date(art.publishedAt || art.createdAt).toISOString();
+  const modified = new Date(art.updatedAt || art.createdAt).toISOString();
+  const ld = { '@context':'https://schema.org', '@type':'Article', headline:art.title, datePublished:published, dateModified:modified, mainEntityOfPage:url };
+  if (img) ld.image = [img];
+  return '<!DOCTYPE html>\n<html lang="zh">\n<head>\n'
+    + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+    + '<title>' + escHtml(art.title) + '</title>\n'
+    + '<meta name="description" content="' + escHtml(desc) + '">\n'
+    + '<link rel="canonical" href="' + escHtml(url) + '">\n'
+    + '<meta property="og:type" content="article">\n'
+    + '<meta property="og:title" content="' + escHtml(art.title) + '">\n'
+    + '<meta property="og:description" content="' + escHtml(desc) + '">\n'
+    + '<meta property="og:url" content="' + escHtml(url) + '">\n'
+    + (img ? '<meta property="og:image" content="' + escHtml(img) + '">\n' : '')
+    + '<meta name="robots" content="' + (preview ? 'noindex,nofollow' : 'index,follow') + '">\n'
+    + '<script type="application/ld+json">' + JSON.stringify(ld) + '</script>\n'
+    + '<style>' + ARTICLE_CSS + '</style>\n</head>\n<body>\n<main>\n'
+    + '<a class="back" href="/">← 返回首页</a>\n'
+    + '<h1>' + escHtml(art.title) + '</h1>\n'
+    + '<div class="meta">' + published.slice(0, 10) + (preview ? ' · 草稿预览（未发布，不收录）' : '') + '</div>\n'
+    + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(art.title) + '">\n' : '')
+    + '<article>\n' + bodyToHtml(art.body) + '\n</article>\n</main>\n</body>\n</html>';
+}
+function articleNotFoundHtml(){
+  return '<!DOCTYPE html>\n<html lang="zh">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>页面不存在</title><meta name="robots" content="noindex">'
+    + '<style>body{font-family:-apple-system,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#22282f}a{color:#2f7cf6}</style></head>'
+    + '<body><div style="text-align:center"><h1 style="font-size:20px">404 · 页面不存在</h1><p><a href="/">返回首页</a></p></div></body></html>';
+}
+/* sitemap：列出首页与全部已发布文章，供 Yandex 等爬虫发现 */
+function sitemapXml(){
+  const items = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
+  const urls = ['<url><loc>' + escHtml(PUBLIC_BASE_URL) + '/</loc><changefreq>daily</changefreq></url>']
+    .concat(items.map(a => '<url><loc>' + escHtml(PUBLIC_BASE_URL + articlePath(a)) + '</loc>'
+      + '<lastmod>' + new Date(a.updatedAt || a.createdAt).toISOString().slice(0, 10) + '</lastmod></url>'));
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+    + urls.join('\n') + '\n</urlset>\n';
 }
 
 const MIME = {
@@ -797,6 +895,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/status' || p === '/api/auth/login' || p === '/api/auth/logout' ||
       p === '/api/auth/heartbeat' || p === '/api/auth/close' ||
       p === '/api/config' || p === '/api/match' || p === '/api/media' ||
+      (p === '/api/articles' && req.method === 'GET') ||
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
       p === '/api/auth/guest' ||
@@ -1373,6 +1472,14 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok:true, composerButtons: d.composerButtons });
   }
 
+  /* ---- 文章资讯：前台只返回已发布（草稿不外泄），按发布时间倒序 ---- */
+  if (p === '/api/articles' && req.method === 'GET'){
+    const list = loadData().articles.filter(a => a.status === 'published')
+      .sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0))
+      .map(a => ({ id:a.id, title:a.title, url:articlePath(a), cover:a.cover, publishedAt:a.publishedAt }));
+    return send(res, 200, list);
+  }
+
   /* ---- 关键词规则 CRUD ---- */
   if (p === '/api/rules' && req.method === 'GET'){
     return send(res, 200, loadData().rules);
@@ -1408,6 +1515,37 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok:true });
   }
 
+  /* ---- 文章资讯 CRUD（后台；未加入白名单 → 必须携带登录 token） ---- */
+  if (p === '/api/admin/articles' && req.method === 'GET'){
+    return send(res, 200, loadData().articles);
+  }
+  if (p === '/api/admin/articles' && req.method === 'POST'){
+    const body = await readBody(req);
+    if (!String(body.title || '').trim()) return send(res, 400, { error:'请填写标题' });
+    const d = loadData();
+    const art = normArticle({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() }, d.articles);
+    d.articles.unshift(art);
+    saveData(d);
+    return send(res, 201, art);
+  }
+  if ((m = p.match(/^\/api\/admin\/articles\/([^/]+)$/)) && req.method === 'PUT'){
+    const body = await readBody(req);
+    if (!String(body.title || '').trim()) return send(res, 400, { error:'请填写标题' });
+    const d = loadData();
+    const i = d.articles.findIndex(a => a.id === m[1]);
+    if (i < 0) return send(res, 404, { error:'article not found' });
+    const prev = d.articles[i];
+    d.articles[i] = normArticle({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, publishedAt:body.status === 'published' ? (prev.publishedAt || Date.now()) : prev.publishedAt, updatedAt:Date.now() }, d.articles);
+    saveData(d);
+    return send(res, 200, d.articles[i]);
+  }
+  if ((m = p.match(/^\/api\/admin\/articles\/([^/]+)$/)) && req.method === 'DELETE'){
+    const d = loadData();
+    d.articles = d.articles.filter(a => a.id !== m[1]);
+    saveData(d);
+    return send(res, 200, { ok:true });
+  }
+
   /* ---- 兜底配置 ---- */
   if (p === '/api/fallback' && req.method === 'GET'){
     return send(res, 200, loadData().fallback);
@@ -1430,6 +1568,25 @@ const server = http.createServer(async (req, res) => {
     d.link = normalizeLinkTemplate(body);
     saveData(d);
     return send(res, 200, d.link);
+  }
+
+  /* ---- 文章独立页面（服务端直出 HTML，SEO 友好，供 Yandex 等爬虫抓取）
+         草稿不对外：公开访问 404；后台带 ?preview=<登录token> 可预览（页面标注 noindex） ---- */
+  if (p.startsWith('/article/') && req.method === 'GET'){
+    const slug = decodeURIComponent(p.slice('/article/'.length));
+    const art = loadData().articles.find(a => a.slug === slug);
+    const preview = !!sessionUser(url.searchParams.get('preview') || '');
+    if (!art || (art.status !== 'published' && !preview)) return sendHtml(res, 404, articleNotFoundHtml());
+    return sendHtml(res, 200, articlePageHtml(art, art.status !== 'published'));
+  }
+  /* ---- sitemap.xml / robots.txt：帮助搜索引擎（Yandex 等）发现并收录已发布文章 ---- */
+  if (p === '/sitemap.xml' && req.method === 'GET'){
+    res.writeHead(200, { 'Content-Type':'application/xml; charset=utf-8', 'Cache-Control':'no-cache' });
+    return res.end(sitemapXml());
+  }
+  if (p === '/robots.txt' && req.method === 'GET'){
+    res.writeHead(200, { 'Content-Type':'text/plain; charset=utf-8', 'Cache-Control':'no-cache' });
+    return res.end('User-agent: *\nAllow: /\nSitemap: ' + PUBLIC_BASE_URL + '/sitemap.xml\n');
   }
 
   /* ---- 静态资源 ---- */
