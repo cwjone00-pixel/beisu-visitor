@@ -736,6 +736,7 @@ function clearChatSelection(){ activeChat = null; chatLastId = 0; closeChatModal
 async function loadChatList(){
   if (!adminUnlocked) return;   // 未登录时不拉取会话
   const list = await API.chats();
+  if (!Array.isArray(list)) return;   // 登录态失效等异常返回时静默跳过，避免类型错误
   document.getElementById('chatCount').textContent = list.length + ' 个会话';
   const box = document.getElementById('chatSessions');
   /* 已选中的会话不在列表里了（被结束 / 消息被清空）→ 自动清掉选中态并收起弹窗 */
