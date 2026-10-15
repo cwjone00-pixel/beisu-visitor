@@ -785,8 +785,10 @@ function closeChatModal(){
   if (m) m.classList.add('hidden');
 }
 
-function renderChatPanel(msgs, reset){
+function renderChatPanel(msgs, reset, keepScroll){
   const box = document.getElementById('cpMessages');
+  const prevTop = box.scrollTop;
+  const wasAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
   if (reset) box.innerHTML = '';
   const bubble = role => role === 'agent'
     ? 'align-self:flex-end; background:#eaf3ff; border-radius:12px 12px 3px 12px;'
@@ -826,23 +828,24 @@ function renderChatPanel(msgs, reset){
       const tag = `<div style="font-size:10px; color:#9aa3ad; margin:0 4px 2px; text-align:${align};">${ROLE_NAME[m.role]||m.role} · ${new Date(m.ts).toLocaleTimeString()}</div>`;
       return `<div data-mid="${m.id}">${tag}<div style="${bubble(m.role)} padding:8px 12px; font-size:13px; line-height:1.55; max-width:78%; word-break:break-word; box-shadow:0 1px 4px rgba(30,60,110,.06);"><div style="color:#20242b;">${esc(text)}</div>${extra}</div></div>`;
     }).join('');
-  box.scrollTop = box.scrollHeight;
+  box.scrollTop = (keepScroll && !wasAtBottom) ? prevTop : box.scrollHeight;
 }
 
 async function pollActiveChat(){
   if (!activeChat || !chatModalOpen || !adminUnlocked) return;
   try {
-    const d = await API.chatSince(activeChat, chatLastId);
+    /* 弹窗打开期间做全量重渲染：后补的英译/俄译（异步生成）才能在已显示的消息上即时出现 */
+    const d = await API.chatGet(activeChat);
     if (d.ended){
       // 会话已被结束：收起弹窗并刷新列表
       clearChatSelection();
       loadChatList();
       return;
     }
-    if (d.messages && d.messages.length){
-      chatLastId = d.messages[d.messages.length-1].id;
-      renderChatPanel(d.messages, false);
-    }
+    const msgs = d.messages || [];
+    chatLastId = msgs.length ? msgs[msgs.length-1].id : 0;
+    document.getElementById('cpTitle').textContent = '会话 ' + activeChat.slice(0,8) + '… · ' + msgs.length + ' 条消息';
+    renderChatPanel(msgs, true, true);
     if (d.mode && d.mode !== chatMode){ chatMode = d.mode; updateModeBtn(); }
   } catch(e){}
 }
