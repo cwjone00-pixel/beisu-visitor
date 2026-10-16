@@ -304,22 +304,14 @@
     <button class="btn btn-primary" style="margin-top:12px;" onclick="savePh()">保存占位提示</button>
   </div>
 
-  <!-- ⑦ 输入框快捷按钮（输入框内部，随语种切换） -->
+  <!-- ⑦ 输入框快捷按钮（输入框内部，随语种切换；可动态新增任意数量） -->
   <div class="card">
-    <h2>输入框快捷按钮 <span class="tag">底部输入框内部 · 3 个</span></h2>
-    <div class="desc">显示在底部输入框内部（拍照/上传按钮左侧）；点击按钮等同提交当前语种的按钮文字进行关键词匹配，机制与首页快捷按钮一致。某个按钮三种语言都留空则前端自动隐藏。</div>
-    <div class="field" style="margin-bottom:8px;"><label style="color:#2f7cf6;">按钮 1</label></div>
-    <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="c1Zh" placeholder="例如：租房"></div>
-    <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="c1En" placeholder="例如：Housing Rental"></div>
-    <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="c1Ru" placeholder="例如：Аренда жилья"></div>
-    <div class="field" style="margin:16px 0 8px;"><label style="color:#2f7cf6;">按钮 2</label></div>
-    <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="c2Zh" placeholder="例如：租车"></div>
-    <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="c2En" placeholder="例如：Car Rental"></div>
-    <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="c2Ru" placeholder="例如：Аренда авто"></div>
-    <div class="field" style="margin:16px 0 8px;"><label style="color:#2f7cf6;">按钮 3</label></div>
-    <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="c3Zh" placeholder="例如：旅游搭子"></div>
-    <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="c3En" placeholder="例如：Travel Buddy"></div>
-    <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="c3Ru" placeholder="例如：Попутчик"></div>
+    <div class="head-row">
+      <h2>输入框快捷按钮 <span class="tag" id="cbCount">0 个</span></h2>
+      <button class="btn btn-primary" onclick="addCb()">+ 新增按钮</button>
+    </div>
+    <div class="desc">显示在底部输入框内部（拍照/上传按钮左侧）；点击按钮等同提交当前语种的按钮文字进行关键词匹配，机制与首页快捷按钮一致。可自行添加任意数量快捷按钮，每个按钮分别配置中文、英文、俄语文本；某个按钮三种语言都留空则前端自动隐藏。</div>
+    <div id="cbList" class="rule-list"></div>
     <button class="btn btn-primary" style="margin-top:12px;" onclick="saveCb()">保存输入框快捷按钮</button>
   </div>
 
@@ -1270,31 +1262,59 @@ async function savePh(){
   alert('占位提示已保存，游客端刷新后生效');
 }
 
-/* ================= 输入框快捷按钮（3 个固定槽位，三语） ================= */
-let cbIds = [];   // 各槽位按钮 id（保持槽位与后台顺序稳定）
+/* ================= 输入框快捷按钮（任意数量 · 三语；三语全空的按钮前端自动隐藏） ================= */
+let cbItems = [];   // [{ id, label:{zh,en,ru} }]，保持后台顺序与按钮 id 稳定
+function cbRow(i, b){
+  return `
+    <div class="rule-item">
+      <div class="rule-head">
+        <span class="rule-title" style="color:#2f7cf6;">按钮 ${i + 1}</span>
+        <div class="rule-actions"><button class="btn btn-danger btn-sm" onclick="delCb(${i})">删除</button></div>
+      </div>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" data-f="zh" placeholder="例如：租房" value="${escAttr(b.label.zh)}"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" data-f="en" placeholder="例如：Housing Rental" value="${escAttr(b.label.en)}"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" data-f="ru" placeholder="例如：Аренда жилья" value="${escAttr(b.label.ru)}"></div>
+    </div>`;
+}
+function renderCb(){
+  document.getElementById('cbCount').textContent = cbItems.length + ' 个';
+  const list = document.getElementById('cbList');
+  list.innerHTML = cbItems.length ? cbItems.map((b, i) => cbRow(i, b)).join('')
+    : '<div class="empty">暂无输入框快捷按钮，点击「+ 新增按钮」添加</div>';
+}
+/* 先把已录入内容读回内存，避免新增/删除触发重渲染时丢失未保存的输入 */
+function syncCbInputs(){
+  document.querySelectorAll('#cbList .rule-item').forEach((row, i) => {
+    if (!cbItems[i]) return;
+    row.querySelectorAll('input[data-f]').forEach(inp => { cbItems[i].label[inp.dataset.f] = inp.value.trim(); });
+  });
+}
+function addCb(){ syncCbInputs(); cbItems.push({ id:null, label:{ zh:'', en:'', ru:'' } }); renderCb(); }
+function delCb(i){
+  syncCbInputs();
+  if (!confirm('确定删除「按钮 ' + (i + 1) + '」？')){ renderCb(); return; }
+  cbItems.splice(i, 1);
+  renderCb();
+}
 async function loadCb(){
   try {
     const list = await API.cbGet();
-    for (let i = 0; i < 3; i++){
-      const b = list[i] || { id:null, label:{} };
-      cbIds[i] = b.id || null;
-      document.getElementById('c' + (i+1) + 'Zh').value = (b.label && b.label.zh) || '';
-      document.getElementById('c' + (i+1) + 'En').value = (b.label && b.label.en) || '';
-      document.getElementById('c' + (i+1) + 'Ru').value = (b.label && b.label.ru) || '';
-    }
-  } catch(e){}
+    cbItems = (Array.isArray(list) ? list : []).map(b => ({
+      id: b.id || null,
+      label: { zh:(b.label && b.label.zh) || '', en:(b.label && b.label.en) || '', ru:(b.label && b.label.ru) || '' }
+    }));
+  } catch(e){ cbItems = []; }
+  renderCb();
 }
 async function saveCb(){
-  const buttons = [];
-  for (let i = 0; i < 3; i++){
-    const label = {
-      zh: document.getElementById('c' + (i+1) + 'Zh').value.trim(),
-      en: document.getElementById('c' + (i+1) + 'En').value.trim(),
-      ru: document.getElementById('c' + (i+1) + 'Ru').value.trim()
-    };
-    buttons.push({ id: cbIds[i] || undefined, keyword: label.zh || label.en || label.ru, label });
-  }
+  syncCbInputs();
+  const buttons = cbItems.map(b => ({
+    id: b.id || undefined,
+    keyword: b.label.zh || b.label.en || b.label.ru,
+    label: { zh:b.label.zh, en:b.label.en, ru:b.label.ru }
+  }));
   await API.cbSave(buttons);
+  await loadCb();
   alert('输入框快捷按钮已保存，游客端刷新后生效');
 }
 
