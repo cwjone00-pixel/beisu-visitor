@@ -95,6 +95,7 @@ function ensureDataFile(){
       guide: { text: { zh:'', en:'', ru:'' } },
       placeholder: { bot: { zh:'', en:'', ru:'' }, agent: { zh:'', en:'', ru:'' } },
       articles: [],
+      events: [],
       agentChat: { translate: true }
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf-8');
@@ -136,6 +137,9 @@ function shapeData(raw){
     /* 文章资讯（后台录入的图文；draft 草稿 / published 已发布） */
     if (!Array.isArray(d.articles)) d.articles = [];
     d.articles = d.articles.map(a => normArticle(a, d.articles));
+    /* 商业活动（后台录入的图文；与文章资讯分开存储，仅用于前端左侧「商业活动」板块展示） */
+    if (!Array.isArray(d.events)) d.events = [];
+    d.events = d.events.map(e => normEvent(e));
     /* 人工消息自动翻译总开关（缺省开启）+ 机器人总开关（缺省开启） */
     if (!d.agentChat || typeof d.agentChat !== 'object') d.agentChat = {};
     d.agentChat.translate = d.agentChat.translate !== false;
@@ -357,6 +361,25 @@ function normArticle(input, all){
 function artHasTitle(body){
   const src = (body && typeof body.i18n === 'object' && body.i18n) ? body.i18n : {};
   return ART_LANGS.some(l => String(((src[l] || {}).title) || '').trim()) || String((body && body.title) || '').trim();
+}
+/* ---------------- 商业活动：数据结构（与文章资讯完全分开存储） ----------------
+   与文章资讯不同：不需要独立页面 / slug / SEO，仅用于前端左侧「商业活动」板块的卡片与详情展示。
+   配图同样只存媒体引用（/api/media/<id>），不落 base64。 */
+function normEvent(input){
+  const e = (input && typeof input === 'object') ? input : {};
+  const id = e.id || crypto.randomUUID();
+  const i18n = normArtI18n(e);
+  const primary = artPrimary(i18n);
+  const createdAt = e.createdAt || Date.now();
+  return {
+    id,
+    i18n,                        // 三语标题与正文（唯一内容源）
+    title: primary.title,        // 兼容/展示字段：主语言标题
+    body: primary.body,          // 兼容字段：主语言正文
+    cover: String(e.cover || '').slice(0, 300),
+    createdAt,
+    updatedAt: e.updatedAt || createdAt
+  };
 }
 function articlePath(a){ return '/article/' + a.slug; }
 /* 爬虫识别：Yandex 系 UA（YandexBot / YandexImages / YandexMobileBot 等）统一命中 */
@@ -990,6 +1013,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/heartbeat' || p === '/api/auth/close' ||
       p === '/api/config' || p === '/api/match' || p === '/api/media' ||
       (p === '/api/articles' && req.method === 'GET') ||
+      (p === '/api/events' && req.method === 'GET') ||
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
       p === '/api/auth/register' || p === '/api/auth/login-email' || p === '/api/auth/reset' ||
       p === '/api/auth/guest' ||
@@ -1568,6 +1592,23 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, list);
   }
 
+  /* ---- 商业活动：前台返回后台录入的图文（标题/正文三语 + 配图），按更新时间倒序 ----
+         与文章资讯分开：仅用于前端左侧「商业活动」板块的卡片与详情展示，无独立页面 ---- */
+  if (p === '/api/events' && req.method === 'GET'){
+    const list = loadData().events.slice()
+      .sort((x, y) => (y.updatedAt || 0) - (x.updatedAt || 0))
+      .map(e => {
+        const titles = {}, bodies = {};
+        ART_LANGS.forEach(l => {
+          const cell = (e.i18n || {})[l] || {};
+          titles[l] = String(cell.title || '');
+          bodies[l] = String(cell.body || '');
+        });
+        return { id:e.id, title:e.title, titles, body:e.body, bodies, cover:e.cover, updatedAt:e.updatedAt };
+      });
+    return send(res, 200, list);
+  }
+
   /* ---- 关键词规则 CRUD ---- */
   if (p === '/api/rules' && req.method === 'GET'){
     return send(res, 200, loadData().rules);
@@ -1636,6 +1677,37 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/admin\/articles\/([^/]+)$/)) && req.method === 'DELETE'){
     const d = loadData();
     d.articles = d.articles.filter(a => a.id !== m[1]);
+    saveData(d);
+    return send(res, 200, { ok:true });
+  }
+
+  /* ---- 商业活动 CRUD（后台；与文章资讯分开存储，无独立页面/slug） ---- */
+  if (p === '/api/admin/events' && req.method === 'GET'){
+    return send(res, 200, loadData().events);
+  }
+  if (p === '/api/admin/events' && req.method === 'POST'){
+    const body = await readBody(req);
+    if (!artHasTitle(body)) return send(res, 400, { error:'请至少填写一种语言的标题' });
+    const d = loadData();
+    const evt = normEvent({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() });
+    d.events.unshift(evt);
+    saveData(d);
+    return send(res, 201, evt);
+  }
+  if ((m = p.match(/^\/api\/admin\/events\/([^/]+)$/)) && req.method === 'PUT'){
+    const body = await readBody(req);
+    if (!artHasTitle(body)) return send(res, 400, { error:'请至少填写一种语言的标题' });
+    const d = loadData();
+    const i = d.events.findIndex(e => e.id === m[1]);
+    if (i < 0) return send(res, 404, { error:'event not found' });
+    const prev = d.events[i];
+    d.events[i] = normEvent({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, updatedAt:Date.now() });
+    saveData(d);
+    return send(res, 200, d.events[i]);
+  }
+  if ((m = p.match(/^\/api\/admin\/events\/([^/]+)$/)) && req.method === 'DELETE'){
+    const d = loadData();
+    d.events = d.events.filter(e => e.id !== m[1]);
     saveData(d);
     return send(res, 200, { ok:true });
   }

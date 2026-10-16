@@ -325,6 +325,16 @@
     <div id="artList" class="rule-list"></div>
   </div>
 
+  <!-- 商业活动（图文录入 → 展示在前端左侧「商业活动」板块） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>商业活动 <span class="tag" id="evtCount">0 条</span></h2>
+      <button class="btn btn-primary" onclick="openEvtEditor()">+ 新建商业活动</button>
+    </div>
+    <div class="desc">录入标题、正文、配图，支持中文 / 英文 / 俄语三语独立填写；保存后直接展示在前端左侧「商业活动」板块，与「文章资讯」分开管理、分开展示。</div>
+    <div id="evtList" class="rule-list"></div>
+  </div>
+
   </div><!-- /main-col -->
 
   <!-- 右列：独立用户列表（支持搜索 + 内部滚动，客户再多也不挤压左列） -->
@@ -383,6 +393,39 @@
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('artModal')">取消</button>
       <button class="btn btn-primary" onclick="saveArticle()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 商业活动编辑弹窗 -->
+<div class="modal-mask hidden" id="evtModal">
+  <div class="modal" style="max-width:640px;">
+    <h3 id="evtModalTitle">新建商业活动</h3>
+    <div class="field">
+      <label>标题（三语独立录入，至少填写一种；前台按网站当前语言显示对应内容）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="evTitleZh" placeholder="例如：海南国际旅游消费季"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="evTitleEn" placeholder="e.g. Hainan International Tourism Season"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="evTitleRu" placeholder="напр. Туристический сезон Хайнаня"></div>
+    </div>
+    <div class="field">
+      <label>正文（三语独立录入，不自动翻译；空行分段，段内换行自动保留）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><textarea class="textarea" id="evBodyZh" style="min-height:120px" placeholder="请输入中文正文…"></textarea></div>
+      <div class="tri-row"><span class="lang-chip">English</span><textarea class="textarea" id="evBodyEn" style="min-height:120px" placeholder="English content…"></textarea></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><textarea class="textarea" id="evBodyRu" style="min-height:120px" placeholder="Текст на русском…"></textarea></div>
+    </div>
+    <div class="field">
+      <label>配图（可选，用作前端卡片缩略图与详情大图）</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="file" id="evCoverFile" accept="image/*" style="display:none" onchange="evtCoverPick(this)">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('evCoverFile').click()">选择图片</button>
+        <button class="btn btn-ghost btn-sm" onclick="evtCoverClear()">清除</button>
+        <span id="evCoverHint" style="color:#9aa3ad;font-size:12px;"></span>
+      </div>
+      <img id="evCoverPreview" alt="" style="display:none;max-width:100%;margin-top:10px;border-radius:10px;">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('evtModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveEvt()">保存</button>
     </div>
   </div>
 </div>
@@ -517,6 +560,11 @@ const API = {
   artCreate: d => fetch('/api/admin/articles', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   artUpdate: (id,d) => fetch('/api/admin/articles/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   artDelete: id => fetch('/api/admin/articles/'+id, { method:'DELETE' }),
+  /* 商业活动（图文录入；展示在前端左侧「商业活动」板块，与文章资讯分开） */
+  evtList: () => fetch('/api/admin/events').then(r=>r.json()),
+  evtCreate: d => fetch('/api/admin/events', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  evtUpdate: (id,d) => fetch('/api/admin/events/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  evtDelete: id => fetch('/api/admin/events/'+id, { method:'DELETE' }),
   /* 用户列表（邮箱注册用户，需登录） */
   usersList: () => fetch('/api/users').then(r=>r.json()),
   /* 人工客服账号与在线状态 */
@@ -582,6 +630,7 @@ async function unlockAdmin(loggedInAs){
   loadPh();
   loadCb();
   loadArts();
+  loadEvts();
   loadUsers();
 }
 /* 页面打开：本地 token 有效直接进入后台，无效弹出登录门 */
@@ -1036,7 +1085,7 @@ function artCoverPreview(){
 }
 function artCoverClear(){ artCover = ''; artCoverPreview(); }
 /* 图片先压缩（最长边 1600px）再上传，避免超大原图超过服务端 4MB 限制 */
-async function artCompress(file){
+async function compressImage(file){
   const raw = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result || '')); r.onerror = rej; r.readAsDataURL(file); });
   try {
     const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = raw; });
@@ -1047,19 +1096,25 @@ async function artCompress(file){
     return cv.toDataURL('image/jpeg', 0.85);
   } catch(e){ return raw; }
 }
+/* 压缩后上传到媒体库，返回 { url } 或 { error }（文章 / 商业活动配图共用） */
+async function uploadImage(file){
+  if (!file || file.type.indexOf('image/') !== 0) return { error:'请选择图片文件' };
+  const dataUrl = await compressImage(file);
+  const res = await fetch('/api/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dataUrl }) });
+  const d = await res.json();
+  if (!res.ok || !d.ok) return { error: d.error || '上传失败' };
+  return { url: d.url };
+}
 async function artCoverPick(input){
   const f = input.files && input.files[0];
   input.value = '';
   if (!f) return;
-  if (f.type.indexOf('image/') !== 0){ alert('请选择图片文件'); return; }
   const hint = document.getElementById('amCoverHint');
   hint.textContent = '上传中…';
   try {
-    const dataUrl = await artCompress(f);
-    const res = await fetch('/api/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dataUrl }) });
-    const d = await res.json();
-    if (!res.ok || !d.ok){ hint.textContent = d.error || '上传失败'; return; }
-    artCover = d.url; artCoverPreview(); hint.textContent = '';
+    const r = await uploadImage(f);
+    if (r.error){ hint.textContent = r.error; return; }
+    artCover = r.url; artCoverPreview(); hint.textContent = '';
   } catch(e){ hint.textContent = '上传失败'; }
 }
 async function saveArticle(){
@@ -1085,6 +1140,83 @@ async function delArticle(id){
 function previewArt(id){
   const a = arts.find(x => x.id === id);
   if (a) window.open('/article/' + encodeURIComponent(a.slug) + '?preview=' + encodeURIComponent(opToken), '_blank');
+}
+
+/* ================= 商业活动（图文录入 → 前端左侧「商业活动」板块，与文章资讯分开） ================= */
+let evts = [], editingEvt = null, evtCoverPath = '';
+async function loadEvts(){
+  evts = await API.evtList();
+  evts = Array.isArray(evts) ? evts : [];
+  document.getElementById('evtCount').textContent = evts.length + ' 条';
+  const list = document.getElementById('evtList');
+  if (!evts.length){ list.innerHTML = '<div class="empty">暂无商业活动，点击「新建商业活动」录入图文</div>'; return; }
+  list.innerHTML = evts.map(e => `
+    <div class="rule-item">
+      <div class="rule-head">
+        <span class="rule-type type-fuzzy">商业活动</span>
+        <span class="rule-title">${esc(e.title)}</span>
+        <span style="margin-left:8px">${['zh','en','ru'].filter(l => e.i18n && e.i18n[l] && String(e.i18n[l].title || '').trim())
+          .map(l => `<span class="chip">${l === 'zh' ? '中' : (l === 'en' ? 'EN' : 'РУ')}</span>`).join('')}</span>
+        <div class="rule-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openEvtEditor('${e.id}')">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="delEvt('${e.id}')">删除</button>
+        </div>
+      </div>
+      <div class="meta">
+        <span style="color:#9aa3ad">更新于 ${new Date(e.updatedAt || e.createdAt).toLocaleString()}</span>
+      </div>
+    </div>
+  `).join('');
+}
+function openEvtEditor(id){
+  editingEvt = id || null;
+  const e = id ? evts.find(x => x.id === id) : null;
+  document.getElementById('evtModalTitle').textContent = id ? '编辑商业活动' : '新建商业活动';
+  const L = e ? (e.i18n || {}) : {};
+  const cell = l => (L[l] && typeof L[l] === 'object') ? L[l] : { title:'', body:'' };
+  document.getElementById('evTitleZh').value = cell('zh').title || '';
+  document.getElementById('evTitleEn').value = cell('en').title || '';
+  document.getElementById('evTitleRu').value = cell('ru').title || '';
+  document.getElementById('evBodyZh').value = cell('zh').body || '';
+  document.getElementById('evBodyEn').value = cell('en').body || '';
+  document.getElementById('evBodyRu').value = cell('ru').body || '';
+  evtCoverPath = (e && e.cover) ? e.cover : '';
+  document.getElementById('evCoverHint').textContent = '';
+  evtCoverPreview();
+  show('evtModal');
+}
+function evtCoverPreview(){
+  const img = document.getElementById('evCoverPreview');
+  if (evtCoverPath){ img.src = evtCoverPath; img.style.display = 'block'; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; }
+}
+function evtCoverClear(){ evtCoverPath = ''; evtCoverPreview(); }
+async function evtCoverPick(input){
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  const hint = document.getElementById('evCoverHint');
+  hint.textContent = '上传中…';
+  try {
+    const r = await uploadImage(f);
+    if (r.error){ hint.textContent = r.error; return; }
+    evtCoverPath = r.url; evtCoverPreview(); hint.textContent = '';
+  } catch(e){ hint.textContent = '上传失败'; }
+}
+async function saveEvt(){
+  const i18n = {
+    zh: { title: val('evTitleZh'), body: document.getElementById('evBodyZh').value },
+    en: { title: val('evTitleEn'), body: document.getElementById('evBodyEn').value },
+    ru: { title: val('evTitleRu'), body: document.getElementById('evBodyRu').value }
+  };
+  if (!i18n.zh.title.trim() && !i18n.en.title.trim() && !i18n.ru.title.trim()){ alert('请至少填写一种语言的标题'); return; }
+  const d = { i18n, cover: evtCoverPath };
+  const r = editingEvt ? await API.evtUpdate(editingEvt, d) : await API.evtCreate(d);
+  if (!r || r.error){ alert((r && r.error) || '保存失败'); return; }
+  closeModal('evtModal'); loadEvts();
+}
+async function delEvt(id){
+  if (confirm('确定删除该商业活动？删除后前端将不再展示。')){ await API.evtDelete(id); loadEvts(); }
 }
 
 /* ================= 关键词规则 ================= */
