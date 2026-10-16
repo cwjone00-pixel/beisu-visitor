@@ -34,6 +34,41 @@
   .chat-standalone{ max-width:1400px; margin:24px auto 0; padding:0 20px; }
   .chat-standalone .card{ margin-bottom:0; }
 
+  /* ---- 实时对话 · 分栏面板（左：会话列表 / 右：对话详情） ---- */
+  .chat-hint{ font-size:12px; color:#8b94a0; line-height:1.7; margin-bottom:14px; }
+  .chat-head-tools{ display:flex; align-items:center; gap:18px; font-size:12px; color:#8b94a0; }
+  .chat-tool{ display:flex; align-items:center; gap:7px; color:#4a5260; cursor:pointer; user-select:none; }
+  .chat-split{ display:flex; gap:14px; height:min(70vh, 600px); min-height:440px; }
+  .chat-side{
+    width:268px; flex:none; min-height:0; display:flex; flex-direction:column;
+    border:1px solid #e6ebf2; border-radius:12px; background:#fbfcfe; overflow:hidden;
+  }
+  .chat-side-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 14px; border-bottom:1px solid #eef2f7; background:#fff;
+    font-size:13px; font-weight:600; color:#3d434d;
+  }
+  .chat-side-head .tag{ font-size:11px; font-weight:500; color:#2f7cf6; background:#eaf3ff; padding:2px 8px; border-radius:6px; }
+  .chat-sessions{ flex:1; min-height:0; overflow-y:auto; padding:8px; display:flex; flex-direction:column; gap:6px; }
+  .chat-sessions .chat-item{ padding:9px 11px; cursor:pointer; gap:6px; }
+  .chat-sessions .chat-item:hover{ border-color:#cfe0ff; background:#f7fbff; }
+  .chat-sessions .chat-item.active{ border-color:#2f7cf6; background:#f2f7ff; box-shadow:0 0 0 1px #2f7cf6 inset; }
+  .chat-main{ flex:1; min-width:0; min-height:0; display:flex; flex-direction:column; border:1px solid #e6ebf2; border-radius:12px; background:#fff; overflow:hidden; }
+  .chat-empty{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; padding:30px; color:#9aa3ad; font-size:12.5px; line-height:1.9; text-align:center; }
+  .chat-empty svg{ width:38px; height:38px; opacity:.5; }
+  .chat-panel{ display:none; flex-direction:column; flex:1; min-height:0; }
+  .chat-panel-head{ display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #eef2f7; background:#fff; }
+  .chat-cp-title{ font-size:12px; color:#8b94a0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chat-messages{ flex:1; min-height:0; overflow-y:auto; padding:14px; background:#f7f9fc; display:flex; flex-direction:column; gap:8px; }
+  .chat-composer{ display:flex; gap:8px; padding:12px 14px; border-top:1px solid #eef2f7; background:#fff; }
+  .chat-composer .input{ flex:1; }
+  @media (max-width: 940px){
+    .chat-split{ flex-direction:column; height:auto; }
+    .chat-side{ width:100%; }
+    .chat-sessions{ max-height:240px; }
+    .chat-main{ height:460px; }
+  }
+
   /* ---- 独立用户列表列 ---- */
   .users-col{
     width:330px; flex:none; position:sticky; top:88px;
@@ -146,42 +181,49 @@
   </div>
 </div>
 
-<!-- 实时对话：独占页面顶部整行（不与其它模块并排）；会话列表在本列内，点选会话直接在列内加载详情 -->
+<!-- 实时对话：整行分栏面板（左：会话列表 / 右：对话详情）；点会话即在右侧加载详情，网址不变 -->
 <div class="chat-standalone">
   <div class="card">
     <div class="head-row">
-      <h2>实时对话 <span class="tag" id="chatCount">0 个会话</span></h2>
-      <span style="display:flex; align-items:center; gap:14px; font-size:12px; color:#8b94a0;">
-        <label style="display:flex; align-items:center; gap:7px; color:#4a5260; cursor:pointer; user-select:none;" onclick="toggleAgentTranslate()" title="开启后：人工发送的消息自动翻译成客户前端语种；客户消息在后台附带中文译文。机器人自动回复不受影响">
+      <h2>实时对话</h2>
+      <span class="chat-head-tools">
+        <label class="chat-tool" onclick="toggleAgentTranslate()" title="开启后：人工发送的消息自动翻译成客户前端语种；客户消息在后台附带中文译文。机器人自动回复不受影响">
           <span class="switch" id="trSwitch"></span>人工消息自动翻译
         </label>
-        <label style="display:flex; align-items:center; gap:7px; color:#4a5260; cursor:pointer; user-select:none;" onclick="toggleBotSwitch()" title="机器人总开关：关闭后机器人完全关停，不触发任何关键词匹配、不发出任何自动消息；人工仍可登录后台手动接待">
+        <label class="chat-tool" onclick="toggleBotSwitch()" title="机器人总开关：关闭后机器人完全关停，不触发任何关键词匹配、不发出任何自动消息；人工仍可登录后台手动接待">
           <span class="switch" id="botSwitch"></span>机器人总开关
         </label>
-        <span>客户与机器人的对话实时显示在左侧会话列表；点选一条会话，对话详情（原文 + 英译 + 俄译）直接在本列内加载，可随时切换「机器人自动回复 / 人工接管」，人工接管后可直接发言</span>
       </span>
     </div>
-    <div style="display:flex; gap:14px; align-items:flex-start;">
-      <div style="width:290px; flex:none; display:flex; flex-direction:column; gap:6px;">
-        <div id="chatSessions" style="display:flex; flex-direction:column; gap:6px; max-height:460px; overflow-y:auto;"></div>
-      </div>
-      <div id="chatEmpty" style="flex:1; min-width:320px; font-size:12px; color:#8b94a0; line-height:1.9; padding-top:6px;">
-        点选左侧任意一条会话，对话详情会直接显示在这里（原文 + 英译 + 俄译）。
-      </div>
-      <div id="chatPanel" style="flex:1; min-width:320px; display:none; flex-direction:column;">
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-          <span class="rule-type type-exact" id="cpModeTag">机器人自动回复</span>
-          <span style="color:#8b94a0; font-size:12px;" id="cpTitle"></span>
-          <span style="flex:1"></span>
-          <button class="btn btn-ghost btn-sm" id="cpModeBtn" onclick="toggleChatMode()">切换为人工接管</button>
-          <button class="btn btn-danger btn-sm" onclick="askEndChat(activeChat)">结束会话</button>
+    <div class="chat-hint">客户与机器人的对话实时显示在左侧会话列表；点选一条会话，对话详情（原文 + 英译 + 俄译）在右侧加载，可随时切换「机器人自动回复 / 人工接管」，人工接管后可直接发言。</div>
+    <div class="chat-split">
+      <aside class="chat-side">
+        <div class="chat-side-head">
+          <span>会话列表</span>
+          <span class="tag" id="chatCount">0 个会话</span>
         </div>
-        <div id="cpMessages" style="height:430px; overflow-y:auto; border:1px solid rgba(25,50,95,.08); border-radius:10px; padding:12px; background:rgba(247,248,251,.6); display:flex; flex-direction:column; gap:6px;"></div>
-        <div style="display:flex; gap:8px; margin-top:8px;">
-          <input class="input" id="cpInput" style="flex:1" placeholder="输入人工回复内容，回车或点「发送」">
-          <button class="btn btn-primary" onclick="sendAgentMsg()">发送</button>
+        <div id="chatSessions" class="chat-sessions"></div>
+      </aside>
+      <section class="chat-main">
+        <div id="chatEmpty" class="chat-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5A8.38 8.38 0 0 1 21 11.5z"/></svg>
+          <div>点选左侧任意一条会话，对话详情会显示在这里（原文 + 英译 + 俄译）。</div>
         </div>
-      </div>
+        <div id="chatPanel" class="chat-panel">
+          <div class="chat-panel-head">
+            <span class="rule-type type-exact" id="cpModeTag">机器人自动回复</span>
+            <span class="chat-cp-title" id="cpTitle"></span>
+            <span style="flex:1"></span>
+            <button class="btn btn-ghost btn-sm" id="cpModeBtn" onclick="toggleChatMode()">切换为人工接管</button>
+            <button class="btn btn-danger btn-sm" onclick="askEndChat(activeChat)">结束会话</button>
+          </div>
+          <div id="cpMessages" class="chat-messages"></div>
+          <div class="chat-composer">
+            <input class="input" id="cpInput" placeholder="输入人工回复内容，回车或点「发送」">
+            <button class="btn btn-primary" onclick="sendAgentMsg()">发送</button>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </div>
@@ -771,11 +813,11 @@ API.setTr = v => fetch('/api/agent-translate', { method:'PUT', headers:{'Content
 let activeChat = null, chatLastId = 0, chatMode = 'bot';
 const ROLE_NAME = { visitor:'客户', bot:'机器人', agent:'人工' };
 
-/* 选中态同步：选中则在本列内显示对话详情，未选中则显示提示文字 */
+/* 选中态同步：选中则在右侧显示对话详情，未选中则显示提示文字 */
 function showChatDetail(on){
   const p = document.getElementById('chatPanel'), e = document.getElementById('chatEmpty');
   if (p) p.style.display = on ? 'flex' : 'none';
-  if (e) e.style.display = on ? 'none' : 'block';
+  if (e) e.style.display = on ? 'none' : 'flex';
 }
 function clearChatSelection(){ activeChat = null; chatLastId = 0; showChatDetail(false); }
 
@@ -789,7 +831,7 @@ async function loadChatList(){
   if (activeChat && !list.some(s => s.id === activeChat)) clearChatSelection();
   if (!list.length){ box.innerHTML = '<div class="empty">暂无会话；客户在前端发消息后出现在这里</div>'; return; }
   box.innerHTML = list.map(s => `
-    <div class="rule-item" style="padding:8px 10px; cursor:pointer; ${s.id===activeChat?'outline:2px solid #2f7cf6;':''}" onclick="openChat('${s.id}')">
+    <div class="rule-item chat-item${s.id===activeChat?' active':''}" onclick="openChat('${s.id}')">
       <div style="display:flex; align-items:center; gap:6px;">
         <span class="rule-type ${s.mode==='agent'?'type-fuzzy':'type-exact'}">${s.mode==='agent'?'人工中':'机器人'}</span>
         <span style="font-size:12px; color:#3d434d; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${esc(s.last.text||'（空）')}</span>
