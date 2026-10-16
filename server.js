@@ -1002,6 +1002,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
+  let m;   // 路由正则匹配结果（供各分支复用，声明置于顶部以便全流程使用）
 
   /* ---- 后台管理接口鉴权 ----
      除白名单（游客前端 / 登录流程所需）外，所有 /api/* 必须携带有效登录 token，
@@ -1240,6 +1241,7 @@ const server = http.createServer(async (req, res) => {
     const u = findByEmail(email);
     if (!u || u.hash !== hashPwd(u.salt, String(body.password || ''))) return send(res, 401, { ok:false, error:'账号或密码不正确' });
     if (u.status === 'pending') return send(res, 403, { ok:false, error:'该账号尚未激活，请点击邮件中的激活链接完成激活' });
+    if (u.blocked === true) return send(res, 403, { ok:false, error:'该账号已被禁止登录，如有疑问请联系管理员' });
     const sid = u.sessionId || crypto.randomUUID();
     u.sessionId = sid; saveUsers();
     return send(res, 200, { ok:true, user: { id:u.id, email:u.email, nickname:u.nickname, sessionId:sid, createdAt:u.createdAt } });
@@ -1287,7 +1289,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { ok:true, bound:true, user: publicUser(tgt) });
     }
     const users = loadUsers().users;
-    let u = users.find(x => String(x.telegramId || '') === v.id);
+    const existing = users.find(x => String(x.telegramId || '') === v.id);
+    /* 拉黑拦截：已拉黑的账号禁止通过 Telegram 登录 */
+    if (existing && existing.blocked === true) return send(res, 403, { ok:false, error:'该账号已被禁止登录，如有疑问请联系管理员' });
+    let u = existing;
     if (!u){
       u = { id: crypto.randomUUID(), createdAt: Date.now(), provider:'telegram', telegramId: v.id, nickname: telegramNickname(v), status:'active', sessionId: crypto.randomUUID() };
       users.push(u);
@@ -1346,8 +1351,35 @@ const server = http.createServer(async (req, res) => {
   /* ---- 用户列表（后台查看，需登录） ---- */
   if (p === '/api/users' && req.method === 'GET'){
     const list = loadUsers().users.slice().sort((a, b) => b.createdAt - a.createdAt)
-      .map(u => ({ id:u.id, email:u.email, nickname:u.nickname, createdAt:u.createdAt, provider: u.provider || 'email' }));
+      .map(u => ({ id:u.id, email:u.email, nickname:u.nickname, createdAt:u.createdAt, provider: u.provider || 'email',
+                   blocked: u.blocked === true, note: String(u.note || '') }));
     return send(res, 200, list);
+  }
+  /* ---- 用户管理（后台，需登录）：拉黑/解除 + 备注 + 删除 ----
+     PUT 可只传其中一个字段：{ blocked?:boolean } 拉黑/解除；{ note?:string } 备注（最长 500 字）。
+     拉黑后该用户无法再通过邮箱或 Telegram 登录站点；解除后立即恢复登录能力。 */
+  if ((m = p.match(/^\/api\/users\/([^/]+)$/)) && req.method === 'PUT'){
+    const body = await readBody(req);
+    const u = userById(m[1]);
+    if (!u) return send(res, 404, { ok:false, error:'用户不存在' });
+    if (Object.prototype.hasOwnProperty.call(body, 'blocked')){
+      u.blocked = body.blocked === true;
+      /* 拉黑时立即让其当前登录会话失效，避免已登录用户继续访问 */
+      if (u.blocked) u.sessionId = crypto.randomUUID();
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'note')){
+      u.note = String(body.note || '').slice(0, 500);
+    }
+    saveUsers();
+    return send(res, 200, { ok:true, id:u.id, blocked:u.blocked === true, note:String(u.note || '') });
+  }
+  if ((m = p.match(/^\/api\/users\/([^/]+)$/)) && req.method === 'DELETE'){
+    const arr = loadUsers().users;
+    const idx = arr.findIndex(x => String(x.id) === m[1]);
+    if (idx < 0) return send(res, 404, { ok:false, error:'用户不存在' });
+    arr.splice(idx, 1);
+    saveUsers();
+    return send(res, 200, { ok:true });
   }
 
   /* ---- 全量配置（前端启动拉取） ---- */
@@ -1551,7 +1583,6 @@ const server = http.createServer(async (req, res) => {
     saveData(d);
     return send(res, 201, btn);
   }
-  let m;
   if ((m = p.match(/^\/api\/quick-buttons\/([^/]+)$/)) && req.method === 'PUT'){
     const d = loadData();
     const i = d.quickButtons.findIndex(b => b.id === m[1]);

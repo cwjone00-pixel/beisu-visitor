@@ -82,7 +82,12 @@
   .users-col .users-search{ margin-top:10px; }
   .users-scroll{ overflow-y:auto; flex:1; padding:10px 12px 14px; display:flex; flex-direction:column; gap:8px; }
   .user-item{ border:1px solid #e6ebf2; border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+  .user-item.blocked{ border-color:#f5c2c2; background:#fff8f8; }
   .user-item .u-row{ display:flex; align-items:center; gap:8px; }
+  .u-badge{ font-size:10px; font-weight:700; padding:2px 7px; border-radius:6px; flex:none; }
+  .u-badge.blocked{ background:#fdecec; color:#e04a4a; }
+  .u-note{ font-size:11.5px; color:#5b7bb2; background:#f2f7ff; border-radius:8px; padding:6px 9px; line-height:1.6; word-break:break-word; }
+  .u-ops{ display:flex; gap:6px; margin-top:2px; }
   .u-nick{ font-size:13px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .u-meta{ font-size:11px; color:#9aa3ad; line-height:1.6; word-break:break-all; }
   @media (max-width: 940px){
@@ -609,6 +614,8 @@ const API = {
   evtDelete: id => fetch('/api/admin/events/'+id, { method:'DELETE' }),
   /* 用户列表（邮箱注册用户，需登录） */
   usersList: () => fetch('/api/users').then(r=>r.json()),
+  userUpdate: (id,d) => fetch('/api/users/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  userDelete: id => fetch('/api/users/'+id, { method:'DELETE' }),
   /* 人工客服账号与在线状态 */
   authStatus: tk => fetch('/api/auth/status' + (tk ? '?token=' + encodeURIComponent(tk) : '')).then(r=>r.json()),
   authLogin: d => fetch('/api/auth/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
@@ -1514,11 +1521,46 @@ function userFiltered(){
 function userItemHtml(u){
   const time = u.createdAt ? new Date(u.createdAt).toLocaleString() : '';
   const emailLine = u.email ? `<div class="u-meta">邮箱：${esc(u.email)}</div>` : '';
-  return `<div class="user-item">
-    <div class="u-row"><span class="u-nick">${esc(u.nickname)}</span></div>
+  const blockTag = u.blocked ? '<span class="u-badge blocked">已拉黑</span>' : '';
+  const noteLine = u.note ? `<div class="u-note">备注：${esc(u.note)}</div>` : '';
+  const blockBtn = u.blocked
+    ? `<button class="btn btn-ghost btn-sm" onclick="toggleUserBlock('${escAttr(u.id)}',false)">解除拉黑</button>`
+    : `<button class="btn btn-danger btn-sm" onclick="toggleUserBlock('${escAttr(u.id)}',true)">拉黑</button>`;
+  return `<div class="user-item${u.blocked?' blocked':''}">
+    <div class="u-row"><span class="u-nick">${esc(u.nickname)}</span>${blockTag}</div>
     ${emailLine}
     <div class="u-meta">注册时间：${esc(time)}</div>
+    ${noteLine}
+    <div class="u-ops">
+      ${blockBtn}
+      <button class="btn btn-ghost btn-sm" onclick="editUserNote('${escAttr(u.id)}')">备注</button>
+      <button class="btn btn-danger btn-sm" onclick="delUser('${escAttr(u.id)}')">删除</button>
+    </div>
   </div>`;
+}
+/* 拉黑 / 解除拉黑：拉黑后该用户无法登录访问站点 */
+async function toggleUserBlock(id, block){
+  const u = users.find(x => x.id === id); if (!u) return;
+  if (block && !confirm('确定拉黑「' + (u.nickname||'') + '」？拉黑后该用户将无法登录访问站点。')) return;
+  const r = await API.userUpdate(id, { blocked: block });
+  if (!r || r.error){ alert((r && r.error) || '操作失败'); return; }
+  loadUsers();
+}
+/* 用户备注：记录充值情况、用户相关信息等（最多 500 字） */
+async function editUserNote(id){
+  const u = users.find(x => x.id === id); if (!u) return;
+  const input = prompt('填写用户备注（如充值情况、用户相关信息，最多 500 字）：', u.note || '');
+  if (input === null) return;
+  const r = await API.userUpdate(id, { note: input.slice(0, 500) });
+  if (!r || r.error){ alert((r && r.error) || '保存失败'); return; }
+  loadUsers();
+}
+async function delUser(id){
+  const u = users.find(x => x.id === id); if (!u) return;
+  if (!confirm('确定删除用户「' + (u.nickname||'') + '」？删除后该账号将从用户列表移除，且不可恢复。')) return;
+  const r = await API.userDelete(id);
+  if (r && r.status && r.status !== 200){ alert('删除失败'); return; }
+  loadUsers();
 }
 function renderUsers(){
   const box = document.getElementById('userList');
