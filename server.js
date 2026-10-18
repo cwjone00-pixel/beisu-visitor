@@ -1447,7 +1447,7 @@ const server = http.createServer(async (req, res) => {
     }
     const sess = activeSid ? getSession(activeSid) : null;
     if (sess && (body.lang === 'zh' || body.lang === 'en' || body.lang === 'ru')) sess.lang = body.lang;
-    if (sess && body.guest === true) sess.guest = true;   // 游客会话：仅机器人问答，禁止人工接管
+    if (sess && body.guest === true) sess.guest = true;   // 游客会话标记（人工接管现已对游客会话开放）
     if (activeSid){
       const vm = { role:'visitor', text:String(body.text || '').slice(0, 2000) };
       const imgId = String(body.imageId || '').trim();
@@ -1507,7 +1507,6 @@ const server = http.createServer(async (req, res) => {
     if (!text) return send(res, 400, { error:'empty text' });
     const s = getSession(sid);
     if (s.ended) return send(res, 409, { error:'session ended' });
-    if (s.guest) return send(res, 403, { ok:false, error:'游客会话仅支持机器人问答，不支持人工接管' });
     // 人工手动发送：总开关开启且客户界面语种非中文时，自动翻译为客户语种
     // （无论会话处于机器人自动回复还是人工接管模式，人工发的消息都走此逻辑；机器人自动回复不经过翻译）
     let out = text, origText = null;
@@ -1559,7 +1558,6 @@ const server = http.createServer(async (req, res) => {
     const sid = decodeURIComponent(p.slice('/api/chat/'.length, -'/mode'.length));
     const body = await readBody(req);
     const s = getSession(sid);
-    if (s.guest && body.mode === 'agent') return send(res, 403, { ok:false, error:'游客会话仅支持机器人问答，不支持人工接管' });
     s.mode = (body.mode === 'agent') ? 'agent' : 'bot';
     saveChats();
     return send(res, 200, { ok:true, mode:s.mode });

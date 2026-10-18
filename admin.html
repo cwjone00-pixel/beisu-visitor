@@ -946,20 +946,46 @@ function updateModeBtn(){
 async function toggleChatMode(){
   if (!activeChat) return;
   const next = chatMode === 'agent' ? 'bot' : 'agent';
-  await API.chatMode(activeChat, next);
-  chatMode = next; updateModeBtn(); loadChatList();
+  const btn = document.getElementById('cpModeBtn');
+  if (btn) btn.disabled = true;
+  try {
+    const r = await API.chatMode(activeChat, next);
+    if (!r.ok){
+      let msg = '切换失败，请重试';
+      try { const j = await r.json(); if (j && j.error) msg = j.error; } catch(e){}
+      alert(msg);
+      await pollActiveChat();   // 以服务端真实状态为准，避免按钮闪跳
+      return;
+    }
+    const j = await r.json();
+    chatMode = (j && j.mode) ? j.mode : next;
+    updateModeBtn();
+    loadChatList();
+  } catch(e){
+    alert('网络异常，切换失败，请重试');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 async function sendAgentMsg(){
   const inp = document.getElementById('cpInput');
   const text = inp.value.trim();
   if (!text || !activeChat) return;
-  const r = await API.chatAgent(activeChat, text);
+  let r;
+  try { r = await API.chatAgent(activeChat, text); }
+  catch(e){ alert('网络异常，消息发送失败，请重试'); return; }
   if (r.status === 409){
     alert('该会话已结束，无法继续发送');
     clearChatSelection();
     loadChatList();
     return;
+  }
+  if (!r.ok){
+    let msg = '消息发送失败，请重试';
+    try { const j = await r.json(); if (j && j.error) msg = j.error; } catch(e){}
+    alert(msg);
+    return;   // 发送失败：保留输入框内容，不清空
   }
   inp.value = '';
   await pollActiveChat();
