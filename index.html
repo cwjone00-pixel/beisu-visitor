@@ -475,6 +475,77 @@
   }
   .toast.show{ opacity:1; visibility:visible; transform:translateX(-50%); }
 
+  /* ============ 顶部分割按钮：电脑版 / 手机版 预览切换 ============ */
+  .view-toggle{
+    position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:40;
+    display:inline-flex; gap:2px; padding:3px; border-radius:999px;
+    background:rgba(233,240,248,.94); border:1px solid rgba(255,255,255,.7);
+    box-shadow:0 4px 16px rgba(30,60,110,.14); backdrop-filter:blur(12px);
+  }
+  .vt-seg{
+    display:inline-flex; align-items:center; gap:6px; padding:5px 15px; border-radius:999px;
+    font-size:12.5px; font-weight:600; color:#67707e; cursor:pointer; transition:.2s; white-space:nowrap;
+  }
+  .vt-seg svg{ width:14px; height:14px; flex:none; }
+  .vt-seg.active{ background:#fff; color:#1b2230; box-shadow:0 2px 6px rgba(30,60,110,.14); }
+  .vt-seg.active svg{ color:#2f7cf6; }
+  .mac-window.minimized .view-toggle{ opacity:0; pointer-events:none; }
+
+  /* 仅手机版显示的控件（左上角汉堡菜单按钮） */
+  .mobile-only{ display:none !important; }
+  .mac-window.mode-mobile .mobile-only{ display:flex !important; }
+
+  /* 抽屉遮罩：手机版侧边菜单滑出时覆盖主区域，点击空白收回 */
+  .drawer-mask{
+    position:absolute; inset:0; z-index:14; background:rgba(18,28,46,.4);
+    opacity:0; visibility:hidden; transition:.28s;
+  }
+  .mac-window.mode-mobile.drawer-open .drawer-mask{ opacity:1; visibility:visible; }
+
+  /* ============ 手机版（豆包风格手机聊天界面） ============ */
+  .mac-window.mode-mobile{
+    left:50%; top:56px; transform:translateX(-50%);
+    width:min(390px, 94vw); height:min(844px, calc(100vh - 76px));
+    border-radius:34px; background:#f3f6fb;
+    box-shadow:0 40px 90px rgba(15,35,70,.42), 0 0 0 9px rgba(24,36,58,.92), 0 4px 18px rgba(15,35,70,.2);
+  }
+  .mac-window.mode-mobile .traffic,
+  .mac-window.mode-mobile .win-title{ display:none; }
+  .mac-window.mode-mobile .layout{ position:relative; }
+
+  /* 侧边栏 → 左侧滑出抽屉 */
+  .mac-window.mode-mobile .sidebar{
+    position:absolute; left:0; top:0; bottom:0; z-index:16;
+    width:78%; max-width:290px; min-width:0;
+    transform:translateX(-102%); transition:transform .3s cubic-bezier(.32,.72,.28,1);
+    box-shadow:6px 0 26px rgba(15,35,70,.2); border-right:none;
+  }
+  .mac-window.mode-mobile.drawer-open .sidebar{ transform:translateX(0); }
+  .mac-window.mode-mobile .brand-row{ padding:22px 8px 12px; }
+
+  /* 顶栏：仅保留汉堡按钮 + 语言切换（隐藏演示图标） */
+  .mac-window.mode-mobile .topbar{ height:52px; padding:0 8px; }
+  .mac-window.mode-mobile .topbar .icon-btn[data-i18n-title]{ display:none; }
+
+  /* 主聊天区 */
+  .mac-window.mode-mobile .hero{ padding:18px 12px 0; }
+  .mac-window.mode-mobile .hero-inner{ width:100%; max-width:100%; }
+  .mac-window.mode-mobile .hero-title{ margin-top:16px; font-size:20px; }
+  .mac-window.mode-mobile .status-lights{ right:-80px; top:2px; }
+  .mac-window.mode-mobile .status-label{ font-size:10px; }
+  .mac-window.mode-mobile .quick-needs{ margin-top:14px; gap:8px; }
+  .mac-window.mode-mobile .quick-btn{ height:40px; font-size:12.5px; padding:0 10px; border-radius:12px; }
+  .mac-window.mode-mobile .chat-area{ margin-top:14px; gap:12px; }
+  .mac-window.mode-mobile .msg-bubble{ max-width:88%; font-size:13.5px; padding:11px 14px; }
+
+  /* 底部输入区 */
+  .mac-window.mode-mobile .composer{
+    width:auto; max-width:none; align-self:stretch;
+    margin:8px 10px 12px; padding:10px 12px; border-radius:20px;
+  }
+  .mac-window.mode-mobile .action-btn{ padding:0 12px; height:34px; font-size:12.5px; }
+  .mac-window.mode-mobile .composer-chips{ margin-top:8px; }
+
   @media (max-width:900px){
     .sidebar{ width:210px; min-width:210px; }
     .hero-title{ font-size:22px; }
@@ -487,6 +558,18 @@
 <!-- ================= macOS 模拟窗口 ================= -->
 <div class="mac-window" id="macWindow">
   <div class="win-title" data-i18n="brandTitle">悖速</div>
+
+  <!-- 顶部分割按钮：同一页面内切换「电脑版 / 手机版」预览，两版功能一致 -->
+  <div class="view-toggle" id="viewToggle">
+    <button class="vt-seg active" data-view="desktop">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="12" rx="2"/><path d="M8.5 20h7M12 16.5V20"/></svg>
+      <span data-i18n="vtDesktop">电脑</span>
+    </button>
+    <button class="vt-seg" data-view="mobile">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>
+      <span data-i18n="vtMobile">手机</span>
+    </button>
+  </div>
 
   <!-- traffic-light -->
   <div class="traffic">
@@ -502,6 +585,8 @@
   </div>
 
   <div class="layout">
+    <!-- 手机版侧边抽屉遮罩：点击空白收回菜单 -->
+    <div class="drawer-mask" id="drawerMask"></div>
     <!-- ============ 左侧固定侧边栏 ============ -->
     <aside class="sidebar">
       <div class="brand-row">
@@ -575,6 +660,10 @@
     <!-- ============ 右侧主内容区域 ============ -->
     <main class="main">
       <div class="topbar">
+        <!-- 手机版左上角汉堡按钮（两横线）：点击滑出侧边菜单 -->
+        <button class="icon-btn mobile-only" id="mobileMenuBtn" aria-label="menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8.5h16M4 15.5h16"/></svg>
+        </button>
         <span class="icon-btn" data-i18n-title="tipDemo">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/></svg>
         </span>
@@ -1012,7 +1101,8 @@ const I18N = {
     authRequired:'请先登录后再发送消息', authInputPh:'请先点击左下角登录',
     authGuestBtn:'免注册，以游客身份进入', authGuestName:'游客', authGuestDone:'已以游客身份进入',
     authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能',
-    imgUploading:'图片处理中，请稍候…', imgFail:'图片上传失败，请重试', imgTooLarge:'图片过大，请换一张', imgTypeErr:'请选择图片文件'
+    imgUploading:'图片处理中，请稍候…', imgFail:'图片上传失败，请重试', imgTooLarge:'图片过大，请换一张', imgTypeErr:'请选择图片文件',
+    vtDesktop:'电脑', vtMobile:'手机'
   },
   en: {
     brandTitle:'Beisu', m0:'Island-wide tours', m0d:'The best-value travel experience', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
@@ -1047,7 +1137,8 @@ const I18N = {
     authRequired:'Please sign in before sending messages', authInputPh:'Tap the login entry at bottom-left first',
     authGuestBtn:'Continue as guest (no sign-up)', authGuestName:'Guest', authGuestDone:'Entered as guest',
     authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.',
-    imgUploading:'Processing image, please wait…', imgFail:'Image upload failed, please try again', imgTooLarge:'Image is too large, please pick another', imgTypeErr:'Please choose an image file'
+    imgUploading:'Processing image, please wait…', imgFail:'Image upload failed, please try again', imgTooLarge:'Image is too large, please pick another', imgTypeErr:'Please choose an image file',
+    vtDesktop:'Desktop', vtMobile:'Phone'
   },
   ru: {
     brandTitle:'Beisu', m0:'Туры по всему острову', m0d:'Лучшее соотношение цены и качества', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
@@ -1082,7 +1173,8 @@ const I18N = {
     authRequired:'Сначала войдите, чтобы отправлять сообщения', authInputPh:'Сначала нажмите «Войти» внизу слева',
     authGuestBtn:'Продолжить как гость (без регистрации)', authGuestName:'Гость', authGuestDone:'Вы вошли как гость',
     authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.',
-    imgUploading:'Обработка изображения, подождите…', imgFail:'Не удалось загрузить изображение, попробуйте ещё раз', imgTooLarge:'Изображение слишком большое, выберите другое', imgTypeErr:'Выберите файл изображения'
+    imgUploading:'Обработка изображения, подождите…', imgFail:'Не удалось загрузить изображение, попробуйте ещё раз', imgTooLarge:'Изображение слишком большое, выберите другое', imgTypeErr:'Выберите файл изображения',
+    vtDesktop:'ПК', vtMobile:'Телефон'
   }
 };
 const LANG_LABEL = { zh:'中文', en:'English', ru:'Русский' };
@@ -1141,12 +1233,31 @@ $('btnMax').addEventListener('click', e => {
 });
 win.addEventListener('click', () => { if (win.classList.contains('minimized')) win.classList.remove('minimized'); });
 
+/* ---------------- 电脑版 / 手机版 视图切换（同一页面内预览，两版功能一致） ---------------- */
+const viewSegs = document.querySelectorAll('#viewToggle .vt-seg');
+function syncDrawer(open){ win.classList.toggle('drawer-open', !!open); }
+function setViewMode(mode){
+  const mobile = mode === 'mobile';
+  win.classList.toggle('mode-mobile', mobile);
+  if (mobile) win.classList.remove('minimized', 'maximized');   // 手机版固定为手机框，禁用窗口最大化/最小化状态
+  syncDrawer(false);                                            // 切换时收回抽屉
+  viewSegs.forEach(s => s.classList.toggle('active', s.dataset.view === mode));
+  try { localStorage.setItem('beisu-view', mobile ? 'mobile' : 'desktop'); } catch(e){}
+}
+viewSegs.forEach(s => s.addEventListener('click', e => { e.stopPropagation(); setViewMode(s.dataset.view); }));
+
+/* 手机版侧边抽屉：左上角汉堡按钮开合，点击空白（遮罩或主区域）收回 */
+$('mobileMenuBtn').addEventListener('click', e => { e.stopPropagation(); syncDrawer(!win.classList.contains('drawer-open')); });
+$('drawerMask').addEventListener('click', () => syncDrawer(false));
+document.querySelector('.mac-window .main').addEventListener('click', () => syncDrawer(false));   // 点主区域任意空白一并收回
+
 /* ---------------- 侧边栏 ---------------- */
 $('catMenu').addEventListener('click', e => {
   const item = e.target.closest('.menu-item');
   if (!item) return;
   document.querySelectorAll('#catMenu .menu-item').forEach(i => i.classList.remove('active'));
   item.classList.add('active');
+  syncDrawer(false);   // 手机版：选中菜单项后自动收回抽屉
 });
 $('searchBtn').addEventListener('click', () => toast(dict().toastDemo));
 
@@ -1330,7 +1441,7 @@ function authOpenReset(){
   $('rsErr').textContent = ''; $('rsDemo').classList.remove('show');
   authGoto('reset');
 }
-$('loginEntry').addEventListener('click', authOpen);
+$('loginEntry').addEventListener('click', () => { syncDrawer(false); authOpen(); });
 $('loginOverlay').addEventListener('click', e => { if (e.target === $('loginOverlay')) closeLogin(); });
 
 /* 通用提示弹窗：显示/关闭（文案由 data-i18n 按当前语种渲染，切换语言自动同步） */
@@ -2015,6 +2126,7 @@ document.addEventListener('keydown', e => {
   if ($('eventOverlay').classList.contains('show')) closeEventModal();
   $('loginOverlay').classList.remove('show');
   langBox.classList.remove('open');
+  syncDrawer(false);   // 手机版：ESC 一并收回侧边抽屉
 });
 
 /* ---------------- 对外接口：供后续后台数据接入 ---------------- */
@@ -2024,6 +2136,7 @@ window.BeisuAPI = {
 };
 
 /* ---------------- 初始化 ---------------- */
+setViewMode(localStorage.getItem('beisu-view') === 'mobile' ? 'mobile' : 'desktop');   // 恢复上次选择的多端预览模式
 renderEvents();
 renderArticles();
 applyI18n();
