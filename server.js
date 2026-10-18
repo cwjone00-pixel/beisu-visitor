@@ -1515,7 +1515,10 @@ const server = http.createServer(async (req, res) => {
       if (t && t !== text){ origText = text; out = t; }
     }
     const msg = { role:'agent', text: out.slice(0, 2000) };
-    if (origText) msg.origText = origText;   // 人工输入的原文（后台展示用，客户不可见）
+    if (origText){
+      msg.origText = origText;   // 人工输入的中文原文：客户界面据此展示「中文原文 + 对应语种译文」
+      msg.trLang = s.lang;       // text 所属语种（客户切换语种后据此判断能否直接复用 text）
+    }
     const m = addMsg(sid, msg);
     return send(res, 200, { ok:true, message:m });
   }

@@ -200,7 +200,7 @@
         </label>
       </span>
     </div>
-    <div class="chat-hint">客户与机器人的对话实时显示在左侧会话列表；点选一条会话，对话详情（原文 + 按访客语种的对应译文）在右侧加载，可随时切换「机器人自动回复 / 人工接管」，人工接管后可直接发言。</div>
+    <div class="chat-hint">客户与机器人的对话实时显示在左侧会话列表；点选一条会话，对话详情在右侧加载（后台只显示原文，译文在客户界面展示），可随时切换「机器人自动回复 / 人工接管」，人工接管后可直接发言。</div>
     <div class="chat-split">
       <aside class="chat-side">
         <div class="chat-side-head">
@@ -212,7 +212,7 @@
       <section class="chat-main">
         <div id="chatEmpty" class="chat-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5A8.38 8.38 0 0 1 21 11.5z"/></svg>
-          <div>点选左侧任意一条会话，对话详情会显示在这里（原文 + 按访客语种的对应译文）。</div>
+          <div>点选左侧任意一条会话，对话详情会显示在这里（后台只显示原文）。</div>
         </div>
         <div id="chatPanel" class="chat-panel">
           <div class="chat-panel-head">
@@ -869,7 +869,7 @@ async function openChat(id){
   await loadChatList();
 }
 
-/* 会话标题：会话号 + 消息数 + 该访客前端当前选择的语种（决定展示哪条对应译文） */
+/* 会话标题：会话号 + 消息数 + 该访客前端当前选择的语种（客户界面据此展示对应语种译文） */
 function setChatTitle(count){
   const langTxt = chatLang && LANG_NAME[chatLang] ? LANG_NAME[chatLang] : '未知';
   document.getElementById('cpTitle').textContent =
@@ -894,18 +894,15 @@ function renderChatPanel(msgs, reset, keepScroll){
   box.innerHTML += msgs
     .filter(m => m && m.id != null && !box.querySelector('[data-mid="'+m.id+'"]'))
     .map(m => {
-      /* 原文 + 对应译文：按该访客前端当前选择的语种展示（选俄显「原文+俄译」，选英显「原文+英译」） */
-      const trLabel = '译文' + (chatLang && LANG_NAME[chatLang] ? '（' + LANG_NAME[chatLang] + '）' : '');
+      /* 后台只展示原文：机器人取中文版，人工取人工输入的中文原文（译文只在客户界面展示） */
       let text = '', extra = '';
       if (m.role === 'bot' && m.reply){
-        text = m.reply.zh || m.reply.en || m.reply.ru || '';            // 原文：机器人三语回复中的中文原文
-        const tr = m.reply[chatLang] || '';                            // 对应译文：该访客语种那一版
-        if (tr && tr !== text) extra += trLine(trLabel, tr);
+        text = m.reply.zh || m.reply.en || m.reply.ru || '';
       } else if (m.role === 'agent'){
-        text = m.origText || m.text || '';                             // 原文：人工输入的内容
-        if (m.origText && m.text && m.text !== m.origText) extra += trLine(trLabel, m.text);   // 实际发给客户的对应译文
+        text = m.origText || m.text || '';
       } else {
-        text = m.origText || m.text || '';                             // 客户消息：原有展示不变
+        /* 客户消息：原有三语展示保持不变（人工需要靠译文读懂客户） */
+        text = m.origText || m.text || '';
         extra += trLine('英译', m.transEn || '');
         extra += trLine('俄译', m.transRu || '');
       }

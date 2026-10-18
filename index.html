@@ -291,6 +291,11 @@
   .msg-tag{ display:inline-block; font-size:11px; line-height:1; padding:3px 8px; border-radius:6px; margin-bottom:6px; letter-spacing:.5px; }
   .msg-row.bot .msg-tag{ background:rgba(30,55,100,.08); color:#6a7686; }
   .msg-row.agent .msg-tag{ background:rgba(47,124,246,.14); color:#2b6fd8; font-weight:600; }
+  /* 对应语种翻译行：客户界面在中文原文下方同时展示（选中文时不展示） */
+  .msg-tr{
+    margin-top:6px; padding-top:6px; border-top:1px dashed rgba(30,55,100,.16);
+    font-size:12.5px; line-height:1.55; color:rgba(42,49,64,.68);
+  }
   /* 图片消息：等比缩略图，点击可查看原图 */
   .msg-img{ display:block; max-width:240px; max-height:240px; border-radius:12px; margin:2px 0; cursor:zoom-in; }
 
@@ -1956,6 +1961,26 @@ async function requestMatch(text, imageId){
     return { reply:{ zh:'', en:'', ru:'' }, quickButtons:[], matched:false };
   }
 }
+/* 客户界面展示用：返回 {orig:中文原文, tr:该访客语种译文}
+   机器人：原文取三语回复里的中文版，译文取当前语种那一版（选中文时无译文行）
+   人工客服：原文取人工输入的中文原文(origText)，译文取发往客户语种的译文（多语补译字段优先）
+   原文与译文相同或译文缺失时不展示译文行 */
+function msgPairOf(m, lg){
+  if (m && m.role === 'agent'){
+    const orig = m.origText || m.text || '';
+    let tr = '';
+    /* 优先用按语种补译的字段（由中文原文翻译而来）；其次才复用发送时的译文，且必须语种一致，
+       避免客户切换语种后把旧语种译文当成当前语种的翻译 */
+    if (lg === 'en') tr = m.transEn || (m.trLang === 'en' ? m.text : '') || '';
+    else if (lg === 'ru') tr = m.transRu || (m.trLang === 'ru' ? m.text : '') || '';
+    return { orig, tr: (tr && tr !== orig) ? tr : '' };
+  }
+  const r = (m && m.role === 'bot' && m.reply) ? m.reply : null;
+  if (!r) return { orig: (m && m.text) || '', tr: '' };
+  const orig = r.zh || r.en || r.ru || '';
+  const tr = (lg === 'zh') ? '' : (r[lg] || '');
+  return { orig, tr: (tr && tr !== orig) ? tr : '' };
+}
 /* 渲染整个对话区（语言切换后按当前语种重绘所有回复与按钮） */
 function renderChat(){
   const area = $('chatArea');
@@ -1967,12 +1992,18 @@ function renderChat(){
       if (m.text) inner += (inner ? '<br>' : '') + escapeHtml(m.text);
       return `<div class="msg-row user"><div class="msg-bubble">${inner}</div></div>`;
     }
+    /* 机器人 / 人工客服消息：客户界面同时展示【中文原文 + 对应语种翻译】
+       选俄 → 中文原文 + 俄语翻译；选英 → 中文原文 + 英文翻译；选中文 → 仅中文原文 */
+    const pair = msgPairOf(m, lang);
     if (m.role === 'agent'){
       // 人工客服消息：与机器人同侧，带蓝色徽标区分
-      return `<div class="msg-row bot agent"><div class="msg-bubble"><span class="msg-tag">${escapeHtml(labelOf(roleTag.agent, lang))}</span><br>${escapeHtml(m.text)}</div></div>`;
+      let inner = `<span class="msg-tag">${escapeHtml(labelOf(roleTag.agent, lang))}</span><br>${escapeHtml(pair.orig)}`;
+      if (pair.tr) inner += `<div class="msg-tr">${escapeHtml(pair.tr)}</div>`;
+      return `<div class="msg-row bot agent"><div class="msg-bubble">${inner}</div></div>`;
     }
-    // 机器人回复：徽标 + 文字（+ 可选底部链接，后台模板配置）+ 可选快捷按钮
-    let inner = `<span class="msg-tag">${escapeHtml(labelOf(roleTag.bot, lang))}</span><br>` + escapeHtml(labelOf(m.reply, lang));
+    // 机器人回复：徽标 + 中文原文（+ 对应语种翻译）+ 可选底部链接 + 可选快捷按钮
+    let inner = `<span class="msg-tag">${escapeHtml(labelOf(roleTag.bot, lang))}</span><br>` + escapeHtml(pair.orig);
+    if (pair.tr) inner += `<div class="msg-tr">${escapeHtml(pair.tr)}</div>`;
     if (m.link && m.link.url){
       const lt = labelOf(m.link.text, lang) || m.link.url;
       inner += `<br><a class="msg-link" href="${escapeAttr(m.link.url)}" target="_blank" rel="noopener">${escapeHtml(lt)}</a>`;
