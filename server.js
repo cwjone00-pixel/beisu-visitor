@@ -1566,7 +1566,7 @@ const server = http.createServer(async (req, res) => {
     const sid = decodeURIComponent(p.slice('/api/chat/'.length));
     const s = getSession(sid);
     scheduleTrFill(s);   // 后台打开会话即触发三语补齐，不阻塞本次响应
-    return send(res, 200, { id:s.id, mode:s.mode, messages:s.messages });
+    return send(res, 200, { id:s.id, mode:s.mode, lang:s.lang || '', messages:s.messages });
   }
 
   /* ---- 首页快捷按钮 CRUD ---- */

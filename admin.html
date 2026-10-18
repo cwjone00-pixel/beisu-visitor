@@ -200,7 +200,7 @@
         </label>
       </span>
     </div>
-    <div class="chat-hint">客户与机器人的对话实时显示在左侧会话列表；点选一条会话，对话详情（原文 + 英译 + 俄译）在右侧加载，可随时切换「机器人自动回复 / 人工接管」，人工接管后可直接发言。</div>
+    <div class="chat-hint">客户与机器人的对话实时显示在左侧会话列表；点选一条会话，对话详情（原文 + 按访客语种的对应译文）在右侧加载，可随时切换「机器人自动回复 / 人工接管」，人工接管后可直接发言。</div>
     <div class="chat-split">
       <aside class="chat-side">
         <div class="chat-side-head">
@@ -212,7 +212,7 @@
       <section class="chat-main">
         <div id="chatEmpty" class="chat-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1-.9-3.8 8.38 8.38 0 0 1 8.5-8.5A8.38 8.38 0 0 1 21 11.5z"/></svg>
-          <div>点选左侧任意一条会话，对话详情会显示在这里（原文 + 英译 + 俄译）。</div>
+          <div>点选左侧任意一条会话，对话详情会显示在这里（原文 + 按访客语种的对应译文）。</div>
         </div>
         <div id="chatPanel" class="chat-panel">
           <div class="chat-panel-head">
@@ -819,6 +819,8 @@ API.setTr = v => fetch('/api/agent-translate', { method:'PUT', headers:{'Content
 
 let activeChat = null, chatLastId = 0, chatMode = 'bot';
 const ROLE_NAME = { visitor:'客户', bot:'机器人', agent:'人工' };
+const LANG_NAME = { zh:'中文', en:'英文', ru:'俄语' };
+let chatLang = '';   // 该访客前端当前选择的语种：决定展示哪一条「对应译文」
 
 /* 选中态同步：选中则在右侧显示对话详情，未选中则显示提示文字 */
 function showChatDetail(on){
@@ -826,7 +828,7 @@ function showChatDetail(on){
   if (p) p.style.display = on ? 'flex' : 'none';
   if (e) e.style.display = on ? 'none' : 'flex';
 }
-function clearChatSelection(){ activeChat = null; chatLastId = 0; showChatDetail(false); }
+function clearChatSelection(){ activeChat = null; chatLastId = 0; chatLang = ''; showChatDetail(false); }
 
 async function loadChatList(){
   if (!adminUnlocked) return;   // 未登录时不拉取会话
@@ -855,15 +857,23 @@ async function openChat(id){
   chatLastId = 0;
   const s = await API.chatGet(id);
   chatMode = (s && s.mode) || 'bot';
+  chatLang = (s && s.lang) || '';
   const msgs = (s && s.messages) || [];
   chatLastId = msgs.length ? msgs[msgs.length-1].id : 0;
-  document.getElementById('cpTitle').textContent = '会话 ' + id.slice(0,8) + '… · ' + msgs.length + ' 条消息';
+  setChatTitle(msgs.length);
   showChatDetail(true);
   renderChatPanel(msgs, true);
   updateModeBtn();
   const inp = document.getElementById('cpInput');
   if (inp) inp.focus();
   await loadChatList();
+}
+
+/* 会话标题：会话号 + 消息数 + 该访客前端当前选择的语种（决定展示哪条对应译文） */
+function setChatTitle(count){
+  const langTxt = chatLang && LANG_NAME[chatLang] ? LANG_NAME[chatLang] : '未知';
+  document.getElementById('cpTitle').textContent =
+    '会话 ' + String(activeChat || '').slice(0,8) + '… · ' + count + ' 条消息 · 访客语种：' + langTxt;
 }
 
 function renderChatPanel(msgs, reset, keepScroll){
@@ -884,26 +894,24 @@ function renderChatPanel(msgs, reset, keepScroll){
   box.innerHTML += msgs
     .filter(m => m && m.id != null && !box.querySelector('[data-mid="'+m.id+'"]'))
     .map(m => {
-      /* 原文：机器人消息取三语回复的中文版；人工消息取人工输入原文；客户消息取消息正文 */
+      /* 原文 + 对应译文：按该访客前端当前选择的语种展示（选俄显「原文+俄译」，选英显「原文+英译」） */
+      const trLabel = '译文' + (chatLang && LANG_NAME[chatLang] ? '（' + LANG_NAME[chatLang] + '）' : '');
       let text = '', extra = '';
       if (m.role === 'bot' && m.reply){
-        text = m.reply.zh || m.reply.en || m.reply.ru || '';
-        if (m.reply.en) extra += trLine('英译', m.reply.en);
-        if (m.reply.ru) extra += trLine('俄译', m.reply.ru);
+        text = m.reply.zh || m.reply.en || m.reply.ru || '';            // 原文：机器人三语回复中的中文原文
+        const tr = m.reply[chatLang] || '';                            // 对应译文：该访客语种那一版
+        if (tr && tr !== text) extra += trLine(trLabel, tr);
+      } else if (m.role === 'agent'){
+        text = m.origText || m.text || '';                             // 原文：人工输入的内容
+        if (m.origText && m.text && m.text !== m.origText) extra += trLine(trLabel, m.text);   // 实际发给客户的对应译文
       } else {
-        text = m.origText || m.text || '';
-        /* 三语展示：原文 + 英译 + 俄译；有译文就展示（同语种重复属正常，缺失才是真的不可用） */
-        if (m.role === 'visitor' || m.role === 'agent'){
-          extra += trLine('英译', m.transEn || '');
-          extra += trLine('俄译', m.transRu || '');
-        }
+        text = m.origText || m.text || '';                             // 客户消息：原有展示不变
+        extra += trLine('英译', m.transEn || '');
+        extra += trLine('俄译', m.transRu || '');
       }
-      /* 原有展示保持不变：客户消息附中文译文；人工消息附实际发送给客户的译文 */
+      /* 原有展示保持不变：客户消息附中文译文 */
       if (m.role === 'visitor' && m.transZh){
         extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:12px; color:#5b7bb2;">译文：${esc(m.transZh)}</div>`;
-      }
-      if (m.role === 'agent' && m.origText){
-        extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0;">已自动翻译发送：${esc(m.text)}</div>`;
       }
       const align = m.role === 'agent' ? 'right' : 'left';
       const tag = `<div style="font-size:10px; color:#9aa3ad; margin:0 4px 2px; text-align:${align};">${ROLE_NAME[m.role]||m.role} · ${new Date(m.ts).toLocaleTimeString()}</div>`;
@@ -925,7 +933,8 @@ async function pollActiveChat(){
     }
     const msgs = d.messages || [];
     chatLastId = msgs.length ? msgs[msgs.length-1].id : 0;
-    document.getElementById('cpTitle').textContent = '会话 ' + activeChat.slice(0,8) + '… · ' + msgs.length + ' 条消息';
+    if (d.lang) chatLang = d.lang;   // 访客在前端切换语种后，面板译文随之切换
+    setChatTitle(msgs.length);
     renderChatPanel(msgs, true, true);
     if (d.mode && d.mode !== chatMode){ chatMode = d.mode; updateModeBtn(); }
   } catch(e){}
