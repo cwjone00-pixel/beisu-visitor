@@ -18,6 +18,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const zlib = require('zlib');
 
 const PORT = process.env.PORT || 3210;
 const ROOT = __dirname;
@@ -409,11 +410,35 @@ function bodyToHtml(body){
   const paras = String(body || '').replace(/\r\n?/g, '\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
   return paras.map(p => '<p>' + escHtml(p).replace(/\n/g, '<br>') + '</p>').join('\n') || '<p></p>';
 }
-function sendHtml(res, status, html, varyUA){
+/* 文本类响应按需 gzip 压缩（体积约降 75%，手机端首屏更快）；客户端不支持或已是图片等二进制格式时原样发送 */
+const GZIP_MIN = 1024;
+function sendMaybeGzip(req, res, status, headers, body){
+  const buf = Buffer.isBuffer(body) ? body : Buffer.from(String(body || ''), 'utf-8');
+  const type = headers['Content-Type'] || '';
+  const compressible = /^(text\/|application\/(javascript|json|xml)|image\/svg)/i.test(type);
+  const accepts = /\bgzip\b/i.test(String((req && req.headers && req.headers['accept-encoding']) || ''));
+  if (!accepts || !compressible || buf.length < GZIP_MIN){
+    headers['Content-Length'] = buf.length;
+    res.writeHead(status, headers);
+    return res.end(buf);
+  }
+  zlib.gzip(buf, (err, gz) => {
+    if (err){   // 压缩失败时回退为原样发送，保证请求不失败
+      headers['Content-Length'] = buf.length;
+      res.writeHead(status, headers);
+      return res.end(buf);
+    }
+    headers['Content-Encoding'] = 'gzip';
+    headers['Vary'] = headers['Vary'] ? headers['Vary'] + ', Accept-Encoding' : 'Accept-Encoding';
+    headers['Content-Length'] = gz.length;
+    res.writeHead(status, headers);
+    res.end(gz);
+  });
+}
+function sendHtml(req, res, status, html, varyUA){
   const h = { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff' };
   if (varyUA) h['Vary'] = 'User-Agent';   // 文章页内容随 UA 变化（Yandex 定向俄语），需声明 Vary 避免中间缓存串内容
-  res.writeHead(status, h);
-  res.end(html);
+  sendMaybeGzip(req, res, status, h, html);
 }
 const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",Roboto,sans-serif;line-height:1.75}'
   + 'main{max-width:760px;margin:0 auto;padding:32px 20px 64px;background:#fff;min-height:100vh;box-sizing:border-box}'
@@ -494,8 +519,7 @@ function serveStatic(req, res){
   fs.readFile(filePath, (err, data) => {
     if (err) return send(res, 404, 'Not Found');
     const ext = path.extname(filePath).toLowerCase();
-    res.writeHead(200, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
-    res.end(data);
+    sendMaybeGzip(req, res, 200, { 'Content-Type': MIME[ext] || 'application/octet-stream' }, data);
   });
 }
 
@@ -1786,10 +1810,10 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(301, { Location: loc, 'Cache-Control':'no-cache', 'Vary':'User-Agent' });
         return res.end();
       }
-      return sendHtml(res, 404, articleNotFoundHtml());
+      return sendHtml(req, res, 404, articleNotFoundHtml());
     }
-    if (art.status !== 'published' && !preview) return sendHtml(res, 404, articleNotFoundHtml());
-    return sendHtml(res, 200, articlePageHtml(art, art.status !== 'published', al), true);
+    if (art.status !== 'published' && !preview) return sendHtml(req, res, 404, articleNotFoundHtml());
+    return sendHtml(req, res, 200, articlePageHtml(art, art.status !== 'published', al), true);
   }
   /* ---- sitemap.xml / robots.txt：帮助搜索引擎（Yandex 等）发现并收录已发布文章 ---- */
   if (p === '/sitemap.xml' && req.method === 'GET'){
