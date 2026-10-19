@@ -510,13 +510,16 @@
   /* ============ 手机版（豆包风格手机聊天界面） ============ */
   .mac-window.mode-mobile{
     left:50%; top:56px; transform:translateX(-50%);
+    /* 用 dvh（动态视口高度）解决手机浏览器地址栏导致 100vh 偏大、底部输入框被裁掉的问题；vh 作为旧浏览器回退 */
     width:min(390px, 94vw); height:min(844px, calc(100vh - 76px));
+    height:min(844px, calc(100dvh - 76px));
     border-radius:34px; background:#f3f6fb;
     box-shadow:0 40px 90px rgba(15,35,70,.42), 0 0 0 9px rgba(24,36,58,.92), 0 4px 18px rgba(15,35,70,.2);
   }
   .mac-window.mode-mobile .traffic,
   .mac-window.mode-mobile .win-title{ display:none; }
-  .mac-window.mode-mobile .layout{ position:relative; }
+  .mac-window.mode-mobile .layout{ position:relative; min-height:0; }
+  .mac-window.mode-mobile .main{ min-height:0; }
 
   /* 侧边栏 → 左侧滑出抽屉 */
   .mac-window.mode-mobile .sidebar{
@@ -532,24 +535,52 @@
   .mac-window.mode-mobile .topbar{ height:52px; padding:0 8px; }
   .mac-window.mode-mobile .topbar .icon-btn[data-i18n-title]{ display:none; }
 
-  /* 主聊天区 */
-  .mac-window.mode-mobile .hero{ padding:18px 12px 0; }
-  .mac-window.mode-mobile .hero-inner{ width:100%; max-width:100%; }
+  /* 主聊天区：与电脑版同一套 flex 布局逻辑——外层定高，消息区内部滚动，输入框固定不参与滚动 */
+  .mac-window.mode-mobile .hero{ padding:18px 12px 0; min-height:0; }
+  .mac-window.mode-mobile .hero-inner{ width:100%; max-width:100%; min-height:0; }
   .mac-window.mode-mobile .hero-title{ margin-top:16px; font-size:20px; }
   .mac-window.mode-mobile .status-lights{ right:-80px; top:2px; }
   .mac-window.mode-mobile .status-label{ font-size:10px; }
   .mac-window.mode-mobile .quick-needs{ margin-top:14px; gap:8px; }
   .mac-window.mode-mobile .quick-btn{ height:40px; font-size:12.5px; padding:0 10px; border-radius:12px; }
-  .mac-window.mode-mobile .chat-area{ margin-top:14px; gap:12px; }
-  .mac-window.mode-mobile .msg-bubble{ max-width:88%; font-size:13.5px; padding:11px 14px; }
+  /* 消息区：撑满剩余高度并在内部滚动（min-height:0 是 flex 子项能收缩的关键，否则会被内容顶高把输入框挤出去） */
+  .mac-window.mode-mobile .chat-area{
+    margin-top:14px; gap:12px;
+    flex:1 1 0; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  }
+  /* 消息卡片字号在手机版受控，避免文字过大把消息块撑高 */
+  .mac-window.mode-mobile .msg-bubble{ max-width:88%; font-size:13px; line-height:1.5; padding:10px 13px; }
+  .mac-window.mode-mobile .msg-tr{ font-size:11.5px; line-height:1.45; }
+  .mac-window.mode-mobile .msg-img{ max-width:180px; max-height:180px; }
 
-  /* 底部输入区 */
+  /* 底部输入区：flex:none 固定在窗口底部，永远可见，不被上方消息内容挤走 */
   .mac-window.mode-mobile .composer{
-    width:auto; max-width:none; align-self:stretch;
+    width:auto; max-width:none; align-self:stretch; flex:none;
     margin:8px 10px 12px; padding:10px 12px; border-radius:20px;
   }
-  .mac-window.mode-mobile .action-btn{ padding:0 12px; height:34px; font-size:12.5px; }
-  .mac-window.mode-mobile .composer-chips{ margin-top:8px; }
+  /* 三语下输入框尺寸统一固定：整行不换行、按钮不收缩；按钮文案变长（俄语）时输入框仍保留最小可视宽度，
+     整行放不下则横向滚动（滚动条隐藏），既不挤压输入框也不撑高输入条 */
+  .mac-window.mode-mobile .input-line{
+    flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
+    scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  .mac-window.mode-mobile .input-line::-webkit-scrollbar{ display:none; }
+  /* 输入框占满按钮以外的整行宽度：三语下按钮同为纯图标、宽度一致，输入框宽度自然统一，且不留空档 */
+  .mac-window.mode-mobile #composerInput{ flex:1 1 auto; min-width:0; }
+  /* 拍照 / 上传图片：文字不换行、不收缩，字号缩小以适配俄语等较长文案 */
+  .mac-window.mode-mobile .action-btn{
+    flex:none; white-space:nowrap; padding:0 10px; height:34px; font-size:11.5px; gap:5px;
+  }
+  .mac-window.mode-mobile .action-btn svg{ width:15px; height:15px; }
+  /* 手机版：拍照 / 上传图片只保留图标，隐藏文字（按钮更紧凑，三语下宽度一致） */
+  .mac-window.mode-mobile #btnPhoto span,
+  .mac-window.mode-mobile #btnUpload span{ display:none; }
+  /* 输入框下方快捷按钮行：同样单行横向滚动，避免撑高输入区 */
+  .mac-window.mode-mobile .composer-chips{
+    margin-top:8px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
+  }
+  .mac-window.mode-mobile .composer-chips::-webkit-scrollbar{ display:none; }
+  .mac-window.mode-mobile .chip-btn{ flex:none; }
 
   @media (max-width:900px){
     .sidebar{ width:210px; min-width:210px; }
