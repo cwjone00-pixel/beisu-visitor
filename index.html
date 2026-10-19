@@ -509,12 +509,12 @@
 
   /* ============ 手机版（豆包风格手机聊天界面） ============ */
   .mac-window.mode-mobile{
-    left:50%; top:56px; transform:translateX(-50%);
-    /* 用 dvh（动态视口高度）解决手机浏览器地址栏导致 100vh 偏大、底部输入框被裁掉的问题；vh 作为旧浏览器回退 */
-    width:min(390px, 94vw); height:min(844px, calc(100vh - 76px));
-    height:min(844px, calc(100dvh - 76px));
-    border-radius:34px; background:#f3f6fb;
-    box-shadow:0 40px 90px rgba(15,35,70,.42), 0 0 0 9px rgba(24,36,58,.92), 0 4px 18px rgba(15,35,70,.2);
+    /* 全屏移动端：去掉模拟手机框（居中定位/圆角/黑色描边/阴影），内容直接铺满整屏 */
+    left:0; top:0; transform:none;
+    width:100%; height:100vh;
+    /* dvh（动态视口高度）解决手机浏览器地址栏导致 100vh 偏大、底部输入框被裁掉的问题；vh 作为旧浏览器回退 */
+    height:100dvh;
+    border-radius:0; background:#f3f6fb; box-shadow:none;
   }
   .mac-window.mode-mobile .traffic,
   .mac-window.mode-mobile .win-title{ display:none; }
@@ -1272,13 +1272,20 @@ win.addEventListener('click', () => { if (win.classList.contains('minimized')) w
 /* ---------------- 电脑版 / 手机版 视图切换（同一页面内预览，两版功能一致） ---------------- */
 const viewSegs = document.querySelectorAll('#viewToggle .vt-seg');
 function syncDrawer(open){ win.classList.toggle('drawer-open', !!open); }
+/* 打开时自动识别设备：手机访问 → 移动端视图；电脑访问 → 桌面端视图（无需手动切换） */
+function detectViewMode(){
+  const ua = navigator.userAgent || '';
+  /* 手机/平板 UA，或窄屏（涵盖 iPadOS 的桌面级 UA）一律按移动端 */
+  const mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|BlackBerry|Opera Mini|IEMobile|Mobile/i.test(ua);
+  const narrow = (window.innerWidth || 9999) <= 820;
+  return (mobileUA || narrow) ? 'mobile' : 'desktop';
+}
 function setViewMode(mode){
   const mobile = mode === 'mobile';
   win.classList.toggle('mode-mobile', mobile);
   if (mobile) win.classList.remove('minimized', 'maximized');   // 手机版固定为手机框，禁用窗口最大化/最小化状态
   syncDrawer(false);                                            // 切换时收回抽屉
   viewSegs.forEach(s => s.classList.toggle('active', s.dataset.view === mode));
-  try { localStorage.setItem('beisu-view', mobile ? 'mobile' : 'desktop'); } catch(e){}
 }
 viewSegs.forEach(s => s.addEventListener('click', e => { e.stopPropagation(); setViewMode(s.dataset.view); }));
 
@@ -2198,7 +2205,7 @@ window.BeisuAPI = {
 };
 
 /* ---------------- 初始化 ---------------- */
-setViewMode(localStorage.getItem('beisu-view') === 'mobile' ? 'mobile' : 'desktop');   // 恢复上次选择的多端预览模式
+setViewMode(detectViewMode());   // 打开时自动识别设备：手机→移动端视图、电脑→桌面端视图
 renderEvents();
 renderArticles();
 applyI18n();
