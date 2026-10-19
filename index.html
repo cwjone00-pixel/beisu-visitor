@@ -339,6 +339,14 @@
   .action-btn:hover{ transform:translateY(-2px); box-shadow:0 6px 16px rgba(47,124,246,.22); background:linear-gradient(135deg,#e0ecff,#d4e3ff); }
   .action-btn:active{ transform:translateY(0); }
   .action-btn svg{ width:16px; height:16px; stroke:#2f7cf6; }
+  /* 发送按钮：点按即可发送（手机端不必依赖键盘回车） */
+  .send-btn{
+    background:linear-gradient(135deg,#2f7cf6,#5aa2ff); color:#fff; border-color:transparent;
+    padding:0 15px;
+  }
+  .send-btn svg{ stroke:#fff; }
+  .send-btn:hover{ transform:translateY(-2px); box-shadow:0 6px 16px rgba(47,124,246,.34); background:linear-gradient(135deg,#2569db,#4a92ff); }
+  .send-btn:active{ transform:translateY(0); }
 
   /* ============ 弹窗 ============ */
   .overlay{
@@ -724,17 +732,21 @@
         </div>
       </div>
       <div class="composer">
-        <div class="input-line" id="inputLine">
-          <input id="composerInput" type="text" data-i18n-ph="inputPh" placeholder="输入信息..." autocomplete="off">
-          <button class="action-btn" id="btnPhoto">
+        <!-- 输入行用 form 包裹：手机键盘的「发送 / Go」动作键会触发提交，不再只依赖回车；发送按钮可点按发送 -->
+        <form class="input-line" id="inputLine" autocomplete="off">
+          <input id="composerInput" type="text" data-i18n-ph="inputPh" placeholder="输入信息..." autocomplete="off" enterkeyhint="send">
+          <button class="action-btn" id="btnPhoto" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><circle cx="12" cy="13.5" r="3.6"/><path d="M8.5 7l1.4-2.3h4.2L15.5 7"/></svg>
             <span data-i18n="btnPhoto">拍照</span>
           </button>
-          <button class="action-btn" id="btnUpload">
+          <button class="action-btn" id="btnUpload" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16.5v2a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>
             <span data-i18n="btnUpload">上传图片</span>
           </button>
-        </div>
+          <button class="action-btn send-btn" id="btnSend" type="submit" aria-label="Send">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L10.5 13.5"/><path d="M21 3l-6.8 18-3.7-7.5L3 9.8 21 3z"/></svg>
+          </button>
+        </form>
         <div class="composer-chips" id="composerChips"></div>
         <!-- 拍照 / 上传图片：原生文件控件（拍照在移动端直接唤起相机，桌面端回退为选择文件） -->
         <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
@@ -2146,17 +2158,25 @@ async function submitImageFile(file){
   } catch(e){ toast(dict().imgFail); }
 }
 
-/* 输入框：回车发送消息 */
+/* 输入框：发送消息（回车 / 手机键盘「发送」键 / 点发送按钮 三条路径统一走这里） */
 const input = $('composerInput');
 function fitInput(){ /* flex 布局自动填充，无需手动设置宽度 */ }
 input.addEventListener('input', fitInput);
+function sendComposer(){
+  const v = input.value;
+  if (!v || !v.trim()) return;      // 空内容不发送
+  input.value = '';
+  sendMessage(v);
+}
 input.addEventListener('keydown', e => {
-  if (e.key === 'Enter'){
-    e.preventDefault();
-    sendMessage(input.value);
-    input.value = '';
+  /* 回车发送（桌面端）；isComposing 时是输入法在拼字，交给输入法确认候选，避免把半成品发出去 */
+  if (e.key === 'Enter' && !e.isComposing){
+    e.preventDefault();             // 阻止表单隐式提交，避免与下面的 submit 重复发送
+    sendComposer();
   }
 });
+/* 手机键盘的「发送 / Go」动作键与发送按钮点击都会触发 form 提交；手机端回车不可靠，靠这条兜底 */
+$('inputLine').addEventListener('submit', e => { e.preventDefault(); sendComposer(); });
 window.addEventListener('resize', fitInput);
 
 /* ESC 关闭弹窗 */
