@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>悖速 · 游客端</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='30%25' r='80%25'%3E%3Cstop offset='0' stop-color='%239fd0ff'/%3E%3Cstop offset='.55' stop-color='%234f97f8'/%3E%3Cstop offset='1' stop-color='%231e4fc4'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='14' fill='url(%23g)'/%3E%3C/svg%3E">
 <style>
@@ -11,7 +11,14 @@
     --ink:#1c2330; --ink2:#5b6470; --ink3:#9aa3ad;
     --blue:#2f7cf6; --line:rgba(20,40,80,.08);
   }
+  /* 页面视口锁死：禁止系统文本自动放大（text-size-adjust）、禁止橡皮筋回弹与下拉刷新，
+     避免地址栏/手势引起页面尺寸变化，保证手机端页面大小固定不变 */
+  html{
+    height:100%; -webkit-text-size-adjust:100%; text-size-adjust:100%;
+    overscroll-behavior:none; touch-action:manipulation;
+  }
   html,body{ height:100%; }
+  body{ overscroll-behavior:none; }
   body{
     font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",Roboto,sans-serif;
     overflow:hidden; color:var(--ink);
@@ -22,7 +29,9 @@
     -webkit-font-smoothing:antialiased;
   }
   svg{ display:block; }
-  button{ font-family:inherit; border:none; background:none; cursor:pointer; }
+  button{ font-family:inherit; border:none; background:none; cursor:pointer; touch-action:manipulation; }
+  /* 可点击控件禁用双击缩放（手机端连点按钮不会再触发页面缩放） */
+  .menu-item, .tl, .tab, .card, .lg-item, .chip-btn{ touch-action:manipulation; }
 
   /* ============ macOS 模拟窗口 ============ */
   .mac-window{
@@ -506,6 +515,8 @@
     width:100%; height:100vh;
     /* dvh（动态视口高度）解决手机浏览器地址栏导致 100vh 偏大、底部输入框被裁掉的问题；vh 作为旧浏览器回退 */
     height:100dvh;
+    /* 取消窗口的尺寸过渡动画：地址栏/键盘引起的任何高度变化都瞬时生效，不再出现"放大缩小"动画 */
+    transition:none;
     border-radius:0; background:#f3f6fb; box-shadow:none;
   }
   .mac-window.mode-mobile .traffic,
@@ -539,6 +550,7 @@
   .mac-window.mode-mobile .chat-area{
     margin-top:14px; gap:12px;
     flex:1 1 0; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;   /* 消息区滚到底不带动整页回弹，避免地址栏收起导致页面尺寸变化 */
   }
   /* 消息卡片字号在手机版受控，避免文字过大把消息块撑高 */
   .mac-window.mode-mobile .msg-bubble{ max-width:88%; font-size:13px; line-height:1.5; padding:10px 13px; }
@@ -567,6 +579,25 @@
   /* 手机版：拍照 / 上传图片只保留图标，隐藏文字（按钮更紧凑，三语下宽度一致） */
   .mac-window.mode-mobile #btnPhoto span,
   .mac-window.mode-mobile #btnUpload span{ display:none; }
+  /* 发送按钮的悬停 / 按压反馈：输入行是横向滚动容器（overflow-y:hidden），
+     上浮(translateY(-2px))与外扩阴影会被容器边缘裁掉，导致按钮显示残缺。
+     手机端改为不位移、不外扩阴影，仅变色反馈（按钮完整显示、点击不晃动） */
+  .mac-window.mode-mobile #btnSend:hover{ transform:none; box-shadow:none; }
+  .mac-window.mode-mobile #btnSend:active{
+    transform:none; box-shadow:none;                 /* 按压不做缩放/位移：按钮完整显示且不晃动 */
+    background:linear-gradient(135deg,#1f5fd0,#3f86f5);
+  }
+  /* 手机版所有按钮的按压反馈一律只变色，不做位移/缩放，点击时按钮不晃动、不缩放 */
+  .mac-window.mode-mobile .tl:active,
+  .mac-window.mode-mobile .chip-btn:active,
+  .mac-window.mode-mobile .quick-btn:active,
+  .mac-window.mode-mobile .action-btn:active,
+  .mac-window.mode-mobile .sso-round:active{ transform:none; }
+  /* 手机版输入框字号统一锁定 16px：iOS 对小于 16px 的输入框聚焦时会自动放大页面，
+     此处锁死字号，避免点击输入框时页面自动放大/缩回（用 ID/类选择器覆盖原有 14px/13px 规则）。
+     登录弹窗不在 .mac-window 内，用 html.view-mobile 覆盖 */
+  .mac-window.mode-mobile #composerInput,
+  html.view-mobile .lm-input{ font-size:16px; }
   /* 输入框下方快捷按钮行：同样单行横向滚动，避免撑高输入区 */
   .mac-window.mode-mobile .composer-chips{
     margin-top:8px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
@@ -1268,6 +1299,9 @@ function detectViewMode(){
 function setViewMode(mode){
   const mobile = mode === 'mobile';
   win.classList.toggle('mode-mobile', mobile);
+  /* 登录/注册弹窗是窗口的兄弟节点（不在 .mac-window 内），故在 <html> 上同步标记手机视图，
+     便于用 html.view-mobile 给弹窗内输入框锁定字号，避免手机端聚焦时页面自动放大 */
+  document.documentElement.classList.toggle('view-mobile', mobile);
   if (mobile) win.classList.remove('minimized', 'maximized');   // 手机版固定为手机框，禁用窗口最大化/最小化状态
   syncDrawer(false);                                            // 切换时收回抽屉
 }
