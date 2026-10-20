@@ -1130,7 +1130,7 @@ async function loadMedia(id){
    登录态只有两条出口：用户主动点「退出登录」，或该 token 被显式移除。 */
 const AUTH_FILE = path.join(ROOT, 'data', 'auth.json');
 const PRESET_USER = 'operator';
-const PRESET_PASS = 'Beisu2026';   // 初始预设密码，可在后台修改
+const PRESET_PASS = 'beisuas';   // 初始预设密码，可在后台修改
 const HEARTBEAT_TIMEOUT = 10 * 1000;   // 超过此时长未收到心跳 → 仅判定「人工离线」（指示灯熄灭），不清除登录态
 let authCache = null;
 function hashPwd(salt, pwd){ return crypto.createHash('sha256').update(salt + ':' + pwd).digest('hex'); }
