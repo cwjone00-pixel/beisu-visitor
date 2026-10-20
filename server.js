@@ -667,12 +667,12 @@ async function loadMedia(id){
 
 /* ---------------- 人工客服账号与在线状态 ----------------
    在线判定：后台登录成功且持续上报心跳 → operatorOnline=true。
-   页面关闭 / 心跳超时（10s）→ 自动销毁会话并置为离线，避免免登录重入后台。 */
+   页面关闭 / 心跳超时（10s）→ 仅置为「人工离线」（游客端指示灯熄灭）、不清除登录态。
+   登录态只有两条出口：用户主动点「退出登录」，或该 token 被显式移除。 */
 const AUTH_FILE = path.join(ROOT, 'data', 'auth.json');
 const PRESET_USER = 'operator';
 const PRESET_PASS = 'Beisu2026';   // 初始预设密码，可在后台修改
-const HEARTBEAT_TIMEOUT = 10 * 1000;   // 超过此时长未收到心跳 → 视为离线并销毁会话
-const CLOSE_GRACE = 4 * 1000;          // 页面关闭宽限期：期内若重新上报心跳则判定为刷新而非关闭
+const HEARTBEAT_TIMEOUT = 10 * 1000;   // 超过此时长未收到心跳 → 仅判定「人工离线」（指示灯熄灭），不清除登录态
 let authCache = null;
 function hashPwd(salt, pwd){ return crypto.createHash('sha256').update(salt + ':' + pwd).digest('hex'); }
 function loadAuth(){
@@ -703,32 +703,25 @@ function saveAuth(){
   if (cloud.enabled) return cloudSave('auth', loadAuth());
   fs.writeFileSync(AUTH_FILE, JSON.stringify(loadAuth(), null, 2), 'utf-8');
 }
-/* 会话是否仍存活（有心跳且在超时窗口内） */
+/* 会话是否仍在线（有心跳且在超时窗口内）—— 仅用于判定「人工客服在线」指示灯 */
 function sessionLive(s){ return !!s && !!s.lastSeen && (Date.now() - s.lastSeen) < HEARTBEAT_TIMEOUT; }
-/* 人工在线：存在任一「存活且未被标记为已关闭」的会话 */
+/* 人工在线：存在任一「在线且未被标记为已关闭」的会话 */
 function operatorOnline(){ return loadAuth().sessions.some(s => sessionLive(s) && s.closing !== true); }
-/* 校验 token；任何带 token 的真实请求都刷新心跳（内存更新，不落盘），并清除关闭标记 */
+/* 校验 token：只要该 token 仍存在即视为已登录（登录态只在点「退出登录」时销毁）；
+   心跳超时、页面关闭都只影响「人工在线」指示，不再把用户踢回登录页。
+   任何带 token 的真实请求都刷新心跳（内存更新，不落盘），并清除关闭标记 */
 function sessionUser(token){
   if (!token) return null;
   const s = loadAuth().sessions.find(x => x.token === String(token));
-  if (!sessionLive(s)) return null;
+  if (!s) return null;
   s.lastSeen = Date.now();
   s.closing = false;
   return s.username;
 }
-/* 会话回收：心跳超时 或 关闭宽限期已过 → 销毁会话并广播离线 */
-function sweepSessions(){
-  const db = loadAuth();
-  const now = Date.now();
-  let changed = false;
-  const keep = db.sessions.filter(s => {
-    const expired = !s.lastSeen || (now - s.lastSeen) > HEARTBEAT_TIMEOUT;
-    const closed = s.closing === true && (now - (s.closingAt || 0)) > CLOSE_GRACE;
-    if (expired || closed) changed = true;
-    return !(expired || closed);
-  });
-  if (changed){ db.sessions = keep; saveAuth(); broadcastState(true); }
-}
+/* 定时巡检：只把「人工在线」的状态变化广播给游客前端
+   （浏览器异常退出、未上报关闭时，心跳超时后指示灯熄灭）。
+   broadcastState 内部会自动跳过无变化的广播，故此处基本是空转。 */
+function sweepSessions(){ broadcastState(); }
 
 /* ---------------- 访客用户（邮箱注册 + 邮件链接激活） ----------------
    用户以「邮箱 + 密码」注册；注册后状态为 pending，须点击邮件里的激活链接后（status=active）方可登录；
@@ -1058,7 +1051,7 @@ const server = http.createServer(async (req, res) => {
     const token = url.searchParams.get('token') || '';
     return send(res, 200, { operatorOnline: operatorOnline(), loggedInAs: sessionUser(token) });
   }
-  /* ---- 心跳上报：后台坐席页面每 3 秒调用，维持在线；超时未上报即自动离线 ---- */
+  /* ---- 心跳上报：后台坐席页面每 3 秒调用，维持「人工在线」；超时未上报即判定人工离线（登录态保留） ---- */
   if (p === '/api/auth/heartbeat' && req.method === 'POST'){
     const body = await readBody(req);
     const token = body.token || req.headers['x-op-token'] || url.searchParams.get('token') || '';
@@ -1067,12 +1060,13 @@ const server = http.createServer(async (req, res) => {
     broadcastState();   // 状态未变化时内部自动跳过广播
     return send(res, 200, { ok:true, operatorOnline: operatorOnline() });
   }
-  /* ---- 页面关闭：标记会话待关闭并立即广播离线（宽限期内若重新心跳则视为刷新，不销毁） ---- */
+  /* ---- 页面关闭：仅标记会话为「已关闭」并立即广播离线（游客端指示灯即时熄灭）；
+     不清除登录态，重新打开后台无需重新登录；下次心跳会自动清除关闭标记恢复在线 ---- */
   if (p === '/api/auth/close' && req.method === 'POST'){
     const body = await readBody(req);
     const db = loadAuth();
     const s = db.sessions.find(x => x.token === String(body.token || ''));
-    if (s){ s.closing = true; s.closingAt = Date.now(); broadcastState(true); }
+    if (s){ s.closing = true; broadcastState(true); }
     return send(res, 200, { ok:true });
   }
   /* ---- 客服登录 ---- */
@@ -1884,14 +1878,17 @@ server.on('upgrade', (req, socket) => {
     }
   });
 });
-/* 会话回收定时器：心跳超时与页面关闭宽限的兜底销毁 */
-setInterval(sweepSessions, 2000);
-
 /* 启动引导：先接入云库（如已配置），再监听端口；云库不可用则自动回退本地文件存储 */
 (async () => {
   try { await initCloud(loadSecrets().mongo.uri); }
   catch(e){ console.error('[cloud] 初始化失败，回退本地 JSON 文件存储:', e.message); }
   ensureDataFile();
+  /* 定时巡检：只广播「人工在线」状态变化。
+     必须在云库接入之后才启动——巡检会经 statePayload → operatorOnline → loadAuth，
+     而 loadAuth 命中一次即永久缓存（authCache）。若在 cloud.enabled 置位前先跑，
+     就会把本地 data/auth.json 的旧账号缓存下来，导致云库里的登录态永不加载
+     （表现为：重启 / 冷启动后没有点「退出」却被登出）。 */
+  setInterval(sweepSessions, 2000);
   tgBotId().catch(() => {});   // 启动即预热 Telegram Bot ID，避免用户首次点击时等待外网请求
   server.listen(PORT, () => {
     console.log(`[beisu-visitor] server running at http://localhost:${PORT}`);

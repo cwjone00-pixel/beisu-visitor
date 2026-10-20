@@ -776,10 +776,9 @@ async function opCreateAccount(){
 setInterval(refreshOpState, 5000);   // 立即调用由登录门/unlockAdmin 负责
 
 /* ================= 在线心跳 / 页面关闭上报 =================
-   心跳：坐席页面每 3s 上报一次在线；后端超过 10s 未收到即判定离线
-        （销毁 session + 人工在线=false + WebSocket 推送，游客端指示灯熄灭）
-        —— 用于覆盖浏览器丢弃 beforeunload、断网、直接关机等极端情况
-   页面关闭：pagehide 用 sendBeacon 立即标记会话待关闭并推送离线（即时熄灭指示灯） */
+   心跳：坐席页面每 3s 上报一次在线；后端超过 10s 未收到仅判定「人工离线」
+        （游客端指示灯熄灭），不会清除登录态
+   页面关闭：pagehide 用 sendBeacon 立即标记会话已关闭并推送离线（即时熄灭指示灯），登录态同样保留 */
 let heartbeatTimer = null;
 async function sendHeartbeat(){
   if (!adminUnlocked || !opToken) return;
@@ -793,8 +792,9 @@ async function sendHeartbeat(){
 }
 heartbeatTimer = setInterval(sendHeartbeat, 3000);
 
-/* 页面关闭（关闭标签 / 关闭浏览器 / 刷新）：发送关闭上报，令会话立即失效并广播离线。
-   刷新场景由后端 4s 宽限期内的新心跳自动恢复，不会误判为退出登录。 */
+/* 页面关闭（关闭标签 / 关闭浏览器 / 刷新）：上报关闭，令游客端指示灯立即熄灭。
+   仅标记离线，不清除登录态——重新打开后台仍是登录状态；
+   刷新后 3s 内的下一次心跳会自动恢复在线。 */
 function reportPageClose(){
   if (!opToken) return;
   try {
