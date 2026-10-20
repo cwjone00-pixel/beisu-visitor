@@ -1,5 +1,5 @@
 /* ============================================================
-   悖速游客端 · 后端服务（Node.js 内置模块，零依赖）
+   beisuas 游客端 · 后端服务（Node.js 内置模块，零依赖）
    -----------------------------------------------------------
    职责：
    1. 存储后台配置数据（JSON 文件持久化）：
@@ -787,7 +787,7 @@ function genToken(){ return crypto.randomBytes(24).toString('hex'); }
 const SECRETS_FILE = path.join(ROOT, 'data', 'secrets.json');
 const SECRETS_TEMPLATE = {
   twilio:    { accountSid: '', authToken: '', fromPhone: '' },
-  resend:    { apiKey: '', fromEmail: '', fromName: 'Beisu' },
+  resend:    { apiKey: '', fromEmail: '', fromName: 'beisuas' },
   recaptcha: { version: 'v2', siteKey: '', secretKey: '' },
   telegram:  { botUsername: '', botToken: '' },   // Telegram 登录：botUsername 公开（前端控件用），botToken 仅后端校验用
   mongo:     { uri: '' }
@@ -807,7 +807,7 @@ function loadSecrets(){
   const pick = (fileVal, envKey) => fileVal || String(env[envKey] || '').trim();
   return {
     twilio:    { accountSid: pick(str(s.twilio, 'accountSid'), 'TWILIO_ACCOUNT_SID'), authToken: pick(str(s.twilio, 'authToken'), 'TWILIO_AUTH_TOKEN'), fromPhone: pick(str(s.twilio, 'fromPhone'), 'TWILIO_FROM_PHONE') },
-    resend:    { apiKey: pick(str(s.resend, 'apiKey'), 'RESEND_API_KEY'), fromEmail: pick(str(s.resend, 'fromEmail'), 'RESEND_FROM_EMAIL'), fromName: pick(str(s.resend, 'fromName'), 'RESEND_FROM_NAME') || 'Beisu' },
+    resend:    { apiKey: pick(str(s.resend, 'apiKey'), 'RESEND_API_KEY'), fromEmail: pick(str(s.resend, 'fromEmail'), 'RESEND_FROM_EMAIL'), fromName: pick(str(s.resend, 'fromName'), 'RESEND_FROM_NAME') || 'beisuas' },
     recaptcha: { version: (str(s.recaptcha, 'version') || str(env, 'RECAPTCHA_VERSION')) === 'v3' ? 'v3' : 'v2',
                  siteKey: pick(str(s.recaptcha, 'siteKey'), 'RECAPTCHA_SITE_KEY'), secretKey: pick(str(s.recaptcha, 'secretKey'), 'RECAPTCHA_SECRET_KEY') },
     telegram:  { botUsername: pick(str(s.telegram, 'botUsername'), 'TELEGRAM_BOT_USERNAME'), botToken: pick(str(s.telegram, 'botToken'), 'TELEGRAM_BOT_TOKEN') },
@@ -822,11 +822,11 @@ function sendVerificationEmail(email, code, purpose){
   return new Promise((resolve, reject) => {
     const g = loadSecrets().resend;
     if (!(g.apiKey && g.fromEmail)) return resolve({ mode:'demo' });   // 模拟模式：不真实发信
-    const subject = purpose === 'reset' ? '【悖速】重置密码验证码' : '【悖速】注册验证码';
+    const subject = purpose === 'reset' ? '【beisuas】重置密码验证码' : '【beisuas】注册验证码';
     const html = '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#1c2330;line-height:1.7">'
       + '<p>您好，</p><p>您的验证码为：<b style="font-size:22px;letter-spacing:3px;color:#2f7cf6">' + code + '</b></p>'
       + '<p>验证码 10 分钟内有效，请勿向他人泄露。如非本人操作，请忽略本邮件。</p>'
-      + '<p style="color:#8b94a0;font-size:12px">— 悖速团队</p></div>';
+      + '<p style="color:#8b94a0;font-size:12px">— beisuas 团队</p></div>';
     const payload = JSON.stringify({
       from: g.fromName ? (g.fromName + ' <' + g.fromEmail + '>') : g.fromEmail,
       to: [email],
@@ -853,13 +853,13 @@ function sendActivationEmail(email, link){
   return new Promise((resolve, reject) => {
     const g = loadSecrets().resend;
     if (!(g.apiKey && g.fromEmail)) return resolve({ mode:'demo' });   // 模拟模式：不真实发信
-    const subject = '【悖速】邮箱激活';
+    const subject = '【beisuas】邮箱激活';
     const html = '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;color:#1c2330;line-height:1.7">'
-      + '<p>您好，</p><p>感谢注册悖速。请点击下方按钮完成邮箱激活：</p>'
+      + '<p>您好，</p><p>感谢注册beisuas。请点击下方按钮完成邮箱激活：</p>'
       + '<p><a href="' + link + '" style="display:inline-block;padding:10px 22px;background:#2f7cf6;color:#ffffff;border-radius:8px;text-decoration:none">激活邮箱</a></p>'
       + '<p>该链接 24 小时内有效，且只能使用一次。若按钮无法点击，请复制以下地址到浏览器打开：</p>'
       + '<p style="color:#8b94a0;font-size:12px;word-break:break-all">' + link + '</p>'
-      + '<p style="color:#8b94a0;font-size:12px">如非本人操作，请忽略本邮件。— 悖速团队</p></div>';
+      + '<p style="color:#8b94a0;font-size:12px">如非本人操作，请忽略本邮件。— beisuas 团队</p></div>';
     const payload = JSON.stringify({
       from: g.fromName ? (g.fromName + ' <' + g.fromEmail + '>') : g.fromEmail,
       to: [email],

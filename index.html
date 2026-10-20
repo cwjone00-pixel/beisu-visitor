@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>悖速 · 游客端</title>
+<title>beisuas · 游客端</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='30%25' r='80%25'%3E%3Cstop offset='0' stop-color='%239fd0ff'/%3E%3Cstop offset='.55' stop-color='%234f97f8'/%3E%3Cstop offset='1' stop-color='%231e4fc4'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='14' fill='url(%23g)'/%3E%3C/svg%3E">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -603,7 +603,7 @@
 
 <!-- ================= macOS 模拟窗口 ================= -->
 <div class="mac-window" id="macWindow">
-  <div class="win-title" data-i18n="brandTitle">悖速</div>
+  <div class="win-title" data-i18n="brandTitle">beisuas</div>
 
   <!-- 视图由设备自动识别：电脑 → 桌面端，手机 → 移动端（无手动切换入口） -->
 
@@ -626,7 +626,7 @@
     <!-- ============ 左侧固定侧边栏 ============ -->
     <aside class="sidebar">
       <div class="brand-row">
-        <span class="brand-name">悖速</span>
+        <span class="brand-name">beisuas</span>
         <span class="icon-btn" id="searchBtn">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M16.6 16.6L21 21"/></svg>
         </span>
@@ -798,7 +798,7 @@
 
     <!-- 登录 -->
     <div class="lm-view active" data-view="login">
-      <div class="lm-title" data-i18n="authLoginTitle">登录悖速</div>
+      <div class="lm-title" data-i18n="authLoginTitle">登录 beisuas</div>
       <div class="lm-sub" data-i18n="authLoginSub">使用邮箱登录</div>
       <div class="lm-field"><label data-i18n="authEmail">邮箱地址</label><input class="lm-input" id="lgId" type="email" autocomplete="email" data-i18n-ph="authEmailPh" placeholder="请输入邮箱地址"></div>
       <div class="lm-field"><label data-i18n="authPwd">登录密码</label><input class="lm-input" id="lgPwd" type="password" autocomplete="current-password" data-i18n-ph="authPwdPh" placeholder="请输入密码" onkeydown="if(event.key==='Enter')authLogin()"></div>
@@ -884,7 +884,7 @@
 
 <div class="restore-chip" id="restoreChip">
   <span class="dot"></span>
-  <span data-i18n="restore">重新打开悖速窗口</span>
+  <span data-i18n="restore">重新打开 beisuas 窗口</span>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -1089,18 +1089,18 @@ const articlesState = { count: PH_COUNT.articles, max: 12, loading: false };
 /* ---------------- i18n ---------------- */
 const I18N = {
   zh: {
-    brandTitle:'悖速', m0:'全岛游', m0d:'最高性价比的旅游体验', m1:'租房', m1d:'解决你的租房纠纷', m2:'租车', m2d:'包含司机，可以带你走遍整个海南', m3:'海南项目体验评价', m3d:'包括项目评价、体验分享和真实反馈', m4:'加入我们合作', m4d:'欢迎各类资源和项目合作',
+    brandTitle:'beisuas', m0:'全岛游', m0d:'最高性价比的旅游体验', m1:'租房', m1d:'解决你的租房纠纷', m2:'租车', m2d:'包含司机，可以带你走遍整个海南', m3:'海南项目体验评价', m3d:'包括项目评价、体验分享和真实反馈', m4:'加入我们合作', m4d:'欢迎各类资源和项目合作',
     secEvents:'商业活动', secArticles:'文章资讯', signIn:'点击登录',
     heroTitle:'请问你过来有什么需求？',
     r1:'查看最新赛事资讯', r2:'近期商业活动', r3:'车队故事专栏', r4:'合作与创意',
     inputPh:'输入信息...', btnPhoto:'拍照', btnUpload:'上传图片',
-    t1:'本地电脑', t2:'项目', t3:'拍照问答', t4:'技能', t5:'连接器', model:'悖速 2.1 Turbo',
+    t1:'本地电脑', t2:'项目', t3:'拍照问答', t4:'技能', t5:'连接器', model:'beisuas 2.1 Turbo',
     phTitle:'内容即将上线', phSub:'该卡片将加载管理后台配置的外部网页链接', phNote:'演示占位',
-    lmTitle:'登录悖速', lmSub:'选择快捷方式继续', lmTip:'演示模式 · 模拟授权', sWeChat:'微信',
-    toastDemo:'演示模式：该功能即将开放', restore:'重新打开悖速窗口',
+    lmTitle:'登录 beisuas', lmSub:'选择快捷方式继续', lmTip:'演示模式 · 模拟授权', sWeChat:'微信',
+    toastDemo:'演示模式：该功能即将开放', restore:'重新打开 beisuas 窗口',
     lbRobot:'机器人', lbOperator:'人工客服',
     langName:'中文', tipDemo:'演示',
-    authLoginTitle:'登录悖速', authLoginSub:'使用邮箱登录',
+    authLoginTitle:'登录 beisuas', authLoginSub:'使用邮箱登录',
     authEmail:'邮箱地址', authEmailPh:'请输入邮箱地址', authPwd:'登录密码', authPwdPh:'请输入密码', authLoginBtn:'登 录',
     authForgot:'忘记密码？', authToRegister:'还没有账号？注册', authToLogin:'已有账号？去登录', authOr:'或',
     authRegTitle:'注册账号', authRegSub:'邮箱注册 · 邮件链接激活', authNick:'展示昵称', authNickPh:'请输入对外展示的昵称',
@@ -1125,18 +1125,18 @@ const I18N = {
     vtDesktop:'电脑', vtMobile:'手机'
   },
   en: {
-    brandTitle:'Beisu', m0:'Island-wide tours', m0d:'The best-value travel experience', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
+    brandTitle:'beisuas', m0:'Island-wide tours', m0d:'The best-value travel experience', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
     secEvents:'Business Events', secArticles:'Articles', signIn:'Sign in',
     heroTitle:'How can we help you today?',
     r1:'Latest race news', r2:'Upcoming events', r3:'Team stories', r4:'Partnership & ideas',
     inputPh:'Type a message...', btnPhoto:'Photo', btnUpload:'Upload image',
-    t1:'Local device', t2:'Projects', t3:'Photo Q&A', t4:'Skills', t5:'Connectors', model:'Beisu 2.1 Turbo',
+    t1:'Local device', t2:'Projects', t3:'Photo Q&A', t4:'Skills', t5:'Connectors', model:'beisuas 2.1 Turbo',
     phTitle:'Coming soon', phSub:'This card will load the web page configured in the admin panel', phNote:'Demo placeholder',
-    lmTitle:'Sign in to Beisu', lmSub:'Choose a quick way to continue', lmTip:'Demo mode · simulated authorization', sWeChat:'WeChat',
-    toastDemo:'Demo mode: this feature is coming soon', restore:'Reopen Beisu window',
+    lmTitle:'Sign in to beisuas', lmSub:'Choose a quick way to continue', lmTip:'Demo mode · simulated authorization', sWeChat:'WeChat',
+    toastDemo:'Demo mode: this feature is coming soon', restore:'Reopen beisuas window',
     lbRobot:'Robot', lbOperator:'Operator',
     langName:'English', tipDemo:'Demo',
-    authLoginTitle:'Sign in to Beisu', authLoginSub:'Sign in with email',
+    authLoginTitle:'Sign in to beisuas', authLoginSub:'Sign in with email',
     authEmail:'Email', authEmailPh:'Enter your email', authPwd:'Password', authPwdPh:'Enter your password', authLoginBtn:'Sign in',
     authForgot:'Forgot password?', authToRegister:'No account? Sign up', authToLogin:'Already have an account? Sign in', authOr:'or',
     authRegTitle:'Create account', authRegSub:'Email sign-up · activate via link', authNick:'Display name', authNickPh:'Enter the name shown to others',
@@ -1161,18 +1161,18 @@ const I18N = {
     vtDesktop:'Desktop', vtMobile:'Phone'
   },
   ru: {
-    brandTitle:'Beisu', m0:'Туры по всему острову', m0d:'Лучшее соотношение цены и качества', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
+    brandTitle:'beisuas', m0:'Туры по всему острову', m0d:'Лучшее соотношение цены и качества', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
     secEvents:'Мероприятия', secArticles:'Статьи', signIn:'Войти',
     heroTitle:'Чем мы можем вам помочь?',
     r1:'Свежие новости гонок', r2:'Ближайшие события', r3:'Истории команды', r4:'Партнёрство и идеи',
     inputPh:'Введите сообщение...', btnPhoto:'Сделать фото', btnUpload:'Загрузить изображение',
-    t1:'Устройство', t2:'Проекты', t3:'Фото-вопрос', t4:'Навыки', t5:'Коннекторы', model:'Beisu 2.1 Turbo',
+    t1:'Устройство', t2:'Проекты', t3:'Фото-вопрос', t4:'Навыки', t5:'Коннекторы', model:'beisuas 2.1 Turbo',
     phTitle:'Скоро будет доступно', phSub:'Здесь откроется страница, настроенная в админ-панели', phNote:'Демо',
-    lmTitle:'Вход в Beisu', lmSub:'Выберите способ входа', lmTip:'Демо-режим · имитация авторизации', sWeChat:'WeChat',
-    toastDemo:'Демо-режим: функция скоро появится', restore:'Открыть окно Beisu',
+    lmTitle:'Вход в beisuas', lmSub:'Выберите способ входа', lmTip:'Демо-режим · имитация авторизации', sWeChat:'WeChat',
+    toastDemo:'Демо-режим: функция скоро появится', restore:'Открыть окно beisuas',
     lbRobot:'Робот', lbOperator:'Оператор',
     langName:'Русский', tipDemo:'Демо',
-    authLoginTitle:'Вход в Beisu', authLoginSub:'Войдите по почте',
+    authLoginTitle:'Вход в beisuas', authLoginSub:'Войдите по почте',
     authEmail:'Эл. почта', authEmailPh:'Введите эл. почту', authPwd:'Пароль', authPwdPh:'Введите пароль', authLoginBtn:'Войти',
     authForgot:'Забыли пароль?', authToRegister:'Нет аккаунта? Регистрация', authToLogin:'Уже есть аккаунт? Войти', authOr:'или',
     authRegTitle:'Создать аккаунт', authRegSub:'Регистрация по почте · активация по ссылке', authNick:'Отображаемое имя', authNickPh:'Введите имя, видимое другим',

@@ -2,7 +2,7 @@
   "name": "beisu-visitor",
   "version": "1.0.0",
   "private": true,
-  "description": "悖速游客端聊天服务（Node.js）",
+  "description": "beisuas 游客端聊天服务（Node.js）",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

@@ -20,7 +20,7 @@ services:
       - key: RESEND_FROM_EMAIL
         value: "noreply@beisuas.com"
       - key: RESEND_FROM_NAME
-        value: "Beisu"
+        value: "beisuas"
       # 以下为敏感密钥：sync:false 表示不在仓库中保存，需在 Render 控制台填写
       - key: RESEND_API_KEY
         sync: false
