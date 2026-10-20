@@ -163,6 +163,130 @@
   .gate-btn{ width:100%; height:40px; font-size:14px; margin-top:4px; }
   #gateErr{ font-size:12px; color:#e04a4a; text-align:center; margin-top:12px; min-height:16px; }
 
+  /* ================= 海南全岛地图（后台子页）=================
+     全部复用后台既有设计令牌：正文 #4a5260 / 次要 #8b94a0 / 描边 #e6ebf2 · #eef2f7 /
+     主色 #2f7cf6 / 圆角 8-14px，与上方卡片流视觉保持统一。 */
+
+  /* ---- 顶部菜单：后台配置 / 海南全岛地图，同页切换，不开新标签 ---- */
+  .topbar-nav{ display:flex; gap:4px; background:#f1f4f9; padding:4px; border-radius:10px; }
+  .topbar-nav__btn{
+    height:32px; padding:0 14px; border:none; border-radius:8px; background:transparent;
+    font-family:inherit; font-size:13px; font-weight:600; color:#4a5260; cursor:pointer; transition:.15s;
+  }
+  .topbar-nav__btn:hover{ color:#2f7cf6; }
+  .topbar-nav__btn.active{ background:#fff; color:#2f7cf6; box-shadow:0 1px 4px rgba(20,40,80,.10); }
+
+  /* ---- 子页布局：左侧管理面板 + 右侧地图画布 ---- */
+  .map-admin{
+    display:flex; gap:18px; max-width:1400px; margin:24px auto; padding:0 20px 40px;
+    align-items:stretch; min-height:calc(100vh - 130px);
+  }
+  .map-admin__side{
+    width:430px; flex:none; background:#fff; border-radius:14px; box-shadow:0 2px 10px rgba(20,40,80,.05);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+  .map-admin__brand{ display:flex; align-items:center; gap:12px; padding:18px 20px 14px; }
+  .map-admin__logo{
+    width:38px; height:38px; flex:none; border-radius:11px; background:#2f7cf6; color:#fff;
+    font-size:16px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .map-admin__brand h2{ font-size:15px; font-weight:700; }
+  .map-admin__sub{ font-size:12px; color:#8b94a0; margin-top:2px; }
+  .map-admin__panes{ flex:1; min-height:0; overflow-y:auto; padding:0 20px 16px; }
+  .map-admin__route{ flex:none; border-top:1px solid #eef2f7; background:#fbfcfe; padding:14px 20px 16px; }
+  .map-admin__stage{
+    flex:1; min-width:0; background:#fff; border-radius:14px; box-shadow:0 2px 10px rgba(20,40,80,.05);
+    overflow:hidden; padding:10px;
+  }
+  .map-admin__canvas{ width:100%; height:100%; min-height:520px; }
+
+  /* ---- 面板内部：标签页 / 工具条 / 列表行 ---- */
+  .tabs{ display:flex; gap:6px; padding:0 20px 12px; }
+  .tabs .tab{
+    flex:1; height:32px; border:none; border-radius:8px; background:#f1f4f9; color:#4a5260;
+    font-family:inherit; font-size:12.5px; font-weight:600; cursor:pointer; transition:.15s;
+  }
+  .tabs .tab:hover{ color:#2f7cf6; }
+  .tabs .tab.active{ background:#eaf3ff; color:#2f7cf6; }
+  .tabpane{ padding-top:4px; }
+  .toolbar{ display:flex; gap:8px; margin-bottom:12px; align-items:center; }
+
+  .rows{ display:flex; flex-direction:column; gap:8px; }
+  .row{ border:1px solid #e6ebf2; border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; }
+  .row__dot{ width:12px; height:12px; border-radius:50%; flex:none; }
+  .row__main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:3px; }
+  .row__main b{ font-size:13px; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .row__main em{ font-size:11.5px; color:#8b94a0; font-style:normal; }
+  .row__count{ flex:none; font-size:12px; font-weight:600; color:#2f7cf6; background:#eaf3ff; border-radius:6px; padding:2px 8px; }
+  .row__act{ flex:none; display:flex; gap:6px; }
+  .row__act button{
+    height:28px; padding:0 10px; border:1px solid #e6ebf2; border-radius:7px; background:#f7f9fc;
+    font-family:inherit; font-size:12px; font-weight:600; color:#4a5260; cursor:pointer; transition:.15s;
+  }
+  .row__act button:hover{ border-color:#cfe0ff; color:#2f7cf6; }
+  .row__act button.danger{ background:#fff; border-color:#f5c2c2; color:#e04a4a; }
+  .row__act button.danger:hover{ background:#fdecec; }
+
+  /* ---- 路线方案 · 站点编辑器 ---- */
+  .plan-picks{ display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+  .plan-stop{ display:flex; align-items:center; gap:8px; }
+  .plan-stop__no{
+    width:24px; height:24px; flex:none; border-radius:50%; background:#eef2f7; color:#4a5260;
+    font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .plan-stop__sel{
+    flex:1; min-width:0; height:36px; border:1px solid #d9e0ea; border-radius:8px; padding:0 10px;
+    font-family:inherit; font-size:13px; color:#1c2330; background:#fff; outline:none;
+  }
+  .plan-stop__sel:focus{ border-color:#2f7cf6; box-shadow:0 0 0 3px rgba(47,124,246,.15); }
+  .plan-stop__act{ flex:none; display:flex; gap:4px; }
+  .plan-stop__act button{
+    width:28px; height:28px; border:1px solid #e6ebf2; border-radius:7px; background:#f7f9fc;
+    color:#4a5260; font-size:13px; cursor:pointer;
+  }
+  .plan-stop__act button:hover{ border-color:#cfe0ff; color:#2f7cf6; }
+  .plan-stop__act button.danger{ background:#fff; border-color:#f5c2c2; color:#e04a4a; }
+  .plan-row__path{ font-size:11.5px; color:#5b7bb2; background:#f2f7ff; border-radius:8px; padding:6px 9px; line-height:1.7; word-break:break-word; }
+
+  /* ---- 驾车路线列表 ---- */
+  .route-list{ display:flex; flex-direction:column; gap:6px; margin-top:10px; max-height:220px; overflow-y:auto; }
+  .route-item{ display:flex; align-items:flex-start; gap:8px; border:1px solid #e6ebf2; border-radius:9px; padding:8px 10px; }
+  .route-item__idx{
+    width:20px; height:20px; flex:none; border-radius:6px; background:#eaf3ff; color:#2f7cf6;
+    font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  }
+  .route-item__main{ flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+  .route-item__main b{ font-size:12.5px; font-weight:600; }
+  .route-item__main em{ font-size:11.5px; color:#8b94a0; font-style:normal; }
+
+  .tip{ font-size:11.5px; color:#8b94a0; line-height:1.8; margin-bottom:8px; }
+  .block__hd{ display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:#3d434d; margin-bottom:8px; }
+  .block__hint{ font-size:11px; font-weight:500; color:#9aa3ad; }
+  .i18n-stat{ color:#5b7bb2; background:#f2f7ff; border-radius:8px; padding:8px 10px; margin-bottom:10px; }
+
+  /* ---- 图层编辑抽屉（右侧滑出） ---- */
+  .drawer{
+    position:fixed; top:0; right:0; height:100%; width:360px; background:#fff; z-index:120;
+    box-shadow:-10px 0 40px rgba(10,25,55,.18); display:flex; flex-direction:column;
+    transform:translateX(102%); transition:transform .22s ease;
+  }
+  .drawer.open{ transform:translateX(0); }
+  .drawer__hd{ display:flex; align-items:center; justify-content:space-between; padding:18px 20px 12px; border-bottom:1px solid #eef2f7; }
+  .drawer__hd h2{ font-size:15px; font-weight:700; }
+  .drawer__hd .x{ border:none; background:transparent; font-size:22px; line-height:1; color:#9aa3ad; cursor:pointer; }
+  .drawer__bd{ flex:1; overflow-y:auto; padding:16px 20px; }
+  .drawer__ft{ display:flex; justify-content:flex-end; gap:10px; padding:14px 20px; border-top:1px solid #eef2f7; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .chk{ display:flex; align-items:center; gap:7px; font-size:12.5px; color:#4a5260; cursor:pointer; user-select:none; }
+  .form-err{ font-size:12px; color:#e04a4a; min-height:16px; margin-top:8px; }
+
+  @media (max-width: 1000px){
+    .map-admin{ flex-direction:column; min-height:0; }
+    .map-admin__side{ width:100%; }
+    .map-admin__stage{ min-height:420px; }
+    .map-admin__canvas{ min-height:420px; }
+  }
+
 </style>
 </head>
 <body>
@@ -184,7 +308,15 @@
     <h1>beisuas · 配置管理后台</h1>
     <div class="sub">首页快捷按钮 / 关键词回复规则 / 兜底回复 —— 全部内容由后端输出，前端零硬编码</div>
   </div>
+  <!-- 菜单：两个视图同页切换（哈希路由，不开新标签、不暴露独立网址） -->
+  <nav class="topbar-nav">
+    <button class="topbar-nav__btn active" data-nav="config" onclick="goView('config')">后台配置</button>
+    <button class="topbar-nav__btn" data-nav="map" onclick="goView('map')">海南全岛地图</button>
+  </nav>
 </div>
+
+<!-- ==================== 视图一：后台配置（原有全部功能，原样保留） ==================== -->
+<div id="viewConfig">
 
 <!-- 实时对话：整行分栏面板（左：会话列表 / 右：对话详情）；点会话即在右侧加载详情，网址不变 -->
 <div class="chat-standalone">
@@ -398,6 +530,136 @@
 
 </div>
 
+</div><!-- /viewConfig -->
+
+<!-- ==================== 视图二：海南全岛地图管理（后台子页，同页切换） ====================
+     功能与独立地图后台一致：点位录入 / 图层维护 / 路线查询 / 路线方案 / 驾车路线。
+     左侧管理面板 + 右侧地图画布；地图与点位数据同源，改动即时同步到游客端【全岛游】。 -->
+<div id="viewMap" class="map-admin" hidden>
+
+  <aside class="map-admin__side">
+    <div class="map-admin__brand">
+      <div class="map-admin__logo">琼</div>
+      <div>
+        <h2>海南全岛地图</h2>
+        <div class="map-admin__sub">点位 / 图层 / 驾车路线 / 路线方案</div>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-mtab="points" onclick="switchMapTab('points')">点位</button>
+      <button class="tab" data-mtab="layers" onclick="switchMapTab('layers')">图层</button>
+      <button class="tab" data-mtab="route" onclick="switchMapTab('route')">路线查询</button>
+      <button class="tab" data-mtab="plans" onclick="switchMapTab('plans')">路线方案</button>
+    </div>
+
+    <div class="map-admin__panes">
+
+      <!-- 点位：露营点 / 游玩打卡点统一管理，数据源只有一份，游客端两个页面都读它 -->
+      <div id="tabPoints" class="tabpane">
+        <div class="toolbar">
+          <button class="btn btn-primary" onclick="openMapEditor()">+ 新建点位</button>
+          <span class="tag" id="mpCount" style="font-size:11px;color:#2f7cf6;background:#eaf3ff;padding:2px 8px;border-radius:6px;align-self:center">0 个点位</span>
+        </div>
+        <p class="tip">名称 / 介绍按中 / 英 / 俄分别录入；经纬度可直接在弹窗里改，改完地图上的标记同步移动。游客端跟随页面语言显示，某语种留空则回落到中文。</p>
+        <p class="tip i18n-stat" id="i18nStat"></p>
+        <div id="mpList" class="rule-list"></div>
+      </div>
+
+      <!-- 图层：分类即图层，决定标记颜色 / 图标 / 大小 -->
+      <div id="tabLayers" class="tabpane" hidden>
+        <div class="toolbar">
+          <button class="btn btn-primary" onclick="openLayerDrawer(null)">+ 新增图层</button>
+        </div>
+        <p class="tip">图层即地图分类。删除图层时，仅属于该图层的点位会一并删除（同时属于其它图层的点位只摘除该类型）。</p>
+        <div id="adminLayerList" class="rows"></div>
+      </div>
+
+      <!-- 路线查询：与高德「起点 / 终点」导航一致 —— 填地点、提交、出线路 -->
+      <div id="tabRoute" class="tabpane" hidden>
+        <p class="tip">填地点名称（如 海口骑楼老街 / 三亚亚龙湾），也可直接填经纬度（如 110.34,20.03）。查询线路仅渲染在本页地图上，不写入缓存。</p>
+        <div class="field">
+          <label>起点</label>
+          <input class="input" id="rqFrom" type="text" placeholder="起点地点或经纬度">
+        </div>
+        <div class="field">
+          <label>终点</label>
+          <input class="input" id="rqTo" type="text" placeholder="终点地点或经纬度">
+        </div>
+        <div class="toolbar">
+          <button class="btn btn-primary" id="rqGo" style="flex:1">查询路线</button>
+          <button class="btn btn-ghost" id="rqClear">清除</button>
+        </div>
+        <div id="rqResult" class="tip"></div>
+      </div>
+
+      <!-- 路线方案：手动按顺序挑点位存成方案，仅后台留存，不画到地图 -->
+      <div id="tabPlans" class="tabpane" hidden>
+        <p class="tip">按出行顺序依次选择点位，保存后仅作为后台路线方案留存，不渲染到地图。</p>
+        <div class="field">
+          <label>方案名称</label>
+          <input class="input" id="planName" type="text" maxlength="60" placeholder="如：国庆三天自驾线">
+        </div>
+        <div id="planPicks" class="plan-picks"></div>
+        <div class="toolbar">
+          <button class="btn btn-ghost" id="planAddStop">+ 添加一站</button>
+          <button class="btn btn-primary" id="planSave" style="flex:1">保存方案</button>
+        </div>
+        <div id="planMsg" class="tip"></div>
+        <div class="block__hd" style="margin-top:14px">已保存方案 <span class="block__hint" id="planCount"></span></div>
+        <div id="planList" class="rows"></div>
+      </div>
+
+    </div>
+
+    <!-- 驾车路线：按当前点位自动推导路线对，逐段调高德规划并缓存 -->
+    <div class="map-admin__route">
+      <div class="block__hd">驾车路线 <span class="block__hint">高德实时规划</span></div>
+      <div class="toolbar" style="margin-bottom:8px">
+        <button class="btn btn-primary btn-sm" id="routeToggle" type="button">显示路线</button>
+        <button class="btn btn-ghost btn-sm" id="routeBuild" type="button">规划 / 更新</button>
+      </div>
+      <div id="routeSummary" class="tip"></div>
+      <div id="routeList" class="route-list"></div>
+    </div>
+  </aside>
+
+  <main class="map-admin__stage">
+    <div id="adminMap" class="map-admin__canvas"></div>
+  </main>
+
+  <!-- 图层编辑抽屉 -->
+  <div id="layerDrawer" class="drawer">
+    <div class="drawer__hd"><h2 id="lyTitle">新增图层</h2><button class="x" data-close onclick="closeLayerDrawer()">&times;</button></div>
+    <div class="drawer__bd">
+      <div class="field"><label>标识（英文，保存后不可修改）</label><input class="input" id="lyKey" placeholder="如：camping"></div>
+      <div class="field"><label>名称</label><input class="input" id="lyName" placeholder="如：露营地"></div>
+      <div class="grid2">
+        <div class="field"><label>颜色</label><input class="input" id="lyColor" type="color" style="height:36px;padding:2px"></div>
+        <div class="field"><label>图标</label>
+          <select class="select" id="lySymbol">
+            <option value="pin">水滴 pin</option>
+            <option value="circle">圆点 circle</option>
+            <option value="roundRect">圆角方块</option>
+            <option value="rect">方块</option>
+            <option value="triangle">三角</option>
+            <option value="diamond">菱形</option>
+            <option value="arrow">箭头</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>图标大小</label><input class="input" id="lySize" type="number" min="6" max="60" value="20"></div>
+      <label class="chk"><input type="checkbox" id="lyLabel"> 地图上常显名称标签</label>
+      <div id="lyErr" class="form-err"></div>
+    </div>
+    <div class="drawer__ft">
+      <button class="btn btn-ghost" data-close onclick="closeLayerDrawer()">取消</button>
+      <button class="btn btn-primary" id="lySave">保存图层</button>
+    </div>
+  </div>
+
+</div><!-- /viewMap -->
+
 <!-- 文章编辑弹窗 -->
 <div class="modal-mask hidden" id="artModal">
   <div class="modal" style="max-width:640px;">
@@ -473,6 +735,51 @@
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('evtModal')">取消</button>
       <button class="btn btn-primary" onclick="saveEvt()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 全岛游地图 · 点位编辑弹窗（露营点 / 游玩打卡点共用） -->
+<div class="modal-mask hidden" id="mapModal">
+  <div class="modal" style="max-width:640px;">
+    <h3 id="mapModalTitle">新建点位</h3>
+    <div class="field">
+      <label>点位类型（可同时勾选：既是露营点又是打卡点，两个地图页面都会显示）</label>
+      <div class="tri-row" style="gap:20px">
+        <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="mpIsCamp" onchange="mpKindToggle()"> 露营点（游客地图页）</label>
+        <label style="display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer"><input type="checkbox" id="mpIsPlay"> 游玩打卡点</label>
+      </div>
+    </div>
+    <div class="field" id="mpCampTypeRow">
+      <label>露营点子类型（决定地图上的颜色：海边蓝 / 雨林绿 / 湖畔橙）</label>
+      <select class="input" id="mpCampType">
+        <option value="sea">海边（蓝）</option>
+        <option value="forest">雨林（绿）</option>
+        <option value="lake">湖畔（橙）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>名称（三语独立录入，至少填写一种；前台按网站当前语言显示对应内容）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="mpNameZh" placeholder="例如：亚龙湾海滨露营地"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="mpNameEn" placeholder="e.g. Yalong Bay Seaside Camp"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="mpNameRu" placeholder="напр. Кемпинг Ялунвань"></div>
+    </div>
+    <div class="field">
+      <label>介绍（三语独立录入，可选；点地图标记时显示）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><textarea class="textarea" id="mpIntroZh" style="min-height:90px" placeholder="请输入中文介绍…"></textarea></div>
+      <div class="tri-row"><span class="lang-chip">English</span><textarea class="textarea" id="mpIntroEn" style="min-height:90px" placeholder="English intro…"></textarea></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><textarea class="textarea" id="mpIntroRu" style="min-height:90px" placeholder="Описание на русском…"></textarea></div>
+    </div>
+    <div class="field">
+      <label>经纬度（必填，数字；经度 108~111、纬度 18~20 即海南岛范围内）</label>
+      <div style="display:flex;gap:10px;">
+        <input class="input" id="mpLng" placeholder="经度 例如 110.198300">
+        <input class="input" id="mpLat" placeholder="纬度 例如 18.252800">
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('mapModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveMapPt()">保存</button>
     </div>
   </div>
 </div>
@@ -612,6 +919,25 @@ const API = {
   evtCreate: d => fetch('/api/admin/events', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   evtUpdate: (id,d) => fetch('/api/admin/events/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   evtDelete: id => fetch('/api/admin/events/'+id, { method:'DELETE' }),
+  /* 全岛游地图（露营点 / 游玩打卡点共用同一份点位数据） */
+  mapList: () => fetch('/api/admin/map-points').then(r=>r.json()),
+  mapCreate: d => fetch('/api/admin/map-points', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  mapUpdate: (id,d) => fetch('/api/admin/map-points/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  mapDelete: id => fetch('/api/admin/map-points/'+id, { method:'DELETE' }),
+  /* 海南全岛地图 · 图层（分类）：决定标记颜色 / 图标 / 大小 */
+  layerList: () => fetch('/api/admin/map-layers').then(r=>r.json()),
+  layerCreate: d => fetch('/api/admin/map-layers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  layerUpdate: (key,d) => fetch('/api/admin/map-layers/'+encodeURIComponent(key), { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  layerDelete: key => fetch('/api/admin/map-layers/'+encodeURIComponent(key), { method:'DELETE' }).then(r=>r.json()),
+  /* 海南全岛地图 · 驾车路线（高德规划，结果由服务端缓存） */
+  routeGet: () => fetch('/api/admin/map-routes').then(r=>r.json()),
+  routeBuild: () => fetch('/api/admin/map-routes/build', { method:'POST' }).then(r=>r.json().then(j => { if(!r.ok) throw new Error(j.error||('请求失败 '+r.status)); return j; })),
+  routeQuery: d => fetch('/api/admin/map-route/query', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json().then(j => { if(!r.ok) throw new Error(j.error||('请求失败 '+r.status)); return j; })),
+  /* 海南全岛地图 · 路线方案（仅后台留存，不调高德） */
+  planList: () => fetch('/api/admin/map-plans').then(r=>r.json()),
+  planCreate: d => fetch('/api/admin/map-plans', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json().then(j => { if(!r.ok) throw new Error(j.error||('请求失败 '+r.status)); return j; })),
+  planUpdate: (id,d) => fetch('/api/admin/map-plans/'+encodeURIComponent(id), { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json().then(j => { if(!r.ok) throw new Error(j.error||('请求失败 '+r.status)); return j; })),
+  planDelete: id => fetch('/api/admin/map-plans/'+encodeURIComponent(id), { method:'DELETE' }).then(r=>r.json().then(j => { if(!r.ok) throw new Error(j.error||('请求失败 '+r.status)); return j; })),
   /* 用户列表（邮箱注册用户，需登录） */
   usersList: () => fetch('/api/users').then(r=>r.json()),
   userUpdate: (id,d) => fetch('/api/users/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
@@ -680,7 +1006,9 @@ async function unlockAdmin(loggedInAs){
   loadCb();
   loadArts();
   loadEvts();
+  loadMapPts();
   loadUsers();
+  routeByHash();     /* 支持带 #map 直接进入海南全岛地图子页 */
 }
 /* 页面打开：本地 token 有效直接进入后台，无效弹出登录门 */
 (async function gateInit(){
@@ -1299,6 +1627,469 @@ async function saveEvt(){
 async function delEvt(id){
   if (confirm('确定删除该商业活动？删除后前端将不再展示。')){ await API.evtDelete(id); loadEvts(); }
 }
+
+/* ================= 全岛游地图（露营点 / 游玩打卡点，共用同一份数据源） ================= */
+/* 这里录入的点位，游客端两个地图子页面（/island 露营点地图、/island/spots 打卡点页）立即读取：
+     categories 同时含 'camping' → 露营点；含 'play' → 游玩打卡点（两者可同时勾选，故同一位置不必录两遍）
+     campType → 露营点在游客地图上的颜色：sea 蓝 / forest 绿 / lake 橙 */
+let mpPts = [], editingMp = null;
+const MP_CAMP_KINDS = { sea:'海边（蓝）', forest:'雨林（绿）', lake:'湖畔（橙）' };
+async function loadMapPts(){
+  try {
+    const d = await API.mapList();
+    mpPts = (d && Array.isArray(d.points)) ? d.points : [];
+    if (d && Array.isArray(d.categories) && !mapLayers.length) mapLayers = d.categories;
+  } catch(e){ mpPts = []; }
+  document.getElementById('mpCount').textContent = mpPts.length + ' 个点位';
+  const list = document.getElementById('mpList');
+  /* 点位变动后同步刷新地图子页：地图标记 / 三语进度 / 路线方案下拉 */
+  renderI18nStat();
+  renderMapPlanPicks();
+  refreshAdminMap();
+  if (!mpPts.length){ list.innerHTML = '<div class="empty">暂无点位，点击「新建点位」录入露营点 / 游玩打卡点</div>'; return; }
+  list.innerHTML = mpPts.map(p => {
+    const cats = p.categories || [];
+    const isCamp = cats.indexOf('camping') >= 0, isPlay = cats.indexOf('play') >= 0;
+    const chips = ['zh','en','ru'].filter(l => p.names && String(p.names[l] || '').trim())
+      .map(l => `<span class="chip">${l === 'zh' ? '中' : (l === 'en' ? 'EN' : 'РУ')}</span>`).join('');
+    const kinds = [ isCamp ? '露营点' : '', isPlay ? '打卡点' : '' ].filter(Boolean)
+      .map(k => `<span class="rule-type type-fuzzy">${k}</span>`).join(' ');
+    const ct = isCamp && p.campType ? `<span class="chip">${esc(MP_CAMP_KINDS[p.campType] || p.campType)}</span>` : '';
+    return `
+    <div class="rule-item">
+      <div class="rule-head">
+        ${kinds}
+        <span class="rule-title">${esc(p.name || '(未命名)')}</span>
+        ${ct}
+        <span style="margin-left:8px">${chips}</span>
+        <div class="rule-actions">
+          <button class="btn btn-ghost btn-sm" onclick="openMapEditor('${escAttr(p.id)}')">编辑</button>
+          <button class="btn btn-danger btn-sm" onclick="delMapPt('${escAttr(p.id)}')">删除</button>
+        </div>
+      </div>
+      <div class="meta">
+        <span style="color:#9aa3ad">经纬度 ${(+p.lng).toFixed(5)}, ${(+p.lat).toFixed(5)}</span>
+      </div>
+    </div>
+  `;
+  }).join('');
+}
+/* 「露营点子类型」只在勾了露营点时才有意义：勾掉即整行隐藏 */
+function mpKindToggle(){
+  const on = document.getElementById('mpIsCamp').checked;
+  document.getElementById('mpCampTypeRow').style.display = on ? '' : 'none';
+}
+function openMapEditor(id){
+  editingMp = id || null;
+  const p = id ? mpPts.find(x => x.id === id) : null;
+  document.getElementById('mapModalTitle').textContent = id ? '编辑点位' : '新建点位';
+  const cats = (p && p.categories) || [];
+  document.getElementById('mpIsCamp').checked = cats.indexOf('camping') >= 0;
+  document.getElementById('mpIsPlay').checked = cats.indexOf('play') >= 0;
+  document.getElementById('mpCampType').value = (p && p.campType) || 'sea';
+  const nm = (p && p.names) || {}, it = (p && p.intro) || {};
+  document.getElementById('mpNameZh').value = nm.zh || '';
+  document.getElementById('mpNameEn').value = nm.en || '';
+  document.getElementById('mpNameRu').value = nm.ru || '';
+  document.getElementById('mpIntroZh').value = it.zh || '';
+  document.getElementById('mpIntroEn').value = it.en || '';
+  document.getElementById('mpIntroRu').value = it.ru || '';
+  document.getElementById('mpLng').value = p ? (+p.lng) : '';
+  document.getElementById('mpLat').value = p ? (+p.lat) : '';
+  mpKindToggle();
+  show('mapModal');
+}
+async function saveMapPt(){
+  const cats = [];
+  if (document.getElementById('mpIsCamp').checked) cats.push('camping');
+  if (document.getElementById('mpIsPlay').checked) cats.push('play');
+  if (!cats.length){ alert('请至少勾选一种点位类型：露营点 / 游玩打卡点'); return; }
+  const names = { zh: val('mpNameZh'), en: val('mpNameEn'), ru: val('mpNameRu') };
+  if (!names.zh && !names.en && !names.ru){ alert('请至少填写一种语言的名称'); return; }
+  const lngS = val('mpLng'), latS = val('mpLat');
+  if (!lngS || !latS || !isFinite(+lngS) || !isFinite(+latS)){ alert('请填写有效的经纬度数字'); return; }
+  const d = {
+    categories: cats, names,
+    intro: { zh: document.getElementById('mpIntroZh').value, en: document.getElementById('mpIntroEn').value, ru: document.getElementById('mpIntroRu').value },
+    campType: (cats.indexOf('camping') >= 0) ? document.getElementById('mpCampType').value : '',
+    lng: +lngS, lat: +latS
+  };
+  const r = editingMp ? await API.mapUpdate(editingMp, d) : await API.mapCreate(d);
+  if (!r || r.error){ alert((r && r.error) || '保存失败'); return; }
+  closeModal('mapModal'); loadMapPts();
+}
+async function delMapPt(id){
+  if (confirm('确定删除该点位？删除后游客端地图立即不再显示。')){ await API.mapDelete(id); loadMapPts(); }
+}
+
+/* ================= 海南全岛地图 · 后台子页 =================
+   同页哈希路由（#map）切换到本子页，不开新标签、不暴露独立网址。
+   功能与独立地图后台一致：点位 / 图层 / 路线查询 / 路线方案 / 驾车路线。
+   地图画布复用游客端同一套渲染模块 island/map.js（首次进入才懒加载，避免拖慢常规后台）。
+   点位与图层数据同源，改动即时同步到游客端【全岛游】两个页面。 */
+let mapAdmin = null;              /* HainanMap 实例 */
+let mapLayers = [];               /* 图层（分类） */
+let mapPlans = [];                /* 路线方案 */
+let routeData = null;             /* 服务端缓存的驾车路线 */
+let routesVisible = true;         /* 路线层显隐 */
+let mapAdminLoaded = false;       /* 是否已拉过一次数据 */
+let editingLayerKey = null;       /* 正在编辑的图层 key（null=新增） */
+let planDraft = { id:null, stops:[] };
+
+/* ---- 顶部菜单 ---- */
+function goView(which){
+  location.hash = which === 'map' ? '#map' : '';
+  routeByHash();
+}
+function routeByHash(){
+  const isMap = location.hash === '#map';
+  $('viewConfig').hidden = isMap;
+  $('viewMap').hidden = !isMap;
+  document.querySelectorAll('.topbar-nav__btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.nav === (isMap ? 'map' : 'config'));
+  });
+  if (!isMap) return;
+  ensureMapScripts()
+    .then(() => bootstrapMapAdmin())
+    .catch(e => { $('mpList').innerHTML = '<div class="empty">地图脚本加载失败：' + esc(e.message) + '</div>'; });
+}
+
+/* 懒加载：echarts → 海南地图 GeoJSON → 共享地图模块（只在第一次进入地图子页时注入） */
+let _mapScriptsPromise = null;
+function ensureMapScripts(){
+  if (window.HainanMap && window.echarts && window.HAINAN_GEO) return Promise.resolve();
+  if (_mapScriptsPromise) return _mapScriptsPromise;
+  const load = src => new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error(src));
+    document.head.appendChild(s);
+  });
+  _mapScriptsPromise = load('/island/echarts.min.js')
+    .then(() => load('/island/hainan.geojson.js'))
+    .then(() => load('/island/map.js'))
+    .catch(e => { _mapScriptsPromise = null; throw e; });
+  return _mapScriptsPromise;
+}
+
+function switchMapTab(tab){
+  document.querySelectorAll('#viewMap .tab').forEach(t => t.classList.toggle('active', t.dataset.mtab === tab));
+  ['points','layers','route','plans'].forEach(k => { $('tab' + k.charAt(0).toUpperCase() + k.slice(1)).hidden = (k !== tab); });
+}
+
+function bootstrapMapAdmin(){
+  if (!mapAdmin){
+    mapAdmin = window.HainanMap.create($('adminMap'), {
+      categories: mapLayers, points: mpPts, roam:true, legend:false
+    });
+  } else {
+    mapAdmin.resize();          /* 画布之前是隐藏状态，尺寸为 0，切回来必须重算 */
+  }
+  if (mapAdminLoaded) return Promise.resolve();
+  mapAdminLoaded = true;
+  return Promise.all([API.layerList(), API.planList(), API.routeGet(), API.mapList()])
+    .then(([ly, pl, rt, mp]) => {
+      mapLayers = (ly && ly.categories) || [];
+      mapPlans  = (pl && pl.plans) || [];
+      routeData = (rt && rt.routes) || null;
+      mpPts     = (mp && Array.isArray(mp.points)) ? mp.points : mpPts;
+      renderMapLayerList();
+      renderMapPlanPicks();
+      renderMapPlanList();
+      renderMapRoutePanel();
+      refreshAdminMap();
+      renderRoutePanelConfigured(rt);
+      if (mapAdmin) mapAdmin.setRoutes(routeData && routeData.legs, routesVisible);
+    })
+    .catch(e => { $('adminLayerList').innerHTML = '<div class="empty">加载失败：' + esc(e.message) + '</div>'; });
+}
+
+/* 地图数据变更后重绘（分类 / 点位） */
+function refreshAdminMap(){
+  if (!mapAdmin) return;
+  mapAdmin.update({ categories: mapLayers, points: mpPts });
+}
+
+/* 三语名称填写进度：只统计游客端【全岛游】会展示的露营地 */
+function renderI18nStat(){
+  const camps = mpPts.filter(p => (p.categories || []).indexOf('camping') >= 0);
+  const n = { zh:0, en:0, ru:0 };
+  camps.forEach(p => ['zh','en','ru'].forEach(l => { if (p.names && p.names[l]) n[l]++; }));
+  $('i18nStat').textContent = '露营地点位名称：中文 ' + n.zh + '/' + camps.length +
+    ' · 英文 ' + n.en + '/' + camps.length + ' · 俄语 ' + n.ru + '/' + camps.length;
+}
+
+/* ---------------- 图层（分类） ---------------- */
+function renderMapLayerList(){
+  const box = $('adminLayerList');
+  box.innerHTML = '';
+  if (!mapLayers.length){ box.innerHTML = '<div class="empty">暂无图层</div>'; return; }
+  mapLayers.forEach(cat => {
+    const count = mpPts.filter(p => (p.categories || []).indexOf(cat.key) >= 0).length;
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML =
+      '<span class="row__dot" style="background:' + escAttr(cat.color) + '"></span>' +
+      '<span class="row__main"><b>' + esc(cat.name) + '</b><em>' + esc(cat.key) + '</em></span>' +
+      '<span class="row__count">' + count + '</span>' +
+      '<span class="row__act">' +
+        '<button data-act="edit" title="编辑">改</button>' +
+        '<button data-act="del" class="danger" title="删除">删</button>' +
+      '</span>';
+    row.querySelector('[data-act="edit"]').onclick = () => openLayerDrawer(cat.key);
+    row.querySelector('[data-act="del"]').onclick = () => deleteMapLayer(cat.key);
+    box.appendChild(row);
+  });
+}
+
+function openLayerDrawer(key){
+  editingLayerKey = key || null;
+  const c = key ? mapLayers.filter(x => x.key === key)[0] : null;
+  $('lyTitle').textContent = c ? '编辑图层' : '新增图层';
+  $('lyKey').value = c ? c.key : '';
+  $('lyKey').disabled = !!c;                  /* 编辑时 key 不可改，避免点位失联 */
+  $('lyName').value = c ? c.name : '';
+  $('lyColor').value = (c && /^#/.test(c.color)) ? c.color : '#2f7cf6';
+  $('lySymbol').value = (c && c.symbol) || 'circle';
+  $('lySize').value = (c && c.symbolSize) || 14;
+  $('lyLabel').checked = !!(c && c.showLabel);
+  $('lyErr').textContent = '';
+  $('layerDrawer').classList.add('open');
+}
+function closeLayerDrawer(){ $('layerDrawer').classList.remove('open'); }
+
+async function saveMapLayer(){
+  const key = ($('lyKey').value || '').trim();
+  const name = ($('lyName').value || '').trim();
+  if (!editingLayerKey && !/^[a-zA-Z][a-zA-Z0-9_]{1,19}$/.test(key)) return ($('lyErr').textContent = '标识需以字母开头（2-20 位字母/数字/下划线）');
+  if (!name) return ($('lyErr').textContent = '请填写图层名称');
+
+  const item = {
+    key: editingLayerKey || key, name: name, color: $('lyColor').value,
+    symbol: $('lySymbol').value, symbolSize: parseInt($('lySize').value, 10) || 14,
+    showLabel: $('lyLabel').checked, z: 20
+  };
+  const r = editingLayerKey ? await API.layerUpdate(editingLayerKey, item) : await API.layerCreate(item);
+  if (!r || r.error) return ($('lyErr').textContent = (r && r.error) || '保存失败');
+  closeLayerDrawer();
+  await reloadLayerAndPoints();
+}
+
+async function deleteMapLayer(key){
+  const c = mapLayers.filter(x => x.key === key)[0];
+  const n = mpPts.filter(p => (p.categories || []).indexOf(key) >= 0).length;
+  if (!c || !confirm('删除图层「' + c.name + '」' + (n ? '，其下 ' + n + ' 个点位将一并删除' : '') + '？')) return;
+  const r = await API.layerDelete(key);
+  if (!r || r.error) return alert((r && r.error) || '删除失败');
+  await reloadLayerAndPoints();
+}
+
+/* 图层改动可能连带删掉点位，故一并刷新图层、点位与地图 */
+async function reloadLayerAndPoints(){
+  try { const ly = await API.layerList(); mapLayers = (ly && ly.categories) || []; } catch(e){}
+  renderMapLayerList();
+  await loadMapPts();
+}
+
+/* ---------------- 路线查询（与高德起点 / 终点导航一致） ---------------- */
+function fmtDist(m){ const km = (+m || 0) / 1000; return km < 10 ? km.toFixed(1) + ' km' : Math.round(km) + ' km'; }
+function fmtTime(s){
+  const min = Math.round((+s || 0) / 60);
+  if (min < 60) return min + ' 分钟';
+  const h = Math.floor(min / 60), r = min % 60;
+  return h + ' 小时' + (r ? r + ' 分' : '');
+}
+
+async function queryRoute(){
+  const from = ($('rqFrom').value || '').trim(), to = ($('rqTo').value || '').trim();
+  const box = $('rqResult');
+  if (!from || !to){ box.textContent = '请填写起点和终点'; return; }
+  box.textContent = '查询中…';
+  $('rqGo').disabled = true;
+  try {
+    const j = await API.routeQuery({ from:from, to:to });
+    const leg = j.leg;
+    if (mapAdmin) mapAdmin.setRoutes([leg], true);   /* 渲染线路（悬浮显示距离时长） */
+    box.innerHTML = '线路已渲染：<b>' + esc(leg.from.name) + ' → ' + esc(leg.to.name) + '</b>' +
+      '<br>路程 ' + fmtDist(leg.distance) + ' · 预计 ' + fmtTime(leg.duration) +
+      '<br>把鼠标移到线上即可看到该线路的距离与时长。';
+  } catch(e){ box.textContent = '查询失败：' + e.message; }
+  $('rqGo').disabled = false;
+}
+function clearRoute(){
+  if (mapAdmin) mapAdmin.setRoutes([], true);
+  $('rqResult').textContent = '';
+}
+
+/* ---------------- 驾车路线 ---------------- */
+function renderRoutePanelConfigured(rt){
+  if (rt && rt.configured === false && !(routeData && routeData.legs)){
+    $('routeSummary').textContent = '服务端尚未配置高德 Web 服务 Key，暂时无法规划路线。';
+  }
+}
+function renderMapRoutePanel(){
+  const sum = $('routeSummary'), list = $('routeList');
+  list.innerHTML = '';
+  const legs = (routeData && routeData.legs) || [];
+  if (!legs.length){ sum.textContent = '尚未生成驾车路线：点「规划 / 更新」按当前点位生成。'; return; }
+  let txt = legs.length + ' 条独立路线 · 合计 ' + fmtDist(routeData.totalDistance) + ' · 累计 ' + fmtTime(routeData.totalDuration);
+  const rp = routeData.points || [];
+  if (rp.length && rp.length !== mpPts.length) txt += '（点位已变动，建议重新规划）';
+  sum.textContent = txt;
+  legs.forEach(lg => {
+    const div = document.createElement('div');
+    div.className = 'route-item';
+    div.innerHTML = '<span class="route-item__idx">' + lg.index + '</span>' +
+      '<span class="route-item__main"><b>' + esc((lg.from && lg.from.name) || '起点') + ' → ' + esc((lg.to && lg.to.name) || '终点') + '</b>' +
+      '<em>' + fmtDist(lg.distance) + ' · ' + fmtTime(lg.duration) + '</em></span>';
+    list.appendChild(div);
+  });
+}
+function syncRouteToggle(){
+  const b = $('routeToggle');
+  b.textContent = routesVisible ? '显示路线' : '已隐藏路线';
+  b.className = 'btn btn-sm ' + (routesVisible ? 'btn-primary' : 'btn-ghost');
+}
+async function buildMapRoutes(){
+  const btn = $('routeBuild');
+  btn.disabled = true; btn.textContent = '规划中…';
+  $('routeSummary').textContent = '正在逐段调用高德驾车路线规划，请稍候…';
+  try {
+    const j = await API.routeBuild();
+    routeData = j.routes || null;
+    routesVisible = true; syncRouteToggle();
+    if (mapAdmin) mapAdmin.setRoutes(routeData && routeData.legs, routesVisible);
+    renderMapRoutePanel();
+  } catch(e){
+    $('routeSummary').textContent = '规划失败：' + e.message;
+  }
+  btn.disabled = false; btn.textContent = '规划 / 更新';
+}
+
+/* ---------------- 路线方案（手动按顺序挑点位，仅后台留存） ---------------- */
+function pointLabel(p){ return (p.name || '').trim() || ('未命名点位 ' + (+p.lng).toFixed(4) + ', ' + (+p.lat).toFixed(4)); }
+function planStopOptions(sel){
+  let opts = '<option value="">— 请选择点位 —</option>', found = false;
+  mpPts.forEach(p => {
+    if (p.id === sel) found = true;
+    opts += '<option value="' + escAttr(p.id) + '"' + (p.id === sel ? ' selected' : '') + '>' + esc(pointLabel(p)) + '</option>';
+  });
+  /* 已选点位若已被删除，补占位项，避免下拉悄悄跳回第一项 */
+  if (sel && !found) opts = '<option value="' + escAttr(sel) + '" selected>（点位已删除）</option>' + opts;
+  return opts;
+}
+function renderMapPlanPicks(){
+  const box = $('planPicks');
+  box.innerHTML = '';
+  if (!planDraft.stops.length){ box.innerHTML = '<div class="empty">还没有站点，点下面「+ 添加一站」开始</div>'; return; }
+  planDraft.stops.forEach((pid, i) => {
+    const row = document.createElement('div');
+    row.className = 'plan-stop';
+    row.innerHTML = '<span class="plan-stop__no">' + (i + 1) + '</span>' +
+      '<select class="plan-stop__sel">' + planStopOptions(pid) + '</select>' +
+      '<span class="plan-stop__act">' +
+        '<button data-act="up" title="上移">↑</button>' +
+        '<button data-act="down" title="下移">↓</button>' +
+        '<button data-act="del" class="danger" title="移除本站">×</button>' +
+      '</span>';
+    row.querySelector('.plan-stop__sel').onchange = e => { planDraft.stops[i] = e.target.value; };
+    row.querySelector('[data-act="up"]').onclick = () => movePlanStop(i, -1);
+    row.querySelector('[data-act="down"]').onclick = () => movePlanStop(i, 1);
+    row.querySelector('[data-act="del"]').onclick = () => { planDraft.stops.splice(i, 1); renderMapPlanPicks(); };
+    box.appendChild(row);
+  });
+}
+function movePlanStop(i, d){
+  const j = i + d;
+  if (j < 0 || j >= planDraft.stops.length) return;
+  const t = planDraft.stops[i];
+  planDraft.stops[i] = planDraft.stops[j];
+  planDraft.stops[j] = t;
+  renderMapPlanPicks();
+}
+function renderMapPlanList(){
+  const box = $('planList');
+  box.innerHTML = '';
+  $('planCount').textContent = mapPlans.length ? mapPlans.length + ' 条' : '';
+  if (!mapPlans.length){ box.innerHTML = '<div class="empty">暂无已保存方案</div>'; return; }
+  mapPlans.forEach(pl => {
+    const names = pl.stops.map(s => s.name || '未命名点位');
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = '<span class="row__main"><b>' + esc(pl.name) + '</b>' +
+        '<em>' + pl.stops.length + ' 站 · ' + esc(names[0]) + ' → ' + esc(names[names.length - 1]) + '</em>' +
+        '<span class="plan-row__path">' + esc(names.join(' → ')) + '</span></span>' +
+      '<span class="row__act">' +
+        '<button data-act="edit" title="载入到上方编辑器">改</button>' +
+        '<button data-act="del" class="danger" title="删除">删</button>' +
+      '</span>';
+    row.querySelector('[data-act="edit"]').onclick = () => loadMapPlan(pl.id);
+    row.querySelector('[data-act="del"]').onclick = () => deleteMapPlan(pl.id);
+    box.appendChild(row);
+  });
+}
+function resetPlanDraft(){
+  planDraft = { id:null, stops:[] };
+  $('planName').value = '';
+  renderMapPlanPicks();
+}
+function loadMapPlan(id){
+  const pl = mapPlans.filter(x => x.id === id)[0];
+  if (!pl) return;
+  planDraft = { id:pl.id, stops:pl.stops.map(s => s.pointId) };
+  $('planName').value = pl.name;
+  renderMapPlanPicks();
+  $('planMsg').textContent = '已载入「' + pl.name + '」，改完点「保存方案」即覆盖原方案。';
+}
+async function saveMapPlan(){
+  const name = ($('planName').value || '').trim();
+  const msg = $('planMsg');
+  if (!name){ msg.textContent = '请填写方案名称'; return; }
+  if (planDraft.stops.length < 2){ msg.textContent = '请至少选择 2 个点位'; return; }
+  const alive = {}; mpPts.forEach(p => { alive[p.id] = 1; });
+  for (let i = 0; i < planDraft.stops.length; i++){
+    if (!alive[planDraft.stops[i]]){ msg.textContent = '第 ' + (i + 1) + ' 站的点位已被删除，请重新选择'; return; }
+  }
+  msg.textContent = '保存中…';
+  $('planSave').disabled = true;
+  const body = { name:name, stops:planDraft.stops.map(pid => ({ pointId:pid })) };
+  try {
+    const j = planDraft.id ? await API.planUpdate(planDraft.id, body) : await API.planCreate(body);
+    mapPlans = j.plans || mapPlans;
+    resetPlanDraft();
+    renderMapPlanList();
+    msg.textContent = '已保存方案「' + name + '」（' + (j.plan ? j.plan.stops.length : 0) + ' 站）';
+  } catch(e){ msg.textContent = '保存失败：' + e.message; }
+  $('planSave').disabled = false;
+}
+async function deleteMapPlan(id){
+  const pl = mapPlans.filter(x => x.id === id)[0];
+  if (!pl || !confirm('删除路线方案「' + pl.name + '」？')) return;
+  try {
+    const j = await API.planDelete(id);
+    mapPlans = j.plans || [];
+    if (planDraft.id === id) resetPlanDraft();
+    renderMapPlanList();
+    $('planMsg').textContent = '已删除方案「' + pl.name + '」';
+  } catch(e){ $('planMsg').textContent = '删除失败：' + e.message; }
+}
+
+/* 子页内的控件绑定（一次性） */
+(function bindMapAdmin(){
+  $('lySave').onclick = saveMapLayer;
+  $('rqGo').onclick = queryRoute;
+  $('rqClear').onclick = clearRoute;
+  [$('rqFrom'), $('rqTo')].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') queryRoute(); }));
+  $('routeToggle').onclick = () => {
+    routesVisible = !routesVisible; syncRouteToggle();
+    if (mapAdmin) mapAdmin.setRoutesVisible(routesVisible);
+  };
+  $('routeBuild').onclick = buildMapRoutes;
+  $('planAddStop').onclick = () => { planDraft.stops.push(''); renderMapPlanPicks(); };
+  $('planSave').onclick = saveMapPlan;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLayerDrawer(); });
+  window.addEventListener('hashchange', routeByHash);
+  syncRouteToggle();
+})();
 
 /* ================= 关键词规则 ================= */
 /* 规则关键词三语分存 {zh:[],en:[],ru:[]} */

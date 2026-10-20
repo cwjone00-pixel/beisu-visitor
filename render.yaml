@@ -29,3 +29,6 @@ services:
       # MongoDB Atlas 云库连接串（免费 M0 集群），用于持久化用户/配置/聊天数据，避免重启丢数据
       - key: MONGODB_URI
         sync: false
+      # 高德 Web 服务 Key：后台「海南全岛地图」驾车路线规划使用（仅服务端，不下发前端）
+      - key: AMAP_KEY
+        sync: false

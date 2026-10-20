@@ -1,0 +1,539 @@
+{
+  "categories": [
+    {
+      "key": "camping",
+      "name": "露营地",
+      "color": "#2f6fed",
+      "symbol": "circle",
+      "symbolSize": 14,
+      "showLabel": true,
+      "z": 20
+    },
+    {
+      "key": "play",
+      "name": "游玩打卡",
+      "color": "#d2cc1e",
+      "symbol": "circle",
+      "symbolSize": 14,
+      "showLabel": true,
+      "z": 20
+    }
+  ],
+  "points": [
+    {
+      "id": "p_mv979vzoqjlt",
+      "categories": [
+        "camping"
+      ],
+      "lng": 109.626837,
+      "lat": 18.273523,
+      "name": "亚龙湾国际房车露营地",
+      "names": {
+        "zh": "亚龙湾国际房车露营地",
+        "en": "Yalong Bay International RV Campsite",
+        "ru": "Международный кемпинг для автодомов Ялунвань"
+      }
+    },
+    {
+      "id": "p_mv97c2c86zb7",
+      "categories": [
+        "camping"
+      ],
+      "lng": 110.25168,
+      "lat": 20.05323,
+      "name": "南岛北岸房车露营地",
+      "names": {
+        "zh": "南岛北岸房车露营地",
+        "en": "Nandao North Shore RV Campsite",
+        "ru": "Кемпинг для автодомов на северном берегу Наньдао"
+      }
+    },
+    {
+      "id": "p_mv97cwxfr58b",
+      "categories": [
+        "camping"
+      ],
+      "lng": 110.870692,
+      "lat": 19.523543,
+      "name": "东郊椰林观海露营地",
+      "names": {
+        "zh": "东郊椰林观海露营地",
+        "en": "Dongjiao Coconut Grove Sea-View Campsite",
+        "ru": "Кемпинг с видом на море в кокосовой роще Дунцзяо"
+      }
+    },
+    {
+      "id": "p_mv97i5l4qi2x",
+      "categories": [
+        "camping"
+      ],
+      "lng": 110.354427,
+      "lat": 18.672424,
+      "name": "神州半岛行宿物语露营地",
+      "names": {
+        "zh": "神州半岛行宿物语露营地",
+        "en": "Shenzhou Peninsula Travel Story Campsite",
+        "ru": "Кемпинг «История путешествия» на полуострове Шэньчжоу"
+      }
+    },
+    {
+      "id": "p_mv97ism59znh",
+      "categories": [
+        "camping"
+      ],
+      "lng": 110.101532,
+      "lat": 18.519304,
+      "name": "炜航房车露营地",
+      "names": {
+        "zh": "炜航房车露营地",
+        "en": "Weihang RV Campsite",
+        "ru": "Кемпинг для автодомов Вэйхан"
+      }
+    },
+    {
+      "id": "p_mv97l5qvn099",
+      "categories": [
+        "camping"
+      ],
+      "lng": 108.704911,
+      "lat": 18.625539,
+      "name": "龙沐湾滨海露营营地",
+      "names": {
+        "zh": "龙沐湾滨海露营营地",
+        "en": "Longmu Bay Seaside Campsite",
+        "ru": "Кемпинг на берегу залива Лунму"
+      }
+    },
+    {
+      "id": "p_mv97liqccrvt",
+      "categories": [
+        "camping"
+      ],
+      "lng": 108.701376,
+      "lat": 18.726054,
+      "name": "金月湾房车露营基地",
+      "names": {
+        "zh": "金月湾房车露营基地",
+        "en": "Jinyue Bay RV Camping Base",
+        "ru": "База кемпинга для автодомов залива Цзиньюэ"
+      }
+    },
+    {
+      "id": "p_mv97m5wzbyxc",
+      "categories": [
+        "camping"
+      ],
+      "lng": 108.686087,
+      "lat": 19.358032,
+      "name": "棋子湾开元露营地",
+      "names": {
+        "zh": "棋子湾开元露营地",
+        "en": "Qizi Bay Kaiyuan Campsite",
+        "ru": "Кемпинг «Кайюань» в заливе Цицзы"
+      }
+    },
+    {
+      "id": "p_mv97mp35miax",
+      "categories": [
+        "camping"
+      ],
+      "lng": 109.715332,
+      "lat": 20.008304,
+      "name": "临高角滨海露营营地",
+      "names": {
+        "zh": "临高角滨海露营营地",
+        "en": "Lingao Cape Seaside Campsite",
+        "ru": "Кемпинг на берегу мыса Лингао"
+      }
+    },
+    {
+      "id": "p_mv97n7x85m36",
+      "categories": [
+        "camping"
+      ],
+      "lng": 109.434022,
+      "lat": 19.853414,
+      "name": "儋耳追光欢乐营·露野房车营地",
+      "names": {
+        "zh": "儋耳追光欢乐营·露野房车营地",
+        "en": "Dan’er Light-Chasing Fun Camp · Luye RV Campsite",
+        "ru": "Кемпинг «В погоне за светом» Даньэр"
+      }
+    },
+    {
+      "id": "p_mv97pilz6955",
+      "categories": [
+        "camping"
+      ],
+      "lng": 109.679309,
+      "lat": 18.435888,
+      "name": "悠然帐篷营地",
+      "names": {
+        "zh": "悠然帐篷营地",
+        "en": "Youran Tent Camp",
+        "ru": "Палаточный лагерь «Южань»"
+      }
+    },
+    {
+      "id": "p_mv97qnor8909",
+      "categories": [
+        "camping"
+      ],
+      "lng": 110.048378,
+      "lat": 19.323965,
+      "name": "梦幻香山芳香文化园露营地",
+      "names": {
+        "zh": "梦幻香山芳香文化园露营地",
+        "en": "Dreamy Xiangshan Aromatic Culture Park Campsite",
+        "ru": "Кемпинг в парке ароматической культуры «Мэнхуань Сяншань»"
+      }
+    },
+    {
+      "id": "p_mv97rh4nu5k7",
+      "categories": [
+        "camping"
+      ],
+      "lng": 110.363625,
+      "lat": 19.477925,
+      "name": "南丽湖露营公园",
+      "names": {
+        "zh": "南丽湖露营公园",
+        "en": "Nanli Lake Camping Park",
+        "ru": "Парк кемпинга у озера Наньли"
+      }
+    },
+    {
+      "id": "p_mv97sd1b4sl6",
+      "categories": [
+        "camping"
+      ],
+      "lng": 109.998175,
+      "lat": 19.913075,
+      "name": "富力红树湾露营基地",
+      "names": {
+        "zh": "富力红树湾露营基地",
+        "en": "R&F Mangrove Bay Camping Base",
+        "ru": "База кемпинга «Мангровый залив» R&F"
+      }
+    },
+    {
+      "id": "p_mv9fp4zyopg6",
+      "categories": [
+        "camping"
+      ],
+      "lng": 109.662619,
+      "lat": 18.883341,
+      "name": "水满乡雨林露营地",
+      "names": {
+        "zh": "水满乡雨林露营地",
+        "en": "Shuiman Rainforest Campsite",
+        "ru": "Кемпинг в тропическом лесу волости Шуймань"
+      }
+    },
+    {
+      "id": "p_mv9fwwxh2dzy",
+      "categories": [
+        "play"
+      ],
+      "lng": 110.344604,
+      "lat": 20.039708,
+      "name": "骑楼老街",
+      "names": {
+        "zh": "骑楼老街"
+      }
+    },
+    {
+      "id": "p_mv9fxqtz7kko",
+      "categories": [
+        "play"
+      ],
+      "lng": 110.864306,
+      "lat": 19.530677,
+      "name": "东郊椰林",
+      "names": {
+        "zh": "东郊椰林"
+      }
+    },
+    {
+      "id": "p_mv9fyfv4gjbu",
+      "categories": [
+        "play"
+      ],
+      "lng": 110.560897,
+      "lat": 19.133168,
+      "name": "博鳌亚洲论坛永久会址",
+      "names": {
+        "zh": "博鳌亚洲论坛永久会址"
+      }
+    },
+    {
+      "id": "p_mv9fz2fxvdtg",
+      "categories": [
+        "play"
+      ],
+      "lng": 110.215086,
+      "lat": 18.626002,
+      "name": "日月湾",
+      "names": {
+        "zh": "日月湾"
+      }
+    },
+    {
+      "id": "p_mv9fzsjkur9o",
+      "categories": [
+        "play"
+      ],
+      "lng": 110.201546,
+      "lat": 18.576845,
+      "name": "分界洲岛",
+      "names": {
+        "zh": "分界洲岛"
+      }
+    },
+    {
+      "id": "p_mv9g0jzpwvb5",
+      "categories": [
+        "play"
+      ],
+      "lng": 109.643059,
+      "lat": 18.253643,
+      "name": "亚龙湾热带天堂森林公园",
+      "names": {
+        "zh": "亚龙湾热带天堂森林公园"
+      }
+    },
+    {
+      "id": "p_mv9g1r6ns53j",
+      "categories": [
+        "camping"
+      ],
+      "lng": 110.510958,
+      "lat": 19.217482,
+      "name": "龙寿洋睿蜗房车露营地",
+      "names": {
+        "zh": "龙寿洋睿蜗房车露营地",
+        "en": "Longshouyang Ruiwo RV Campsite",
+        "ru": "Кемпинг для автодомов «Жуйво» Луншоуян"
+      }
+    },
+    {
+      "id": "p_mv9g72rx6t12",
+      "categories": [
+        "play"
+      ],
+      "lng": 108.907698,
+      "lat": 18.721715,
+      "name": "尖峰岭国家森林公园",
+      "names": {
+        "zh": "尖峰岭国家森林公园"
+      }
+    },
+    {
+      "id": "p_mv9gecgb310a",
+      "categories": [
+        "play"
+      ],
+      "lng": 110.365616,
+      "lat": 19.552673,
+      "name": "文笔峰",
+      "names": {
+        "zh": "文笔峰"
+      }
+    },
+    {
+      "id": "p_mv9gev5gqbj5",
+      "categories": [
+        "play"
+      ],
+      "lng": 109.829192,
+      "lat": 19.004169,
+      "name": "白花岭",
+      "names": {
+        "zh": "白花岭"
+      }
+    },
+    {
+      "id": "p_mv9gfihhbfk3",
+      "categories": [
+        "play"
+      ],
+      "lng": 109.504727,
+      "lat": 19.205755,
+      "name": "陨石坑",
+      "names": {
+        "zh": "陨石坑"
+      }
+    },
+    {
+      "id": "p_mv9gg3vgqu48",
+      "categories": [
+        "play"
+      ],
+      "lng": 109.083759,
+      "lat": 18.995131,
+      "name": "俄贤岭",
+      "names": {
+        "zh": "俄贤岭"
+      }
+    },
+    {
+      "id": "p_mv9ggplgdini",
+      "categories": [
+        "play"
+      ],
+      "lng": 109.917566,
+      "lat": 19.867697,
+      "name": "福山咖啡文化风情镇",
+      "names": {
+        "zh": "福山咖啡文化风情镇"
+      }
+    },
+    {
+      "id": "p_mv9ghda0pmll",
+      "categories": [
+        "play"
+      ],
+      "lng": 109.170718,
+      "lat": 19.660878,
+      "name": "海花岛",
+      "names": {
+        "zh": "海花岛"
+      }
+    },
+    {
+      "id": "p_mv9ghv21e0ko",
+      "categories": [
+        "play"
+      ],
+      "lng": 109.647174,
+      "lat": 18.459218,
+      "name": "呀诺达雨林文化旅游区",
+      "names": {
+        "zh": "呀诺达雨林文化旅游区"
+      }
+    },
+    {
+      "id": "p_mv9giqkqltua",
+      "categories": [
+        "play"
+      ],
+      "lng": 108.69688,
+      "lat": 19.368177,
+      "name": "棋子湾",
+      "names": {
+        "zh": "棋子湾"
+      }
+    },
+    {
+      "id": "p_mv9gjdiikx8h",
+      "categories": [
+        "play"
+      ],
+      "lng": 109.678087,
+      "lat": 18.842413,
+      "name": "五指山热带雨林风景区",
+      "names": {
+        "zh": "五指山热带雨林风景区"
+      }
+    }
+  ],
+  "campTypes": {
+    "p_mv979vzoqjlt": "sea",
+    "p_mv97c2c86zb7": "sea",
+    "p_mv97cwxfr58b": "sea",
+    "p_mv97i5l4qi2x": "sea",
+    "p_mv97ism59znh": "sea",
+    "p_mv97l5qvn099": "sea",
+    "p_mv97liqccrvt": "sea",
+    "p_mv97m5wzbyxc": "sea",
+    "p_mv97mp35miax": "sea",
+    "p_mv97n7x85m36": "sea",
+    "p_mv97sd1b4sl6": "sea",
+    "p_mv97pilz6955": "forest",
+    "p_mv97qnor8909": "forest",
+    "p_mv9fp4zyopg6": "forest",
+    "p_mv97rh4nu5k7": "lake",
+    "p_mv9g1r6ns53j": "lake"
+  },
+  "landmarks": {
+    "groups": [
+      {
+        "key": "city",
+        "name": "城市",
+        "names": {
+          "zh": "城市",
+          "en": "City",
+          "ru": "Город"
+        },
+        "color": "#7b4bc4",
+        "labelOnly": true,
+        "labelMode": "hover",
+        "labelColor": "#5a34a0"
+      },
+      {
+        "key": "airport",
+        "name": "机场",
+        "names": {
+          "zh": "机场",
+          "en": "Airport",
+          "ru": "Аэропорт"
+        },
+        "color": "#c2185b",
+        "symbol": "triangle",
+        "symbolSize": 17,
+        "z": 17,
+        "labelColor": "#96134a"
+      }
+    ],
+    "points": [
+      {
+        "id": "lm_city_sanya",
+        "kind": "city",
+        "name": "三亚市",
+        "names": {
+          "zh": "三亚市",
+          "en": "Sanya City",
+          "ru": "Город Санья"
+        },
+        "lng": 109.511709,
+        "lat": 18.252865
+      },
+      {
+        "id": "lm_city_haikou",
+        "kind": "city",
+        "name": "海口市",
+        "names": {
+          "zh": "海口市",
+          "en": "Haikou City",
+          "ru": "Город Хайкоу"
+        },
+        "lng": 110.200162,
+        "lat": 20.046316
+      },
+      {
+        "id": "lm_airport_sanya",
+        "kind": "airport",
+        "name": "三亚凤凰国际机场",
+        "names": {
+          "zh": "三亚凤凰国际机场",
+          "en": "Sanya Phoenix International Airport",
+          "ru": "Международный аэропорт Санья Феникс"
+        },
+        "lng": 109.414038,
+        "lat": 18.30341
+      },
+      {
+        "id": "lm_airport_haikou",
+        "kind": "airport",
+        "name": "海口美兰国际机场",
+        "names": {
+          "zh": "海口美兰国际机场",
+          "en": "Haikou Meilan International Airport",
+          "ru": "Международный аэропорт Хайкоу Мэйлань"
+        },
+        "lng": 110.467385,
+        "lat": 19.942495
+      }
+    ]
+  }
+}

@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>海南露营地图</title>
+<link rel="stylesheet" href="island.css">
+<style>
+  /* 本页专属样式，全部用 camp__ 前缀，不覆盖原有页面的任何规则 */
+  /* ===== 页面只保留「统一浅蓝背景 + 地图主体」 =====
+     地图铺满整屏；语言切换 / 类型备注 / 点位详情三块信息以纯文字浮在角落，
+     一律不带底色、边框、圆角、投影，画面更干净。 */
+  body { background: #edf3fb; }              /* 兜底底色：低饱和浅蓝灰 */
+  .camp {
+    position: relative; height: 100vh; overflow: hidden;
+    background: radial-gradient(130% 95% at 50% 5%, #c9ddf4 0%, #d6e6f8 45%, #e3eefa 100%);
+  }
+  .camp > .map { position: relative; z-index: 1; width: 100%; height: 100%; }
+
+  /* ===== 主题背景层 =====
+     默认全部透明，露出下面那层统一浅蓝渐变；点击某类露营点时，对应主题淡入。
+     三套主题各自独立成层、只改 opacity，因此切换是平滑交叉淡化，不会闪白。 */
+  .camp__bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+  .camp__bg-layer { position: absolute; inset: 0; opacity: 0; transition: opacity .9s ease; }
+  .camp__bg-layer.on { opacity: 1; }
+  .camp__bg-layer::before, .camp__bg-layer::after { content: ''; position: absolute; }
+
+  /* 海边：晴朗海岸 —— 天空 / 天际线 / 海面三段，配清晰的日轮、海面碎光、带透视的浪峰线与岸边浪花沙滩。
+     日轮放在画面左侧的开阔海面（避开中间那座岛），天空自上而下由饱和转清透，海面做出空气透视。 */
+  .camp__bg-layer[data-bg="sea"] {
+    background-color: #8fbde4;
+    background-image:
+      /* 1. 岸边沙滩与浪花（贴底平铺） */
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='76'%3E%3Cpath d='M0 76 L0 30 Q52 14 105 28 T210 26 T315 30 T420 24 L420 76 Z' fill='%23f8f0de' opacity='.92'/%3E%3Cpath d='M0 31 Q52 15 105 29 T210 27 T315 31 T420 25' fill='none' stroke='%23ffffff' stroke-width='4' opacity='.95'/%3E%3Cpath d='M0 45 Q52 33 105 43 T210 41 T315 45 T420 39' fill='none' stroke='%23ffffff' stroke-width='2' opacity='.55'/%3E%3C/svg%3E"),
+      /* 2. 海平线上的一道亮带，把天与海切开，避免两段糊在一起 */
+      linear-gradient(180deg, rgba(255,255,255,0) 46.4%, rgba(255,255,255,.7) 48.5%, rgba(255,255,255,0) 50.6%),
+      /* 3. 日轮：实心白盘 + 暖色外晕（不是一团糊），同样偏左避开岛屿 */
+      radial-gradient(circle 13vmin at 15% 36%, #ffffff 0 7%, rgba(255,253,241,.9) 9%, rgba(255,247,213,.5) 30%, rgba(255,240,204,.17) 54%, rgba(198,228,255,0) 76%),
+      /* 4. 天空 → 天际线 → 海面（天空更蓝更有层次，海面远处偏亮偏灰、近处更深） */
+      linear-gradient(180deg, #a4c9e9 0%, #b7d5f0 15%, #c9def4 29%, #dbe9f8 39%, #e9f2fb 44.5%, #cfe3f5 47.5%, #a9cdeb 49.5%, #8ab9e0 62%, #6fa6d6 80%, #5c96ce 100%);
+    background-repeat: repeat-x, no-repeat, no-repeat, no-repeat;
+    background-position: left bottom, center, center, center;
+    background-size: 420px auto, 100% 100%, 100% 100%, 100% 100%;
+  }
+  /* 浪峰线：越靠近画面下方越粗越实、越远越细越淡，形成透视纵深 */
+  .camp__bg-layer[data-bg="sea"]::before {
+    inset: 46% 0 0 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='140'%3E%3Cg fill='none' stroke='%23ffffff' stroke-linecap='round'%3E%3Cpath d='M0 20 Q52 8 105 20 T210 20 T315 20 T420 20' stroke-width='1.6' opacity='.35'/%3E%3Cpath d='M0 58 Q52 44 105 58 T210 58 T315 58 T420 58' stroke-width='2.6' opacity='.5'/%3E%3Cpath d='M0 100 Q52 84 105 100 T210 100 T315 100 T420 100' stroke-width='3.6' opacity='.65'/%3E%3Cpath d='M0 132 Q52 118 105 132 T210 132 T315 132 T420 132' stroke-width='4.6' opacity='.75'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 420px 140px;
+    -webkit-mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.35) 16%, #000 52%, #000 100%);
+    mask-image: linear-gradient(180deg, transparent 0%, rgba(0,0,0,.35) 16%, #000 52%, #000 100%);
+    animation: campSeaCrest 18s linear infinite;
+  }
+  /* 阳光在海面洒出的碎光带：正对日轮那一列，随水纹轻轻明灭 */
+  .camp__bg-layer[data-bg="sea"]::after {
+    inset: 47% 0 0 0;
+    background: repeating-linear-gradient(180deg, rgba(255,255,255,0) 0 6px, rgba(255,255,252,.85) 6px 9px, rgba(255,255,255,0) 9px 18px);
+    -webkit-mask-image: radial-gradient(ellipse 8% 100% at 15% 0%, #000 0%, rgba(0,0,0,.5) 55%, transparent 100%);
+    mask-image: radial-gradient(ellipse 8% 100% at 15% 0%, #000 0%, rgba(0,0,0,.5) 55%, transparent 100%);
+    animation: campSeaGlint 6s ease-in-out infinite;
+  }
+
+  /* 雨林：林间光柱 —— 晨雾绿渐变 + 远近两层植被（前景热带阔叶、远处雾中林冠）+ 斜射光柱 + 空气中的浮尘 */
+  .camp__bg-layer[data-bg="forest"] {
+    background-color: #c3e0b9;
+    background-image:
+      /* 0. 贴底薄雾：前景叶片从雾里长出来（更有纵深），同时把左右下角的文字托亮 */
+      linear-gradient(0deg, rgba(236,247,230,.62) 0%, rgba(236,247,230,.26) 42%, rgba(236,247,230,0) 100%),
+      /* 1. 前景热带阔叶与蕨叶剪影（贴底、最实、最大，一片片叶子而不是一排草） */
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='420' height='150'%3E%3Cg fill='%233c6b48' opacity='.5'%3E%3Cpath d='M46 150 C24 112 40 56 76 20 C96 58 80 114 46 150 Z'/%3E%3Cpath d='M120 150 C140 112 118 66 96 38 C78 70 96 116 120 150 Z'/%3E%3Cpath d='M198 150 C174 108 190 54 232 14 C252 56 234 110 198 150 Z'/%3E%3Cpath d='M286 150 C306 114 286 74 262 44 C246 76 264 116 286 150 Z'/%3E%3Cpath d='M356 150 C336 116 350 62 386 26 C404 62 390 116 356 150 Z'/%3E%3C/g%3E%3Cg fill='%234a7a55' opacity='.42'%3E%3Cpath d='M150 150 Q144 92 162 52 Q162 98 174 150 Z'/%3E%3Cpath d='M242 150 Q238 96 254 60 Q252 100 264 150 Z'/%3E%3Cpath d='M330 150 Q326 104 342 72 Q340 108 352 150 Z'/%3E%3Cpath d='M84 150 Q80 108 96 78 Q94 112 106 150 Z'/%3E%3C/g%3E%3C/svg%3E"),
+      /* 2. 雾中远处的林冠（圆浑树冠连成一条林线，更淡更虚，压在下方三分之一处，形成纵深） */
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='96'%3E%3Cg fill='%236aa474' opacity='.3'%3E%3Cellipse cx='38' cy='70' rx='32' ry='26'/%3E%3Cellipse cx='88' cy='62' rx='24' ry='20'/%3E%3Cellipse cx='140' cy='72' rx='36' ry='26'/%3E%3Cellipse cx='196' cy='64' rx='26' ry='22'/%3E%3Cellipse cx='248' cy='72' rx='34' ry='26'/%3E%3Cellipse cx='304' cy='62' rx='26' ry='21'/%3E%3Crect x='0' y='70' width='360' height='26'/%3E%3C/g%3E%3C/svg%3E"),
+      /* 3. 上方透光、下方渐深的雾气绿 */
+      linear-gradient(180deg, #f0f8e9 0%, #def0d5 24%, #c6e2bb 46%, #a4cf9e 66%, #86b986 84%, #74ac78 100%);
+    background-repeat: no-repeat, repeat-x, repeat-x, no-repeat;
+    background-position: left bottom, left bottom, left 62%, center;
+    background-size: 100% 118px, 420px auto, 360px auto, 100% 100%;
+  }
+  /* 林间斜射光柱：自上方斜射下来，一宽一窄两道交错，缓慢明暗呼吸 */
+  .camp__bg-layer[data-bg="forest"]::before {
+    inset: 0;
+    background:
+      repeating-linear-gradient(101deg, rgba(255,252,226,0) 0 34px, rgba(255,252,226,.26) 34px 50px, rgba(255,252,226,0) 50px 196px),
+      repeating-linear-gradient(101deg, rgba(255,255,240,0) 0 68px, rgba(255,255,240,.4) 68px 100px, rgba(255,255,240,0) 100px 196px);
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,.5) 46%, transparent 86%);
+    mask-image: linear-gradient(180deg, #000 0%, rgba(0,0,0,.5) 46%, transparent 86%);
+    animation: campForestRay 12s ease-in-out infinite;
+  }
+  /* 空气中的浮尘：缓慢上浮的细小白点 */
+  .camp__bg-layer[data-bg="forest"]::after {
+    inset: 0; opacity: .55;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cg fill='%23ffffff'%3E%3Ccircle cx='22' cy='34' r='1.7'/%3E%3Ccircle cx='96' cy='74' r='1.3'/%3E%3Ccircle cx='148' cy='26' r='1.5'/%3E%3Ccircle cx='58' cy='126' r='1.2'/%3E%3Ccircle cx='124' cy='146' r='1.6'/%3E%3Ccircle cx='170' cy='104' r='1.1'/%3E%3C/g%3E%3C/svg%3E");
+    background-size: 180px 180px;
+    animation: campForestMotes 26s linear infinite;
+  }
+
+  /* 湖畔：落日湖畔 —— 整体暖橙色系，一眼能看出是湖
+     天空（浅暖米）→ 天际线 → 湖面（橙金反光），配落日、湖面波光与岸边芦苇剪影 */
+  .camp__bg-layer[data-bg="lake"] {
+    background-color: #f2c188;
+    background-image:
+      /* 1. 岸边芦苇剪影（贴底平铺，枝叶 + 蒲棒） */
+      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='340' height='92'%3E%3Cg fill='%23a9662c' opacity='.4'%3E%3Cpath d='M18 92 Q14 54 24 24 Q24 58 30 92 Z'/%3E%3Cpath d='M44 92 Q42 62 54 40 Q50 66 56 92 Z'/%3E%3Cpath d='M96 92 Q92 48 104 16 Q102 54 110 92 Z'/%3E%3Cpath d='M150 92 Q148 66 160 46 Q156 70 164 92 Z'/%3E%3Cpath d='M208 92 Q204 52 216 22 Q214 58 222 92 Z'/%3E%3Cpath d='M262 92 Q260 68 272 50 Q268 72 276 92 Z'/%3E%3Cpath d='M306 92 Q302 58 314 34 Q312 64 320 92 Z'/%3E%3C/g%3E%3Cg fill='%238e5423' opacity='.4'%3E%3Cellipse cx='104' cy='19' rx='4' ry='11'/%3E%3Cellipse cx='216' cy='25' rx='4' ry='10'/%3E%3C/g%3E%3C/svg%3E"),
+      /* 2. 落日：地平线上一枚暖白光团（中心亮核 + 外扩光晕）。偏右放置，避开中间那座岛，保证看得见 */
+      radial-gradient(circle 20vmin at 76% 42%, rgba(255,252,242,1) 0%, rgba(255,248,230,.96) 9%, rgba(255,226,168,.6) 40%, rgba(255,186,102,0) 72%),
+      /* 3. 天空 → 天际线 → 湖面（水面向下逐渐转亮，像映着天光） */
+      linear-gradient(180deg, #f8e6ca 0%, #fadcb2 24%, #f7cd93 41%, #f3bd77 47%, #e9a95f 49%, #eeb87c 60%, #f2c793 78%, #f6d6ac 100%);
+    background-repeat: repeat-x, no-repeat, no-repeat;
+    background-position: left bottom, center, center;
+    background-size: 340px auto, 100% 100%, 100% 100%;
+  }
+  /* 湖面波光：落日在水面拉出的一道反光，随水纹轻轻起伏 */
+  .camp__bg-layer[data-bg="lake"]::before {
+    inset: 49% 0 0 0;
+    background: repeating-linear-gradient(180deg, rgba(255,255,255,0) 0 7px, rgba(255,252,240,.8) 7px 10px, rgba(255,255,255,0) 10px 19px);
+    -webkit-mask-image: radial-gradient(ellipse 10% 100% at 76% 0%, #000 0%, rgba(0,0,0,.5) 55%, transparent 100%);
+    mask-image: radial-gradient(ellipse 10% 100% at 76% 0%, #000 0%, rgba(0,0,0,.5) 55%, transparent 100%);
+    animation: campLakeShimmer 7s ease-in-out infinite;
+  }
+  /* 涟漪：湖面上缓缓扩散的暖白光环 */
+  .camp__bg-layer[data-bg="lake"]::after {
+    left: 76%; top: 47%; width: 34vmin; height: 12vmin; margin-left: -17vmin; border-radius: 50%;
+    background: radial-gradient(ellipse, rgba(255,255,255,0) 58%, rgba(255,252,242,.5) 64%, rgba(255,255,255,0) 72%);
+    animation: campLakeRipple 6.5s ease-out infinite;
+  }
+
+  /* 海边：浪峰线横向漂移（一个平铺周期 = 420px），碎光带明暗起伏 */
+  @keyframes campSeaCrest    { to { background-position: -420px 0; } }
+  @keyframes campSeaGlint    { 0%, 100% { opacity: .45; background-position: 0 0; } 50% { opacity: .9; background-position: 0 10px; } }
+  /* 雨林：光柱明暗呼吸，浮尘缓慢上浮 */
+  @keyframes campForestRay   { 0%, 100% { opacity: .5; } 50% { opacity: .88; } }
+  @keyframes campForestMotes { to { background-position: 0 -180px; } }
+  @keyframes campLakeShimmer { 0%, 100% { opacity: .4; background-position: 0 0; } 50% { opacity: .85; background-position: 0 12px; } }
+  @keyframes campLakeRipple  { 0% { transform: scale(.45); opacity: 0; } 25% { opacity: .8; } 100% { transform: scale(2.8); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .camp__bg-layer, .camp__bg-layer::before, .camp__bg-layer::after { animation: none !important; }
+  }
+
+  /* 语言切换：与主站同款的 .lang / .lang-opt 样式由 island.css 统一提供（右上角控件组内） */
+
+  /* 类型备注：左下角，色点 + 类型名，无底色、无边框、无投影 */
+  .camp__note {
+    position: absolute; left: 18px; bottom: 16px; z-index: 2;
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px;
+    max-width: 44vw;
+    font-size: 12.5px; color: #4c5a70; line-height: 1;
+    pointer-events: none;
+  }
+  .camp__note li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .camp__note i { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 50%; }
+
+  /* 点位详情：页面最右下角，纯文字右对齐，不带任何容器样式 */
+  .camp__detail {
+    position: absolute; right: 18px; bottom: 16px; z-index: 2;
+    max-width: 44vw; text-align: right;
+    font-size: 12.5px; color: #8a94a6; line-height: 1.7;
+    pointer-events: none;
+  }
+  .camp__kind { font-size: 12px; font-weight: 700; }   /* 类型名直接用分类色，不做色块 */
+  .camp__name { margin: 2px 0 0; font-size: 16px; font-weight: 700; color: #1f2d3d; line-height: 1.45; }
+  .camp__intro { margin: 4px 0 0; font-size: 12.5px; color: #4a5260; white-space: pre-wrap; }
+  .camp__coords { margin: 4px 0 0; font-size: 12px; color: #8a94a6; }
+
+  /* 未选中时的引导文字：高亮亮色文字 + 轻微半透明深色底衬（磨砂玻璃感），
+     上面一道柔和高光缓慢横向掠过。文字本体大小 / 位置全程固定，
+     不缩放、不做整体透明度闪烁，只靠光带移动吸引注意，干净不突兀。
+     注意：这里刻意不写 position —— 由基类 .camp__detail 的 absolute 把它钉在右下角。 */
+  .camp__detail--hint {
+    overflow: hidden;
+    padding: 8px 15px; border-radius: 10px;
+    background: rgba(18, 32, 52, .55);
+    -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
+    box-shadow: 0 8px 22px rgba(18, 32, 52, .18);
+    font-size: 13.5px; font-weight: 700; color: #9ecbff;
+  }
+  /* 高光带：只在底衬内部移动，不碰文字，因此文字始终纹丝不动 */
+  .camp__detail--hint::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 45%;
+    background: linear-gradient(100deg,
+      rgba(255,255,255,0) 0%, rgba(255,255,255,.42) 50%, rgba(255,255,255,0) 100%);
+    pointer-events: none;
+    animation: campHintSweep 3.6s ease-in-out infinite;
+  }
+  @keyframes campHintSweep {
+    0%,  10%  { transform: translateX(-130%); }   /* 停在左侧（不可见）稍作停顿 */
+    60%, 100% { transform: translateX(330%);  }   /* 缓慢掠过后停在右侧（不可见） */
+  }
+
+  /* 下一步：只有选中露营点位后才出现在页面右侧中间，点它进入第二个子页面 */
+  .camp__next {
+    position: absolute; right: 18px; top: 50%; transform: translateY(-50%); z-index: 3;
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 16px; border: 0; border-radius: 999px; cursor: pointer;
+    background: #2f7cf6; color: #fff; font: inherit; font-size: 13px; font-weight: 700;
+    box-shadow: 0 6px 18px rgba(47, 124, 246, .28);
+  }
+  .camp__next:hover { background: #2a6ee0; }
+  .camp__next svg { width: 14px; height: 14px; }
+  .camp__next[hidden] { display: none; }
+</style>
+</head>
+<body>
+
+<div class="camp">
+  <!-- 主题背景层：点击不同类别的露营点时淡入对应背景（默认全部透明，露出统一浅蓝底色） -->
+  <div class="camp__bg" id="campBg" aria-hidden="true">
+    <div class="camp__bg-layer" data-bg="sea"></div>
+    <div class="camp__bg-layer" data-bg="forest"></div>
+    <div class="camp__bg-layer" data-bg="lake"></div>
+  </div>
+
+  <div id="campMap" class="map"></div>
+
+  <!-- 右上角控件组：返回首页 + 语言切换（三个独立选项，与主站同款） -->
+  <div class="island-top">
+    <a class="island-back" href="/">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>
+      <span id="campBack">返回首页</span>
+    </a>
+    <div class="lang" id="campLangs">
+      <button type="button" class="lang-opt" data-lang="zh">中文</button>
+      <button type="button" class="lang-opt" data-lang="en">English</button>
+      <button type="button" class="lang-opt" data-lang="ru">Русский</button>
+    </div>
+  </div>
+
+  <!-- 类型备注：三个色点 + 类型名（文字由后台三语数据下发，跟随语言切换） -->
+  <ul class="camp__note" id="campNote"></ul>
+
+  <!-- 点位详情：点击点位后，名称与位置信息统一显示在页面最右下角 -->
+  <div class="camp__detail" id="campDetail"></div>
+
+  <!-- 下一步：选中露营点位后才出现（点城市 / 机场地标不出现），
+       点它进入第二个子页面，展示该露营点附近的游玩打卡点 -->
+  <button type="button" class="camp__next" id="campNextBtn" hidden>
+    <span id="campNextLabel"></span>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+  </button>
+</div>
+
+<script src="echarts.min.js"></script>
+<script src="hainan.geojson.js"></script>
+<script src="map.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ------------------------------------------------------------------
+     页面文案字典：页面自身的文字（标题、栏目名、引导语、提示）都在这里，
+     点位名称 / 介绍 / 分类名则读后端录入的三语数据（后端没填时回落到这里）。
+     ------------------------------------------------------------------ */
+  var LANGS = ['zh', 'en', 'ru'];
+  var T = {
+    zh: {
+      title: '海南露营地图',
+      hint: '点地图上的圆点图标，请选择露营点',
+      back: '返回首页',
+      coords: '经纬度',
+      unnamed: '未命名露营点',
+      kindFallback: '露营点',
+      noIntro: '暂无介绍',
+      loadFail: '数据加载失败：',
+      next: '下一步',
+      /* 地图悬浮提示（与地图组件里的提示保持一致，只是换成当前语种） */
+      tipDense: function (n, rows) {
+        return '<b>密集区域 · ' + n + ' 个点位</b><br>' + rows +
+               '<br><span style="opacity:.72">点击气泡可就地展开全部点位</span>';
+      },
+      tipCollapse: function (n) { return '<b>' + n + ' 个点位</b><br><span style="opacity:.72">点击收起</span>'; },
+      tipCluster: function (n, list) { return '<b>同一位置 · ' + n + ' 条点位</b><br>由内向外：' + list; },
+      tipArea: function (name) { return name + ' · 行政区'; }
+    },
+    en: {
+      title: 'Hainan Camping Map',
+      back: 'Back to home',
+      hint: 'Click a dot icon on the map to select a campsite',
+      coords: 'Coordinates',
+      unnamed: 'Unnamed campsite',
+      kindFallback: 'Campsite',
+      noIntro: 'No description yet',
+      loadFail: 'Failed to load data: ',
+      next: 'Next',
+      tipDense: function (n, rows) {
+        return '<b>Dense area · ' + n + ' campsites</b><br>' + rows +
+               '<br><span style="opacity:.72">Click the bubble to expand all sites in place</span>';
+      },
+      tipCollapse: function (n) { return '<b>' + n + ' campsites</b><br><span style="opacity:.72">Click to collapse</span>'; },
+      tipCluster: function (n, list) { return '<b>Same location · ' + n + ' sites</b><br>From inner to outer: ' + list; },
+      tipArea: function (name) { return name + ' · District'; }
+    },
+    ru: {
+      title: 'Карта кемпингов Хайнаня',
+      back: 'На главную',
+      hint: 'Нажмите на точку-значок на карте, чтобы выбрать кемпинг',
+      coords: 'Координаты',
+      unnamed: 'Кемпинг без названия',
+      kindFallback: 'Кемпинг',
+      noIntro: 'Описания пока нет',
+      loadFail: 'Не удалось загрузить данные: ',
+      next: 'Далее',
+      tipDense: function (n, rows) {
+        return '<b>Плотная зона · ' + n + ' кемпингов</b><br>' + rows +
+               '<br><span style="opacity:.72">Нажмите на пузырь, чтобы раскрыть все точки на месте</span>';
+      },
+      tipCollapse: function (n) { return '<b>' + n + ' кемпингов</b><br><span style="opacity:.72">Нажмите, чтобы свернуть</span>'; },
+      tipCluster: function (n, list) { return '<b>Одно место · ' + n + ' точек</b><br>От центра к краю: ' + list; },
+      tipArea: function (name) { return name + ' · Район'; }
+    }
+  };
+
+  var LANG_KEY = 'beisu-lang';        /* 与游客主站共用同一个语言记忆，站内跳转后语种保持一致 */
+  var lang = 'zh';
+  var map = null;
+  var kinds = [];        /* 后端下发的分类（含三语名称 + 颜色） */
+  var points = [];       /* 后端下发的露营点（含三语名称 / 三语介绍） */
+  var landGroups = [];   /* 地标层配置：城市 / 机场（图标、配色、三语类型名） */
+  var landPoints = [];   /* 地标层点位：三亚市 / 海口市 / 两座机场 */
+  var picked = null;     /* 当前选中的点位 id */
+
+  function t() { return T[lang] || T.zh; }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  /* 取三语字段里当前语种的值，缺该语种时回落到中文，再回落到旧字段 */
+  function pick(i18n, fallback) {
+    if (i18n && i18n[lang]) return i18n[lang];
+    if (i18n && i18n.zh) return i18n.zh;
+    return fallback || '';
+  }
+  function pointCats(p) {
+    if (!p) return [];
+    if (Array.isArray(p.categories)) return p.categories.filter(Boolean);
+    return p.category ? [p.category] : [];
+  }
+  function kindOf(p) {
+    var k = pointCats(p)[0];
+    for (var i = 0; i < kinds.length; i++) if (kinds[i].key === k) return kinds[i];
+    /* 城市 / 机场地标：类型配置来自地标层，详情卡与悬浮提示共用同一套取名逻辑 */
+    for (var j = 0; j < landGroups.length; j++) if (landGroups[j].key === k) return landGroups[j];
+    return null;
+  }
+  function kindName(p) {
+    var c = kindOf(p);
+    return c ? pick(c.names, c.name) : t().kindFallback;
+  }
+  function kindNameByKey(k) {
+    for (var i = 0; i < kinds.length; i++) if (kinds[i].key === k) return pick(kinds[i].names, kinds[i].name);
+    return k;
+  }
+  function typeColor(p) {
+    var c = kindOf(p);
+    return (c && c.color) || '#1e88e5';
+  }
+  function pointName(p) { return pick(p && p.names, p && p.name) || t().unnamed; }
+
+  /* 主题背景：海边 / 雨林 / 湖畔三类各自一层，切换时只改 opacity 做交叉淡化。
+     只有这三类会换背景；点机场、城市等地标不换（保持当前背景不被打断）。 */
+  var BG_KINDS = ['sea', 'forest', 'lake'];
+  var bgLayers = {};
+  var bgKind = '';
+  Array.prototype.forEach.call(document.querySelectorAll('#campBg [data-bg]'), function (el) {
+    bgLayers[el.dataset.bg] = el;
+  });
+  function setBg(kind) {
+    if (BG_KINDS.indexOf(kind) < 0) return;
+    if (kind === bgKind) return;
+    bgKind = kind;
+    BG_KINDS.forEach(function (k) {
+      bgLayers[k].className = 'camp__bg-layer' + (k === kind ? ' on' : '');
+    });
+  }
+
+  /* 类型备注：地图左下角浮条，三个色点 + 类型名（颜色与名称都沿用后端下发，不做改动）。
+     只做说明用，不可点击；名称跟随当前语种。 */
+  function renderNote() {
+    var box = $('campNote');
+    box.innerHTML = '';
+    kinds.forEach(function (c) {
+      var li = document.createElement('li');
+      li.innerHTML =
+        '<i style="background:' + c.color + '"></i>' +
+        '<span>' + esc(pick(c.names, c.name)) + '</span>';
+      box.appendChild(li);
+    });
+  }
+
+  /* 点位详情：类型 + 名称 + 介绍 + 经纬度（名称与介绍来自后台录入的三语数据） */
+  function findPoint(id) {
+    var i;
+    for (i = 0; i < points.length; i++) if (points[i].id === id) return points[i];
+    for (i = 0; i < landPoints.length; i++) if (landPoints[i].id === id) return landPoints[i];
+    return null;
+  }
+  function showDetail(id) {
+    if (!findPoint(id)) return;
+    picked = id;
+    renderDetail();
+    /* 只更新选中态（不重传点位数据），给选中的点位加上高亮标识；
+       这样也不会把用户刚点开的聚合气泡重新收起来。
+       选中的那个营地会自动退出光晕、换成固定高亮标记，
+       其余营地继续呼吸（它们仍然可以点），两种状态一眼可分。 */
+    if (map) map.update({ selected: picked });
+  }
+  /* 只有选中「露营点位」时才出现【下一步】按钮：点城市 / 机场地标不出现 */
+  function isCampPoint(id) {
+    for (var i = 0; i < points.length; i++) if (points[i].id === id) return true;
+    return false;
+  }
+  function syncNextBtn() {
+    var btn = $('campNextBtn');
+    if (btn) btn.hidden = !isCampPoint(picked);
+  }
+  function renderDetail() {
+    var box = $('campDetail');
+    var p = findPoint(picked);
+
+    syncNextBtn();                              /* 选中露营点才亮出【下一步】 */
+
+    if (!p) {                                   /* 未选中：只留一行引导文字，带循环闪烁动画 */
+      box.className = 'camp__detail camp__detail--hint';
+      box.textContent = t().hint;
+      return;
+    }
+    box.className = 'camp__detail';             /* 选中点位后：去掉引导动画，恢复正常样式 */
+    var intro = pick(p.intro, '');
+    /* 城市 / 机场这类地标没有介绍，只给类型 + 名称 + 坐标 */
+    var isLandmark = false;
+    for (var j = 0; j < landPoints.length; j++) if (landPoints[j].id === p.id) { isLandmark = true; break; }
+
+    var html =
+      '<div class="camp__kind" style="color:' + typeColor(p) + '">' + esc(kindName(p)) + '</div>' +
+      '<div class="camp__name">' + esc(pointName(p)) + '</div>';
+    if (!isLandmark) {
+      html += intro ? '<div class="camp__intro">' + esc(intro) + '</div>'
+                    : '<div class="camp__intro" style="color:#a2abb9">' + esc(t().noIntro) + '</div>';
+    }
+    html += '<div class="camp__coords">' + esc(t().coords) + ' ' + (+p.lng).toFixed(5) + ', ' + (+p.lat).toFixed(5) + '</div>';
+
+    box.innerHTML = html;
+  }
+
+  /* 地图数据：按当前语种把分类名与点位名就地替换后再喂给地图组件，
+     这样地图上的常显标签、气泡文字、悬浮提示都会跟着语种切换。 */
+  function mapCategories() {
+    return kinds.map(function (c) {
+      return {
+        key: c.key, name: pick(c.names, c.name), color: c.color,
+        symbol: c.symbol, symbolSize: c.symbolSize, z: c.z
+      };
+    });
+  }
+  function mapPoints() {
+    return points.map(function (p) {
+      return {
+        id: p.id, name: pick(p.names, p.name), lng: +p.lng, lat: +p.lat,
+        categories: pointCats(p)
+      };
+    });
+  }
+  /* 地标层：城市 / 机场单独成层交给地图组件。
+     城市只出地名（labelOnly，不画图标点位）、地名常显；
+     机场有自己的三角图标，名称鼠标悬浮才出现（labelMode: 'hover'）。 */
+  function landmarkLayer() {
+    return landGroups.map(function (g) {
+      return {
+        key: g.key,
+        name: pick(g.names, g.name),
+        color: g.color, symbol: g.symbol, symbolSize: g.symbolSize,
+        z: g.z, labelColor: g.labelColor,
+        labelOnly: !!g.labelOnly, labelMode: g.labelMode,
+        points: landPoints.filter(function (p) { return p.kind === g.key; })
+          .map(function (p) {
+            return { id: p.id, name: pick(p.names, p.name), lng: +p.lng, lat: +p.lat };
+          })
+      };
+    });
+  }
+
+  /* 悬浮提示：地图组件里的提示文字是固定的中文，这里按当前语种覆盖一份。
+     每次重绘都会带上组件自己的配置，所以重绘后要重新覆盖一次。 */
+  function applyTooltip() {
+    if (!map || !map.chart) return;
+    map.chart.setOption({
+      tooltip: {
+        formatter: function (pp) {
+          var d = pp.data || {};
+          if (d.kind === 'route') return '';
+          if (d.kind === 'bubble') {
+            var rows = Object.keys(d.tally || {}).map(function (k) {
+              return kindNameByKey(k) + ' ' + d.tally[k];
+            }).join('　');
+            return t().tipDense(d.count, rows);
+          }
+          if (d.kind === 'collapse') return t().tipCollapse(d.count);
+          if (d.cluster) return t().tipCluster(d.count, (d.labels || d.kinds || []).join(' → '));
+          if (pp.componentType === 'geo') return t().tipArea(pp.name);
+          /* 城市 / 机场：只给名称与类型，不给经纬度（坐标对游客没有意义） */
+          if (d.landmark) {
+            return '<b>' + (d.place || '') + '</b>' +
+                   (d.name ? '<br><span style="opacity:.75">' + d.name + '</span>' : '');
+          }
+          var r = d.raw || {};
+          var place = d.place || '';
+          return (place ? '<b>' + place + '</b><br>' : '') +
+                 (place ? '<span style="opacity:.75">' + (d.name || t().kindFallback) + '</span><br>'
+                        : '<b>' + (d.name || t().kindFallback) + '</b><br>') +
+                 (+r.lng).toFixed(4) + ', ' + (+r.lat).toFixed(4);
+        }
+      }
+    });
+  }
+
+  function refreshMap() {
+    if (!map) return;
+    map.update({ categories: mapCategories(), points: mapPoints(), landmarks: landmarkLayer(), selected: picked });
+    applyTooltip();
+  }
+
+  /* 切换语种：页内文字 + 类型备注 + 详情 + 地图标签（含悬浮提示）全部同步刷新 */
+  function applyLang() {
+    var d = t();
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+    document.title = d.title;                      /* 只用于浏览器标签页标题，页面内不再有标题模块 */
+
+    Array.prototype.forEach.call($('campLangs').children, function (b) {
+      b.classList.toggle('active', b.dataset.lang === lang);   /* 选中项高亮：与主站语言切换同款 */
+    });
+
+    $('campBack').textContent = d.back;            /* 返回首页入口文字跟随语种 */
+    $('campNextLabel').textContent = d.next;       /* 下一步按钮文字跟随语种 */
+    renderNote();
+    renderDetail();
+    refreshMap();
+  }
+
+  function setLang(next) {
+    if (LANGS.indexOf(next) < 0) next = 'zh';
+    lang = next;
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+  }
+
+  Array.prototype.forEach.call($('campLangs').children, function (b) {
+    b.onclick = function () { setLang(b.dataset.lang); };
+  });
+
+  /* 下一步：带着当前选中的露营点位 id 进入第二个子页面（该点位附近的游玩打卡点）。
+     站内路径，不暴露地图自己的独立网址，也不新开浏览器标签页。 */
+  $('campNextBtn').onclick = function () {
+    if (!isCampPoint(picked)) return;
+    location.href = '/island/spots?point=' + encodeURIComponent(picked);
+  };
+
+  function boot() {
+    var saved = '';
+    try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
+    lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    applyLang();                                   /* 数据到达前先把页面文字按语种渲染出来 */
+
+    fetch('/api/camp-points', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        kinds = d.categories || [];
+        points = d.points || [];
+        var lm = d.landmarks || {};
+        landGroups = lm.groups || [];
+        /* 地标点补上 categories，与营地点位共用同一套「取类型 → 配色 / 取名」逻辑 */
+        landPoints = (lm.points || []).map(function (p) {
+          return {
+            id: p.id, kind: p.kind, name: p.name, names: p.names,
+            lng: +p.lng, lat: +p.lat, categories: [p.kind]
+          };
+        });
+
+        map = window.HainanMap.create($('campMap'), {
+          categories: mapCategories(),
+          points: mapPoints(),
+          landmarks: landmarkLayer(),        /* 城市 / 机场独立成层，不参与营地聚合 */
+          roam: true,
+          legend: false,
+          labelMode: 'hover',                /* 只有城市地名常显，其余点位名称悬浮才显示 */
+          /* 类型已由图例颜色区分，标签只留营地名称，不再重复类型文字 */
+          labelKinds: false,
+          /* 所有露营圆点默认都带呼吸光晕，表示「可以点」；
+             点选之后那个圆点的光晕自动撤掉、换成固定高亮标记。
+             营地在这页按海边 / 雨林 / 湖畔拆成了三个分类，故传数组。 */
+          haloCategory: ['sea', 'forest', 'lake'],
+          onClick: function (ev) {
+            var d2 = ev && ev.data;
+            if (!d2) return;
+            var id = d2.pointId || (d2.members && d2.members[0] && d2.members[0].pointId);
+            if (!id) return;
+            showDetail(id);
+            /* 按被点露营点的类别切换页面背景（海边 / 雨林 / 湖畔） */
+            var p2 = findPoint(id);
+            if (p2) setBg(pointCats(p2)[0]);
+          }
+        });
+        applyTooltip();
+        applyLang();
+      })
+      .catch(function (e) {
+        $('campDetail').textContent = t().loadFail + e.message;
+      });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

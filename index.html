@@ -634,7 +634,7 @@
 
       <!-- 功能按钮组：全岛游 / 租房 / 租车 / 项目体验评价 / 合作 -->
       <nav class="menu" id="catMenu">
-        <div class="menu-item">
+        <div class="menu-item" data-entry="island">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.6" cy="5.6" r="2.3"/><path d="M12 17c0-3.2.1-5.6.6-8.2"/><path d="M12.6 8.8c-1.5-1.7-3.5-2.4-5.7-2.1"/><path d="M12.6 8.8c1.5-1.7 3.5-2.4 5.7-2.1"/><path d="M12.6 8.8c-.2-2.3-.9-4.2-2-5.6"/><path d="M2.5 17.5c2.6-1.5 5.9-2.2 9.5-2.2s6.9.7 9.5 2.2"/></svg>
           <div class="menu-text">
             <span class="menu-title" data-i18n="m0">全岛游</span>
@@ -1283,6 +1283,9 @@ $('catMenu').addEventListener('click', e => {
   document.querySelectorAll('#catMenu .menu-item').forEach(i => i.classList.remove('active'));
   item.classList.add('active');
   syncDrawer(false);   // 手机版：选中菜单项后自动收回抽屉
+  /* 【全岛游】：在同一个标签页内跳转到站内的露营地图子页面（/island），
+     不新开浏览器窗口、不对外暴露地图自己的独立网址。其余菜单项保持原有行为。 */
+  if (item.dataset.entry === 'island') location.href = '/island';
 });
 $('searchBtn').addEventListener('click', () => toast(dict().toastDemo));
 

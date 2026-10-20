@@ -1,0 +1,48 @@
+/* ============================================================
+   beisuas · 全岛游地图子页面基础样式
+   ------------------------------------------------------------
+   供两个子页面共用：
+     /island        露营点地图（island/camp.html）
+     /island/spots  游玩打卡点页（island/camp-next.html）
+   这些页面原本自带 css/style.css（内含地图后台 / 内容管理等无关样式），
+   这里只保留它们真正需要的基础规则，并把「配色 + 语言切换控件」换成
+   与游客主站完全一致的一套：主蓝 #2f7cf6、正文 #1c2330。
+   页面自身的主题背景、浮层排版仍写在各页 <style> 里（camp__ 前缀），互不干扰。
+   ============================================================ */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+  color: #1c2330; background: #edf3fb;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; border: none; background: none; cursor: pointer; }
+
+.map { width: 100%; height: 100%; }
+
+/* ============ 右上角控件组：返回入口 + 三语切换 ============ */
+.island-top {
+  position: absolute; top: 14px; right: 18px; z-index: 3;
+  display: flex; align-items: center; gap: 12px;
+}
+/* 语言切换：与主站同款 —— 中文 / English / Русский 三项常驻展开、横向排列，
+   选中项蓝底白字，进入页面即可直接点击切换（不做下拉收起） */
+.lang { display: flex; align-items: center; gap: 6px; }
+.lang-opt {
+  display: flex; align-items: center; justify-content: center;
+  height: 30px; padding: 0 12px; border-radius: 8px; white-space: nowrap;
+  font-size: 12.5px; color: #4a5260; cursor: pointer; background: rgba(20,40,80,.05);
+  transition: background .15s, color .15s;
+}
+.lang-opt:hover { background: rgba(20,40,80,.1); }
+.lang-opt.active, .lang-opt.active:hover { background: #2f7cf6; color: #fff; }
+
+/* 返回首页：从地图子页面回到游客主站（同一标签页，不新开窗口） */
+.island-back {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 30px; padding: 0 11px; border-radius: 8px; white-space: nowrap;
+  background: rgba(20,40,80,.05); color: #4a5260; font-size: 12.5px; text-decoration: none;
+  transition: background .15s, color .15s;
+}
+.island-back:hover { background: rgba(20,40,80,.1); color: #2f7cf6; }
+.island-back svg { width: 12px; height: 12px; }

@@ -23,15 +23,17 @@ const zlib = require('zlib');
 const PORT = process.env.PORT || 3210;
 const ROOT = __dirname;
 const DATA_FILE = path.join(ROOT, 'data', 'rules.json');
+/* 全岛游地图（露营点 / 打卡点 / 地标）独立成一份数据，与聊天配置互不影响 */
+const MAP_FILE = path.join(ROOT, 'data', 'map.json');
 /* 邮件里激活链接的对外基础地址：固定为线上域名，避免本地联调时邮件指向 localhost；可用环境变量 PUBLIC_BASE_URL 覆盖 */
 const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || 'https://beisu-visitor.onrender.com').trim().replace(/\/+$/, '');
 
 /* ---------------- 云存储（MongoDB Atlas 免费集群） ----------------
    配置 MONGODB_URI（环境变量或 secrets.json 的 mongo.uri）后，
-   4 个数据集合（rules/chats/auth/users）持久化到云端，Render 重启不再丢数据；
+   5 个数据集合（rules/chats/auth/users/map）持久化到云端，Render 重启不再丢数据；
    未配置时完全退回本地 JSON 文件模式，本地开发零影响。
    读取走内存缓存（同步），写入内存后防抖回写云端（replaceOne upsert）。 */
-const CLOUD_DOCS = ['rules', 'chats', 'auth', 'users'];
+const CLOUD_DOCS = ['rules', 'chats', 'auth', 'users', 'map'];
 const cloud = { enabled:false, col:null, docs:{}, dirty:new Set(), timer:null };
 const cloudGet = name => cloud.docs[name];
 function cloudSave(name, value){
@@ -50,7 +52,7 @@ async function flushCloud(){
   if (cloud.dirty.size && !cloud.timer) cloud.timer = setTimeout(flushCloud, 2000);   // 失败稍后重试
 }
 function readLocalSeed(name){
-  const file = { rules:DATA_FILE, chats:CHAT_FILE, auth:AUTH_FILE, users:USER_FILE }[name];
+  const file = { rules:DATA_FILE, chats:CHAT_FILE, auth:AUTH_FILE, users:USER_FILE, map:MAP_FILE }[name];
   try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch(e){ return null; }
 }
 async function initCloud(uri){
@@ -167,6 +169,456 @@ function migrate(data){
   (data.rules||[]).forEach(r => { r.reply = toTri(r.reply); r.keywords = normKeywordMap(r.keywords); });
   if (data.fallback) data.fallback.reply = toTri(data.fallback.reply);
   return data;
+}
+
+/* ---------------- 全岛游地图数据（露营点 / 打卡点 / 地标） ----------------
+   与聊天配置分开存储：本地 data/map.json，云端 singleton 的 'map' 文档。
+   露营点与游玩打卡点共用同一份点位数据，只靠分类 key 区分：
+     camping → 露营点（游客地图页）、play → 游玩打卡点（打卡点页）。
+   露营点再按 campTypes 映射成海边(sea) / 雨林(forest) / 湖畔(lake) 三类上色；
+   类型表里没有的露营点默认按海边展示，后台以后新加点位不用改代码就能看到。
+   点位数据由后台「全岛游地图」模块增删改，游客端两个页面只读。 */
+const MAP_LANGS = ['zh','en','ru'];
+const MAP_NAME_MAX = 60, MAP_INTRO_MAX = 200;
+const MAP_CAMP_KEY = 'camping', MAP_PLAY_KEY = 'play';
+/* 图层（分类）标识：字母开头，2-20 位字母/数字/下划线 */
+const MAP_LAYER_KEY_RE = /^[a-zA-Z][a-zA-Z0-9_]{1,19}$/;
+const MAP_LAYER_NAME_MAX = 30;
+/* 路线方案：仅后台留存，名称上限与站点数下限 */
+const PLAN_NAME_MAX = 60;
+const MAP_KINDS = [
+  { key:'sea',    name:'海边露营点', names:{ zh:'海边露营点', en:'Seaside Camping Spot',     ru:'Кемпинг у моря' },              color:'#1e88e5', symbol:'circle', symbolSize:15, z:12 },
+  { key:'forest', name:'雨林露营点', names:{ zh:'雨林露营点', en:'Rainforest Camping Spot',  ru:'Кемпинг в тропическом лесу' }, color:'#2e9e5b', symbol:'circle', symbolSize:15, z:13 },
+  { key:'lake',   name:'湖畔露营点', names:{ zh:'湖畔露营点', en:'Lakeside Camping Spot',    ru:'Кемпинг у озера' },            color:'#f08c1a', symbol:'circle', symbolSize:15, z:14 }
+];
+const MAP_KIND_KEYS = MAP_KINDS.map(k => k.key);
+
+/* 三语字段：trim + 截断，丢掉空语种；非对象按空处理 */
+function mapI18n(v, max){
+  const out = {};
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return out;
+  MAP_LANGS.forEach(l => { const s = String(v[l] == null ? '' : v[l]).trim().slice(0, max); if (s) out[l] = s; });
+  return out;
+}
+function mapCats(p){
+  if (!p) return [];
+  if (Array.isArray(p.categories)) return p.categories.filter(Boolean);
+  return p.category ? [p.category] : [];
+}
+/* 点位三语名称：老数据只有 name 时按中文名看待 */
+function mapNames(p){
+  const o = mapI18n(p && p.names, MAP_NAME_MAX);
+  if (!o.zh){
+    const s = (p && p.name == null) ? '' : String(p.name).trim().slice(0, MAP_NAME_MAX);
+    if (s) o.zh = s;
+  }
+  return o;
+}
+function normMapPoint(p){
+  const out = { id:p.id, categories:mapCats(p), lng:+p.lng, lat:+p.lat };
+  const names = mapNames(p);
+  if (names.zh) out.name = names.zh;      /* 旧字段：与中文名保持一致，便于阅读兼容 */
+  if (Object.keys(names).length) out.names = names;
+  const intro = mapI18n(p && p.intro, MAP_INTRO_MAX);
+  if (Object.keys(intro).length) out.intro = intro;
+  return out;
+}
+/* 图层（分类）归一化：只保留地图渲染需要的展示字段 */
+function normLayer(input, base){
+  const c = base || {};
+  /* 编辑时以 base.key 为准（标识不可改，否则引用它的点位会失联） */
+  const key = c.key != null ? c.key : String((input && input.key) != null ? input.key : '').trim();
+  return {
+    key: key,
+    name: String((input && input.name) != null ? input.name : c.name || '').trim().slice(0, MAP_LAYER_NAME_MAX),
+    color: /^#[0-9a-fA-F]{3,8}$/.test(String((input && input.color) || c.color || '')) ? String(input.color || c.color) : '#2f7cf6',
+    symbol: String((input && input.symbol) || c.symbol || 'circle'),
+    symbolSize: Math.min(60, Math.max(6, parseInt((input && input.symbolSize) || c.symbolSize || 14, 10) || 14)),
+    showLabel: (input && input.showLabel != null) ? !!input.showLabel : !!c.showLabel,
+    z: parseInt((input && input.z) || c.z || 20, 10) || 20
+  };
+}
+/* 路线方案归一化：站点存「点位 id + 保存当时的名称/坐标」快照，点位以后被删也能看清内容 */
+function normPlan(input, base){
+  const p = base || {};
+  const stops = Array.isArray(input && input.stops) ? input.stops : (p.stops || []);
+  return {
+    id: p.id || ('pl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+    name: String((input && input.name) != null ? input.name : p.name || '').trim().slice(0, PLAN_NAME_MAX),
+    stops: stops.map(s => ({ pointId:String(s && s.pointId || ''), name:String((s && s.name) || ''), lng:+((s && s.lng)), lat:+((s && s.lat)) })),
+    createdAt: p.createdAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+}
+/* 驾车路线缓存归一化：只认结构完整的对象，否则视为还没规划过 */
+function normRoutes(raw){
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.legs) || !raw.legs.length) return null;
+  return {
+    generatedAt: raw.generatedAt || '',
+    linkK: +raw.linkK || 0,
+    points: Array.isArray(raw.points) ? raw.points : [],
+    legs: raw.legs,
+    totalDistance: +raw.totalDistance || 0,
+    totalDuration: +raw.totalDuration || 0
+  };
+}
+function emptyMapData(){ return { categories:[], points:[], campTypes:{}, landmarks:{ groups:[], points:[] }, routes:null, plans:[] }; }
+function shapeMap(raw){
+  const d = (raw && typeof raw === 'object') ? raw : {};
+  const out = emptyMapData();
+  if (Array.isArray(d.categories)) out.categories = d.categories.filter(c => c && typeof c.key === 'string' && c.key.trim()).map(c => normLayer(c));
+  if (Array.isArray(d.points)) out.points = d.points.filter(p => p && p.id).map(p => normMapPoint(p));
+  if (d.campTypes && typeof d.campTypes === 'object' && !Array.isArray(d.campTypes)){
+    Object.keys(d.campTypes).forEach(id => { if (MAP_KIND_KEYS.indexOf(d.campTypes[id]) >= 0) out.campTypes[id] = d.campTypes[id]; });
+  }
+  const lm = d.landmarks;
+  if (lm && typeof lm === 'object'){
+    if (Array.isArray(lm.groups)) out.landmarks.groups = lm.groups.filter(g => g && g.key);
+    if (Array.isArray(lm.points)) out.landmarks.points = lm.points.filter(p => p && p.id && isFinite(+p.lng) && isFinite(+p.lat))
+      .map(p => ({ id:p.id, kind:p.kind, name:p.name || '', names:(p.names && typeof p.names === 'object') ? p.names : {}, lng:+p.lng, lat:+p.lat }));
+  }
+  out.routes = normRoutes(d.routes);
+  if (Array.isArray(d.plans)) out.plans = d.plans.filter(p => p && p.id).map(p => normPlan(p, p));
+  return out;
+}
+/* 后台提交图层校验：标识格式 + 是否重名 + 名称必填 */
+function validateLayer(body, d, editingKey){
+  const key = String((body && body.key) || '').trim();
+  if (!editingKey){
+    if (!MAP_LAYER_KEY_RE.test(key)) return { error:'图层标识需以字母开头（2-20 位字母 / 数字 / 下划线）' };
+    if (d.categories.some(c => c.key === key)) return { error:'图层标识已存在：' + key };
+  }
+  const name = String((body && body.name) || '').trim();
+  if (!name) return { error:'请填写图层名称' };
+  if (name.length > MAP_LAYER_NAME_MAX) return { error:'图层名称过长（最多 ' + MAP_LAYER_NAME_MAX + ' 字）' };
+  return { layer: normLayer(body, editingKey ? d.categories.filter(c => c.key === editingKey)[0] : null) };
+}
+/* 后台提交路线方案校验 */
+function validatePlan(body, d){
+  if (!body || typeof body !== 'object') return { error:'数据结构不正确' };
+  const name = String(body.name || '').trim();
+  if (!name) return { error:'请填写方案名称' };
+  if (name.length > PLAN_NAME_MAX) return { error:'方案名称过长（最多 ' + PLAN_NAME_MAX + ' 字）' };
+  const stops = Array.isArray(body.stops) ? body.stops : null;
+  if (!stops) return { error:'站点列表格式不正确' };
+  if (stops.length < 2) return { error:'请至少选择 2 个点位' };
+  const seen = {};
+  for (const s of stops){
+    const pid = String((s && s.pointId) || '').trim();
+    if (!pid) return { error:'存在未选择点位的站' };
+    if (seen[pid]) return { error:'同一条方案里点位不能重复' };
+    seen[pid] = 1;
+  }
+  /* 站点快照一律以服务端的点位数据为准，避免前端传入过期的名称 / 坐标 */
+  const byId = {};
+  d.points.forEach(p => { byId[p.id] = p; });
+  const resolved = [];
+  for (const s of stops){
+    const pt = byId[String(s.pointId)];
+    if (!pt) return { error:'点位不存在：' + s.pointId };
+    resolved.push({ pointId:pt.id, name:mapNames(pt).zh || '', lng:+pt.lng, lat:+pt.lat });
+  }
+  return { stops:resolved };
+}
+let mapCache = null;
+function loadMap(){
+  if (cloud.enabled){ if (!mapCache) mapCache = shapeMap(cloudGet('map')); return mapCache; }
+  try { return shapeMap(JSON.parse(fs.readFileSync(MAP_FILE, 'utf-8'))); }
+  catch(e){ return shapeMap(null); }
+}
+function saveMap(m){
+  mapCache = m;
+  if (cloud.enabled) return cloudSave('map', m);
+  fs.mkdirSync(path.dirname(MAP_FILE), { recursive:true });
+  fs.writeFileSync(MAP_FILE, JSON.stringify(m, null, 2), 'utf-8');
+}
+/* 游客端地图页：露营点（按 campTypes 归到 sea / forest / lake） */
+function mapCampPoints(){
+  const d = loadMap(), types = d.campTypes;
+  return d.points
+    .filter(p => mapCats(p).indexOf(MAP_CAMP_KEY) >= 0)
+    .map(p => {
+      const t = types[p.id];
+      return { id:p.id, name:mapNames(p).zh || '', names:mapNames(p), intro:mapI18n(p.intro, MAP_INTRO_MAX),
+               lng:+p.lng, lat:+p.lat, categories:[MAP_KIND_KEYS.indexOf(t) >= 0 ? t : 'sea'] };
+    });
+}
+/* 游客端打卡点页：直接读库里 play 分类那批点位，与露营点同一份数据 */
+function mapPlayPoints(){
+  return loadMap().points
+    .filter(p => mapCats(p).indexOf(MAP_PLAY_KEY) >= 0)
+    .map(p => ({ id:p.id, name:mapNames(p).zh || '', names:mapNames(p), intro:mapI18n(p.intro, MAP_INTRO_MAX), lng:+p.lng, lat:+p.lat }));
+}
+/* 打卡点该用的配色 / 图标：沿用后台给 play 分类的配置，两个页面看起来一致 */
+function mapPlayKind(){
+  const c = loadMap().categories.filter(x => x.key === MAP_PLAY_KEY)[0];
+  return c ? { key:c.key, name:c.name, color:c.color, symbol:c.symbol, symbolSize:c.symbolSize } : null;
+}
+/* 地标层（城市 / 机场）：与露营点分开下发，前端各画一层，互不影响 */
+function mapLandmarks(){
+  const lm = loadMap().landmarks;
+  const keys = {}; lm.groups.forEach(g => { keys[g.key] = 1; });
+  return {
+    groups: lm.groups,
+    points: lm.points.filter(p => keys[p.kind])
+  };
+}
+/* 后台提交校验：类型必须存在、经纬度必须是数字、名称/介绍不超长 */
+function validateMapPoint(body, d){
+  const cats = Array.isArray(body.categories) ? body.categories.filter(Boolean) : (body.category ? [body.category] : []);
+  if (!cats.length) return { error:'请选择点位类型' };
+  const keys = {}; d.categories.forEach(c => { keys[c.key] = 1; });
+  for (const k of cats) if (!keys[k]) return { error:'点位类型不存在：' + k };
+  const lng = +body.lng, lat = +body.lat;
+  if (!isFinite(lng) || !isFinite(lat)) return { error:'经纬度无效' };
+  if (lng < -180 || lng > 180 || lat < -90 || lat > 90) return { error:'经纬度超出范围' };
+  const len = v => v == null ? 0 : String(v).trim().length;
+  for (const l of MAP_LANGS){
+    if (body.names && body.names[l] != null && typeof body.names[l] !== 'string') return { error:'点位名称格式不正确' };
+    if (body.intro && body.intro[l] != null && typeof body.intro[l] !== 'string') return { error:'点位介绍格式不正确' };
+    if (len(body.names && body.names[l]) > MAP_NAME_MAX) return { error:'点位名称过长（每种语言最多 ' + MAP_NAME_MAX + ' 字）' };
+    if (len(body.intro && body.intro[l]) > MAP_INTRO_MAX) return { error:'点位介绍过长（每种语言最多 ' + MAP_INTRO_MAX + ' 字）' };
+  }
+  const campType = String(body.campType || '').trim();
+  if (campType && MAP_KIND_KEYS.indexOf(campType) < 0) return { error:'露营点子类型不存在：' + campType };
+  /* 点位名称必填：前台地图靠名称标记与悬浮提示，无名点位对游客没有意义 */
+  const names = mapI18n(body.names, MAP_NAME_MAX);
+  if (!Object.keys(names).length) return { error:'请至少填写一种语言的点位名称' };
+  return { categories:cats, names:names, intro:mapI18n(body.intro, MAP_INTRO_MAX), lng:+lng.toFixed(6), lat:+lat.toFixed(6), campType:campType };
+}
+
+/* ---------------- 驾车路线规划（高德 Web 服务 API） ----------------
+   高德「驾车路线规划」接口：https://restapi.amap.com/v3/direction/driving
+   · 密钥只保存在服务端（环境变量 AMAP_KEY 优先，其次 data/secrets.json 的 amap.key），
+     前端不下发、不接触密钥；
+   · 点位经纬度已是 GCJ-02（高德坐标系），可直接作为 origin / destination 传入；
+   · 返回的 step.polyline 逐段拼接成折线，因此路线贴合真实公路，不是两点直线；
+   · 规划结果写回地图数据的 routes 字段持久化，刷新页面不再重复消耗配额。 */
+const SIMPLIFY_TOL = 0.0002;      /* 折线抽稀容差（度），约 22m */
+const ROUTE_DECIMALS = 5;         /* 坐标保留 5 位小数（约 1m），压缩体积 */
+const AMAP_GAP = 250;             /* 个人 Key QPS 很低，调用之间留间隔 */
+const LINK_K = 3;                 /* 每个点位连到最近的 K 个点位，推导路线对 */
+
+function amapKey(){ return loadSecrets().amap.key; }
+
+/* 请求高德 Web 服务接口并解析 JSON（零依赖 https） */
+function amapGet(url){
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { timeout:15000 }, res => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', c => { body += c; });
+      res.on('end', () => {
+        let j; try { j = JSON.parse(body); } catch(e){ return reject(new Error('高德返回内容无法解析')); }
+        if (j.status !== '1') return reject(new Error('高德接口报错：' + (j.info || '未知') + '（infocode ' + (j.infocode || '-') + '）'));
+        resolve(j);
+      });
+    });
+    req.on('timeout', () => { req.destroy(new Error('高德接口超时')); });
+    req.on('error', reject);
+  });
+}
+function amapGap(){ return new Promise(r => setTimeout(r, AMAP_GAP)); }
+
+/* 关键词搜索是模糊匹配：瞎填也会返回不相干的门店，直接采用会悄悄生成错路线。
+   这里要求返回结果的名称与输入至少有 2 个连续相同字符（或互相包含），否则视为没匹配到。 */
+function nameMatches(query, resultName){
+  const a = String(query), b = String(resultName || '');
+  if (!a || !b) return false;
+  if (a.indexOf(b) >= 0 || b.indexOf(a) >= 0) return true;
+  for (let i = 0; i + 2 <= a.length; i++) if (b.indexOf(a.substr(i, 2)) >= 0) return true;
+  return false;
+}
+
+/* 文字 → 经纬度。本图是「海南全岛地图」，优先在岛内解析（不加城市限制时同名地点会被解析到外省）。 */
+function geocodePlace(text, key){
+  const q = String(text || '').trim();
+  if (!q) return Promise.reject(new Error('地点不能为空'));
+
+  const mm = q.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if (mm){
+    const lng = +mm[1], lat = +mm[2];
+    if (lng >= -180 && lng <= 180 && lat >= -90 && lat <= 90) return Promise.resolve({ name:q, lng:lng, lat:lat, source:'coords' });
+  }
+
+  const enc = encodeURIComponent(q), k = encodeURIComponent(key);
+  return amapGet('https://restapi.amap.com/v3/place/text?keywords=' + enc + '&city=' + encodeURIComponent('海南') + '&offset=5&page=1&key=' + k)
+    .catch(() => null)
+    .then(j => {
+      const list = (j && j.pois) || [];
+      for (let i = 0; i < list.length; i++){
+        const poi = list[i];
+        if (poi && poi.location && nameMatches(q, poi.name)){
+          const c = String(poi.location).split(',');
+          const area = poi.cityname || poi.adname || '';
+          return { name:(poi.name || q) + (area ? '（' + area + '）' : ''), lng:+c[0], lat:+c[1], source:'poi' };
+        }
+      }
+      return amapGet('https://restapi.amap.com/v3/geocode/geo?address=' + enc + '&key=' + k)
+        .catch(() => null)
+        .then(g => {
+          const g0 = g && (g.geocodes || [])[0];
+          const addr = g0 && g0.formatted_address;
+          if (!g0 || !g0.location || !nameMatches(q, addr)){
+            throw new Error('未能定位「' + q + '」，请换个说法，或直接填经纬度（如 109.5,18.3）');
+          }
+          const c = String(g0.location).split(',');
+          return { name:addr || q, lng:+c[0], lat:+c[1], source:'geocode' };
+        });
+    });
+}
+
+/* 两点球面距离（米）。只用于决定「串联顺序」，不参与路线本身（路线一律由高德给）。 */
+function metersBetween(a, b){
+  const R = 6371000, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const s = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+}
+
+/* 路线对（起点→终点）：每个点位连到它最近的 LINK_K 个点位；无向去重，A—B 只规划一次。
+   想改成人工指定路线对，只要替换 buildPairs 的返回值即可。 */
+function buildPairs(points){
+  const seen = {}, pairs = [];
+  points.forEach(p => {
+    points.filter(q => q.id !== p.id)
+      .map(q => ({ q:q, d:metersBetween(p, q) }))
+      .sort((x, y) => x.d - y.d)
+      .slice(0, LINK_K)
+      .forEach(x => {
+        const key = p.id < x.q.id ? p.id + '|' + x.q.id : x.q.id + '|' + p.id;
+        if (seen[key]) return;
+        seen[key] = 1;
+        pairs.push({ a:p, b:x.q });
+      });
+  });
+  return pairs;
+}
+
+/* 折线抽稀（Douglas–Peucker）：保持贴合公路的形状，去掉密集的冗余点位，把接口体积压掉一个数量级。 */
+function simplifyLine(pts, tol){
+  if (!Array.isArray(pts) || pts.length < 3) return pts || [];
+  const keep = new Array(pts.length).fill(false);
+  keep[0] = keep[pts.length - 1] = true;
+  const stack = [[0, pts.length - 1]];
+  while (stack.length){
+    const seg = stack.pop(), i0 = seg[0], i1 = seg[1];
+    if (i1 <= i0 + 1) continue;
+    const ax = pts[i0][0], ay = pts[i0][1], bx = pts[i1][0], by = pts[i1][1];
+    const dx = bx - ax, dy = by - ay, len = dx * dx + dy * dy;
+    let maxD = -1, maxI = -1;
+    for (let i = i0 + 1; i < i1; i++){
+      const px = pts[i][0], py = pts[i][1];
+      let d;
+      if (len === 0) d = Math.sqrt((px - ax) * (px - ax) + (py - ay) * (py - ay));
+      else {
+        let t = ((px - ax) * dx + (py - ay) * dy) / len;
+        t = t < 0 ? 0 : (t > 1 ? 1 : t);
+        const qx = ax + t * dx, qy = ay + t * dy;
+        d = Math.sqrt((px - qx) * (px - qx) + (py - qy) * (py - qy));
+      }
+      if (d > maxD){ maxD = d; maxI = i; }
+    }
+    if (maxD > tol){ keep[maxI] = true; stack.push([i0, maxI], [maxI, i1]); }
+  }
+  const out = [];
+  for (let k = 0; k < pts.length; k++) if (keep[k]) out.push(pts[k]);
+  return out;
+}
+
+/* 折线首尾锚定到点位真实坐标（修复「线断 / 漏渲染」的关键）：
+   高德驾车折线首末点会吸附到「可通车道路」上，点位位于山顶 / 林场内部时会与点位坐标差 1～2.5km，
+   逐段拼接后在点位附近露出缺口。这里把点位坐标直接补到折线首尾，相邻两段严格共用同一个端点，整条链路连续。 */
+function anchorEnds(pts, a, b){
+  const out = [];
+  const push = (lng, lat) => {
+    const c = [+(+lng).toFixed(ROUTE_DECIMALS), +(+lat).toFixed(ROUTE_DECIMALS)];
+    const last = out[out.length - 1];
+    if (!last || last[0] !== c[0] || last[1] !== c[1]) out.push(c);
+  };
+  push(a.lng, a.lat);
+  pts.forEach(c => push(c[0], c[1]));
+  push(b.lng, b.lat);
+  return out;
+}
+
+/* 调一次高德驾车路线，返回 { distance(米), duration(秒), polyline:[[lng,lat], ...] } */
+function fetchDrivingLeg(a, b, key){
+  const url = 'https://restapi.amap.com/v3/direction/driving' +
+    '?origin=' + a.lng + ',' + a.lat +
+    '&destination=' + b.lng + ',' + b.lat +
+    '&extensions=base&strategy=0&key=' + encodeURIComponent(key);
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { timeout:20000 }, res => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', c => { body += c; });
+      res.on('end', () => {
+        let j; try { j = JSON.parse(body); } catch(e){ return reject(new Error('高德返回内容无法解析')); }
+        if (j.status !== '1' || !j.route || !j.route.paths || !j.route.paths.length){
+          return reject(new Error('高德接口报错：' + (j.info || '未知') + '（infocode ' + (j.infocode || '-') + '）'));
+        }
+        const p = j.route.paths[0];
+        const coords = [];
+        (p.steps || []).forEach(st => {
+          String(st.polyline || '').split(';').forEach(pt => {
+            const c = pt.split(',');
+            if (c.length === 2 && isFinite(+c[0]) && isFinite(+c[1])) coords.push([+c[0], +c[1]]);
+          });
+        });
+        resolve({ distance:+p.distance || 0, duration:+p.duration || 0, polyline:anchorEnds(simplifyLine(coords, SIMPLIFY_TOL), a, b) });
+      });
+    });
+    req.on('timeout', () => { req.destroy(new Error('高德接口超时')); });
+    req.on('error', reject);
+  });
+}
+
+let routeBuilding = false;      /* 同一时间只允许一次规划，避免重复烧配额 */
+
+/* 按当前点位逐段规划并写回地图数据的 routes 字段（串行 + 间隔，避开个人 Key 的 QPS 限流） */
+function buildMapRoutes(key, cb){
+  const d = loadMap();
+  if (!d.points.length) return cb(new Error('还没有任何点位，无法规划路线'));
+  if (routeBuilding) return cb(new Error('正在规划中，请稍候'));
+
+  const pairs = buildPairs(d.points);
+  const legs = [];
+  let i = 0, totalD = 0, totalT = 0;
+  routeBuilding = true;
+
+  function step(){
+    if (i >= pairs.length){
+      const out = {
+        generatedAt: new Date().toISOString(),
+        linkK: LINK_K,
+        points: d.points.map(p => ({ id:p.id, name:mapNames(p).zh || '', lng:+p.lng, lat:+p.lat, categories:mapCats(p) })),
+        legs: legs,
+        totalDistance: totalD,
+        totalDuration: totalT
+      };
+      try { const cur = loadMap(); cur.routes = out; saveMap(cur); }
+      catch(e){ routeBuilding = false; return cb(e); }
+      routeBuilding = false;
+      console.log('[routes] 规划完成：' + legs.length + ' 条独立路线 / 合计 ' + (totalD / 1000).toFixed(1) + ' km');
+      return cb(null, out);
+    }
+    const a = pairs[i].a, b = pairs[i].b;
+    fetchDrivingLeg(a, b, key).then(leg => {
+      leg.index = i + 1;
+      leg.from = { id:a.id, name:mapNames(a).zh || '', lng:+a.lng, lat:+a.lat };
+      leg.to   = { id:b.id, name:mapNames(b).zh || '', lng:+b.lng, lat:+b.lat };
+      legs.push(leg);
+      totalD += leg.distance; totalT += leg.duration;
+      console.log('[routes] 第 ' + (i + 1) + '/' + pairs.length + ' 条：' + (leg.from.name || a.id) + ' → ' + (leg.to.name || b.id) + '  ' + (leg.distance / 1000).toFixed(1) + ' km');
+      i++;
+      setTimeout(step, 150);            /* 串行 + 间隔，避免触发 QPS 限流 */
+    }).catch(e => {
+      routeBuilding = false;
+      cb(new Error('第 ' + (i + 1) + ' 条（' + (mapNames(a).zh || a.id) + ' → ' + (mapNames(b).zh || b.id) + '）规划失败：' + e.message));
+    });
+  }
+  step();
 }
 
 /* ---------------- 校验与归一化 ---------------- */
@@ -512,6 +964,9 @@ function serveStatic(req, res){
   let urlPath = req.url.split('?')[0];
   try { urlPath = decodeURIComponent(urlPath); } catch(e){}
   if (urlPath === '/' || /^\/tg\/[A-Za-z0-9_-]+$/.test(urlPath)) urlPath = '/index.html';
+  /* 全岛游地图子页面：站内路径，不对外暴露地图自己的独立网址（/island → 露营点地图，/island/spots → 打卡点页） */
+  if (urlPath === '/island' || urlPath === '/island/') urlPath = '/island/camp.html';
+  if (urlPath === '/island/spots' || urlPath === '/island/spots/') urlPath = '/island/camp-next.html';
   /* 安全：禁止通过静态资源访问 data 目录（users/auth/secrets 等敏感数据），杜绝密钥泄露 */
   if (/^\/data(\/|$)/i.test(urlPath)) return send(res, 404, 'Not Found');
   const filePath = path.normalize(path.join(ROOT, urlPath));
@@ -519,7 +974,11 @@ function serveStatic(req, res){
   fs.readFile(filePath, (err, data) => {
     if (err) return send(res, 404, 'Not Found');
     const ext = path.extname(filePath).toLowerCase();
-    sendMaybeGzip(req, res, 200, { 'Content-Type': MIME[ext] || 'application/octet-stream' }, data);
+    const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    /* 地图用的两个大文件（echarts ~1MB / 地理边界）内容极少变动：允许浏览器缓存，
+       避免每次进入地图子页面都重新下载一遍 */
+    if (/[\\/]island[\\/](echarts\.min\.js|hainan\.geojson\.js)$/.test(filePath)) headers['Cache-Control'] = 'public, max-age=86400';
+    sendMaybeGzip(req, res, 200, headers, data);
   });
 }
 
@@ -790,6 +1249,7 @@ const SECRETS_TEMPLATE = {
   resend:    { apiKey: '', fromEmail: '', fromName: 'beisuas' },
   recaptcha: { version: 'v2', siteKey: '', secretKey: '' },
   telegram:  { botUsername: '', botToken: '' },   // Telegram 登录：botUsername 公开（前端控件用），botToken 仅后端校验用
+  amap:      { key: '' },                          // 高德 Web 服务 Key：驾车路线规划用，仅后端，不下发前端
   mongo:     { uri: '' }
 };
 function ensureSecretsFile(){
@@ -811,6 +1271,7 @@ function loadSecrets(){
     recaptcha: { version: (str(s.recaptcha, 'version') || str(env, 'RECAPTCHA_VERSION')) === 'v3' ? 'v3' : 'v2',
                  siteKey: pick(str(s.recaptcha, 'siteKey'), 'RECAPTCHA_SITE_KEY'), secretKey: pick(str(s.recaptcha, 'secretKey'), 'RECAPTCHA_SECRET_KEY') },
     telegram:  { botUsername: pick(str(s.telegram, 'botUsername'), 'TELEGRAM_BOT_USERNAME'), botToken: pick(str(s.telegram, 'botToken'), 'TELEGRAM_BOT_TOKEN') },
+    amap:      { key: pick(str(s.amap, 'key'), 'AMAP_KEY') },
     mongo:     { uri: pick(str(s.mongo, 'uri'), 'MONGODB_URI') }
   };
 }
@@ -1030,6 +1491,8 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/status' || p === '/api/auth/login' || p === '/api/auth/logout' ||
       p === '/api/auth/heartbeat' || p === '/api/auth/close' ||
       p === '/api/config' || p === '/api/match' || p === '/api/media' ||
+      (p === '/api/camp-points' && req.method === 'GET') ||
+      (p === '/api/play-points' && req.method === 'GET') ||
       (p === '/api/articles' && req.method === 'GET') ||
       (p === '/api/events' && req.method === 'GET') ||
       p === '/api/auth/check' || p === '/api/auth/send-code' ||
@@ -1760,6 +2223,180 @@ const server = http.createServer(async (req, res) => {
     d.events = d.events.filter(e => e.id !== m[1]);
     saveData(d);
     return send(res, 200, { ok:true });
+  }
+
+  /* ---- 全岛游地图：游客端两个子页面用的只读接口（已加入白名单，无需登录 token） ---- */
+  if (p === '/api/camp-points' && req.method === 'GET'){
+    return send(res, 200, { categories:MAP_KINDS, points:mapCampPoints(), landmarks:mapLandmarks() });
+  }
+  if (p === '/api/play-points' && req.method === 'GET'){
+    return send(res, 200, { category:mapPlayKind(), points:mapPlayPoints() });
+  }
+
+  /* ---- 全岛游地图：后台点位 CRUD（露营点 / 打卡点共用同一份点位数据；未加入白名单 → 必须带 token） ---- */
+  if (p === '/api/admin/map-points' && req.method === 'GET'){
+    const d = loadMap();
+    return send(res, 200, {
+      categories: d.categories,
+      campKinds: MAP_KINDS.map(k => ({ key:k.key, names:k.names, color:k.color })),
+      points: d.points.map(pt => ({
+        id:pt.id, categories:mapCats(pt), name:pt.name || '', names:pt.names || {}, intro:pt.intro || {},
+        lng:+pt.lng, lat:+pt.lat, campType:d.campTypes[pt.id] || ''
+      }))
+    });
+  }
+  if (p === '/api/admin/map-points' && req.method === 'POST'){
+    const body = await readBody(req);
+    const d = loadMap();
+    const v = validateMapPoint(body, d);
+    if (v.error) return send(res, 400, { error:v.error });
+    const pt = normMapPoint({ id:'p_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+                             categories:v.categories, names:v.names, intro:v.intro, lng:v.lng, lat:v.lat });
+    d.points.push(pt);
+    if (v.campType) d.campTypes[pt.id] = v.campType; else delete d.campTypes[pt.id];
+    saveMap(d);
+    return send(res, 201, { ok:true, point:pt });
+  }
+  if ((m = p.match(/^\/api\/admin\/map-points\/([^/]+)$/)) && req.method === 'PUT'){
+    const body = await readBody(req);
+    const d = loadMap();
+    const i = d.points.findIndex(x => x.id === m[1]);
+    if (i < 0) return send(res, 404, { error:'点位不存在' });
+    const v = validateMapPoint(body, d);
+    if (v.error) return send(res, 400, { error:v.error });
+    d.points[i] = normMapPoint({ id:m[1], categories:v.categories, names:v.names, intro:v.intro, lng:v.lng, lat:v.lat });
+    if (v.campType) d.campTypes[m[1]] = v.campType; else delete d.campTypes[m[1]];
+    saveMap(d);
+    return send(res, 200, { ok:true, point:d.points[i] });
+  }
+  if ((m = p.match(/^\/api\/admin\/map-points\/([^/]+)$/)) && req.method === 'DELETE'){
+    const d = loadMap();
+    const i = d.points.findIndex(x => x.id === m[1]);
+    if (i < 0) return send(res, 404, { error:'点位不存在' });
+    d.points.splice(i, 1);
+    delete d.campTypes[m[1]];              /* 删点位时连带删掉它的露营点子类型 */
+    saveMap(d);
+    return send(res, 200, { ok:true });
+  }
+
+  /* ---- 全岛游地图：后台图层（分类）CRUD（未加入白名单 → 必须带 token） ---- */
+  if (p === '/api/admin/map-layers' && req.method === 'GET'){
+    const d = loadMap();
+    const counts = {};
+    d.categories.forEach(c => { counts[c.key] = d.points.filter(pt => mapCats(pt).indexOf(c.key) >= 0).length; });
+    return send(res, 200, { categories:d.categories, counts:counts });
+  }
+  if (p === '/api/admin/map-layers' && req.method === 'POST'){
+    const body = await readBody(req);
+    const d = loadMap();
+    const v = validateLayer(body, d, null);
+    if (v.error) return send(res, 400, { error:v.error });
+    d.categories.push(v.layer);
+    saveMap(d);
+    return send(res, 201, { ok:true, category:v.layer });
+  }
+  if ((m = p.match(/^\/api\/admin\/map-layers\/([^/]+)$/)) && req.method === 'PUT'){
+    const body = await readBody(req);
+    const key = decodeURIComponent(m[1]);
+    const d = loadMap();
+    if (!d.categories.some(c => c.key === key)) return send(res, 404, { error:'图层不存在：' + key });
+    const v = validateLayer(body, d, key);     /* 编辑时 key 不可改（避免点位失联） */
+    if (v.error) return send(res, 400, { error:v.error });
+    d.categories = d.categories.map(c => c.key === key ? v.layer : c);
+    saveMap(d);
+    return send(res, 200, { ok:true, category:v.layer });
+  }
+  if ((m = p.match(/^\/api\/admin\/map-layers\/([^/]+)$/)) && req.method === 'DELETE'){
+    const key = decodeURIComponent(m[1]);
+    const d = loadMap();
+    if (!d.categories.some(c => c.key === key)) return send(res, 404, { error:'图层不存在：' + key });
+    d.categories = d.categories.filter(c => c.key !== key);
+    /* 点位若还属于其它类型则保留，仅摘除被删类型；已无类型的点位一并删除（并连带其露营点子类型） */
+    const gone = [];
+    d.points = d.points.map(pt => {
+      const rest = mapCats(pt).filter(k => k !== key);
+      if (rest.length === mapCats(pt).length) return pt;
+      if (!rest.length){ gone.push(pt.id); return null; }
+      return normMapPoint({ id:pt.id, categories:rest, names:pt.names, intro:pt.intro, lng:pt.lng, lat:pt.lat });
+    }).filter(Boolean);
+    gone.forEach(id => { delete d.campTypes[id]; });
+    saveMap(d);
+    return send(res, 200, { ok:true, removedPoints:gone.length });
+  }
+
+  /* ---- 全岛游地图：驾车路线（高德规划，结果缓存到地图数据的 routes 字段） ---- */
+  if (p === '/api/admin/map-routes' && req.method === 'GET'){
+    return send(res, 200, { configured: !!amapKey(), routes: loadMap().routes });
+  }
+  if (p === '/api/admin/map-routes/build' && req.method === 'POST'){
+    const key = amapKey();
+    if (!key) return send(res, 400, { error:'未配置高德 Web 服务 Key：请在 data/secrets.json 写入 { "amap": { "key": "你的Key" } }，或设置环境变量 AMAP_KEY 后重启服务' });
+    return buildMapRoutes(key, (err, out) => {
+      if (err) return send(res, 400, { error:err.message });
+      return send(res, 200, { ok:true, routes:out });
+    });
+  }
+  /* 后台「路线查询」：{ from, to } 支持地名或 "lng,lat"，返回的 leg 结构与已缓存路线分段一致，
+     后台地图可直接用 setRoutes 渲染；仅在本次响应返回，不写入缓存。 */
+  if (p === '/api/admin/map-route/query' && req.method === 'POST'){
+    const body = await readBody(req);
+    const key = amapKey();
+    if (!key) return send(res, 400, { error:'未配置高德 Web 服务 Key：请在 data/secrets.json 写入 { "amap": { "key": "你的Key" } }，或设置环境变量 AMAP_KEY 后重启服务' });
+    const from = String(body.from || '').trim();
+    const to   = String(body.to || '').trim();
+    if (!from) return send(res, 400, { error:'请填写起点' });
+    if (!to)   return send(res, 400, { error:'请填写终点' });
+    if (from === to) return send(res, 400, { error:'起点和终点相同' });
+    try {
+      /* 三次高德调用（解析起点 → 解析终点 → 规划）全部串行，避开个人 Key 的低 QPS 限制 */
+      const a = await geocodePlace(from, key);
+      await amapGap();
+      const b = await geocodePlace(to, key);
+      await amapGap();
+      const leg = await fetchDrivingLeg(a, b, key);
+      leg.index = 1;
+      leg.from = a;
+      leg.to = b;
+      console.log('[route] 查询：' + a.name + ' → ' + b.name + '  ' + (leg.distance / 1000).toFixed(1) + ' km');
+      return send(res, 200, { ok:true, leg:leg });
+    } catch(e){ return send(res, 400, { error:e.message }); }
+  }
+
+  /* ---- 全岛游地图：路线方案（手动按顺序挑点位留存到地图数据的 plans 字段；不调高德、不渲染到地图） ---- */
+  if (p === '/api/admin/map-plans' && req.method === 'GET'){
+    return send(res, 200, { plans: loadMap().plans });
+  }
+  if (p === '/api/admin/map-plans' && req.method === 'POST'){
+    const body = await readBody(req);
+    const d = loadMap();
+    const v = validatePlan(body, d);
+    if (v.error) return send(res, 400, { error:v.error });
+    const plan = normPlan({ name:body.name, stops:v.stops });
+    d.plans.push(plan);
+    saveMap(d);
+    return send(res, 200, { ok:true, plan:plan, plans:d.plans });
+  }
+  if ((m = p.match(/^\/api\/admin\/map-plans\/([^/]+)$/)) && req.method === 'PUT'){
+    const body = await readBody(req);
+    const id = decodeURIComponent(m[1]);
+    const d = loadMap();
+    const i = d.plans.findIndex(x => x.id === id);
+    if (i < 0) return send(res, 404, { error:'方案不存在：' + id });
+    const v = validatePlan(body, d);
+    if (v.error) return send(res, 400, { error:v.error });
+    const plan = normPlan({ name:body.name, stops:v.stops }, d.plans[i]);
+    d.plans[i] = plan;
+    saveMap(d);
+    return send(res, 200, { ok:true, plan:plan, plans:d.plans });
+  }
+  if ((m = p.match(/^\/api\/admin\/map-plans\/([^/]+)$/)) && req.method === 'DELETE'){
+    const id = decodeURIComponent(m[1]);
+    const d = loadMap();
+    const i = d.plans.findIndex(x => x.id === id);
+    if (i < 0) return send(res, 404, { error:'方案不存在：' + id });
+    d.plans.splice(i, 1);
+    saveMap(d);
+    return send(res, 200, { ok:true, plans:d.plans });
   }
 
   /* ---- 兜底配置 ---- */
