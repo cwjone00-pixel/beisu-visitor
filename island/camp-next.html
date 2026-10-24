@@ -112,6 +112,14 @@
   /* 价格区间：按钮正下方居中。数值由后台配置，未配置时先占位展示 */
   .camp__cta-price { margin-top: 10px; font-size: 11.5px; color: #8a94a6; line-height: 1.6; }
   .camp__cta-price b { display: block; font-size: 14.5px; color: #1f2d3d; }
+  /* 修改人数小入口：不强制二次填写，只是给中途想改的人一个轻量出口 */
+  .camp__cta-edit {
+    margin-top: 5px; padding: 2px 6px; border: 0; background: none;
+    font: inherit; font-size: 11.5px; color: #2f7cf6; cursor: pointer;
+    text-decoration: underline; text-underline-offset: 2px;
+  }
+  .camp__cta-edit:hover { color: #2a6ee0; }
+  .camp__cta-edit[hidden] { display: none; }
 
   /* 人数弹窗：点「免拼 / 拼团」后弹出，填 1-9 的整数人数，确认即提交；
      超过 9 人提示联系客服定制 */
@@ -185,17 +193,18 @@
   <div class="camp__form" id="campForm"></div>
 
   <!-- 出行方式二选一 + 价格区间：固定在页面右侧垂直居中。
-       未选中打卡点时两个按钮保持禁用；点击后弹出人数填写，确认即提交。
-       价格区间数值由后台配置接口下发，未配置时先占位展示。 -->
+       未选中打卡点时两个按钮保持禁用。人数在第一步地图页已填写并全局缓存，
+       这里点按钮直接提交，不再重复询问；下方提供「修改人数」小入口。 -->
   <div class="camp__cta" id="campCta">
     <div class="camp__cta-btns">
       <button type="button" class="camp__cta-btn" id="ctaPrivate" disabled></button>
       <button type="button" class="camp__cta-btn" id="ctaShared" disabled></button>
     </div>
     <div class="camp__cta-price" id="ctaPrice"></div>
+    <button type="button" class="camp__cta-edit" id="ctaEdit" hidden></button>
   </div>
 
-  <!-- 人数弹窗：选择出行方式后填写 1-9 的整数人数，必填；超过 9 人提示联系客服定制 -->
+  <!-- 人数弹窗：仅在第一步未填人数（如直接从地址打开本页）或点「修改人数」时出现 -->
   <div class="camp-people-mask" id="peopleMask" hidden>
     <div class="camp-people" role="dialog" aria-modal="true">
       <div class="camp-people__title" id="peopleTitle"></div>
@@ -250,12 +259,15 @@
       priceLabel: '价格区间',
       perDay: '/天',
       priceUnset: '暂无报价，请咨询客服',
-      /* 人数弹窗：点出行方式后弹出，标题带上所选方式 */
+      /* 人数弹窗：仅在未填人数或点「修改人数」时出现；人数默认沿用第一步缓存 */
       peopleTitle: '填写出行人数',
-      peopleTitleWith: function (name) { return name + ' · 填写出行人数'; },
+      peopleEditTitle: '修改出行人数',
+      peopleCurrent: function (n) { return '出行人数：' + n + ' 人'; },
+      peopleEdit: '修改人数',
       peopleTip: '请输入本次出行的具体人数（1-9 人）',
       peoplePh: '人数',
       peopleOk: '确认提交',
+      peopleSave: '保存',
       peopleCancel: '取消',
       peopleErrEmpty: '请填写出行人数',
       peopleErrRange: '请输入 1-9 的整数人数',
@@ -291,10 +303,13 @@
       perDay: '/day',
       priceUnset: 'No quote yet — please ask our agent',
       peopleTitle: 'Number of travelers',
-      peopleTitleWith: function (name) { return name + ' · Number of travelers'; },
+      peopleEditTitle: 'Change number of travelers',
+      peopleCurrent: function (n) { return 'Travelers: ' + n; },
+      peopleEdit: 'Change',
       peopleTip: 'Enter the exact number of travelers (1-9)',
       peoplePh: 'People',
       peopleOk: 'Confirm & submit',
+      peopleSave: 'Save',
       peopleCancel: 'Cancel',
       peopleErrEmpty: 'Please enter the number of travelers',
       peopleErrRange: 'Please enter a whole number between 1 and 9',
@@ -330,10 +345,13 @@
       perDay: '/день',
       priceUnset: 'Цена уточняется — спросите оператора',
       peopleTitle: 'Количество человек',
-      peopleTitleWith: function (name) { return name + ' · Количество человек'; },
+      peopleEditTitle: 'Изменить количество человек',
+      peopleCurrent: function (n) { return 'Человек: ' + n; },
+      peopleEdit: 'Изменить',
       peopleTip: 'Укажите точное количество человек (1-9)',
       peoplePh: 'Человек',
       peopleOk: 'Подтвердить',
+      peopleSave: 'Сохранить',
       peopleCancel: 'Отмена',
       peopleErrEmpty: 'Укажите количество человек',
       peopleErrRange: 'Введите целое число от 1 до 9',
@@ -342,13 +360,15 @@
   };
 
   var LANG_KEY = 'beisu-lang';         /* 与游客主站共用同一个语言记忆，从地图页进来也保持一致 */
+  var PEOPLE_KEY = 'beisu-people';     /* 出行人数全局缓存：第一步地图页填写，本页直接沿用 */
   var lang = 'zh';
   var map = null;
   var spots = [];                      /* 游玩打卡点（直接读库里「游玩打卡」分类那批点位） */
   var kind = null;                     /* 该分类在后台的配色 / 名称，与地图页保持一致 */
   var campSite = null;                 /* 上一步选中的露营点（带 ?point= 进来时才有） */
-  var people = 0;                      /* 弹窗里确认的出行人数（1-9） */
+  var people = 0;                      /* 出行人数（1-9）：从第一步的全局缓存读取，本页不再重复询问 */
   var tourType = '';                   /* 出行方式：'private' 免拼 / 'shared' 拼团（点按钮时记录） */
+  var editingPeople = false;           /* true = 用户点「修改人数」，弹窗只保存不提交 */
   var priceCfg = { min: 0, max: 0 };   /* 价格区间：/api/island-config 下发，0 = 后台未配置（占位展示） */
   var detailId = null;                 /* 右下角详情当前展示的标记 id */
   var selIds = [];                     /* 已多选的游玩打卡点 id，按选择先后排列 */
@@ -584,34 +604,45 @@
   });
 
   /* ---------- 出行方式 + 人数 + 提交 ----------
-     右侧「免拼 / 拼团」二选一：点击后先弹人数填写弹窗（1-9 必填整数，
-     超过 9 提示联系客服定制），确认即提交。提交体带选中的点位 ID +
-     出行方式 + 人数，后台按「点位ID + 方式 + 人数 + 当前打卡时间」记录，
-     不收集游客称呼或联系方式。 */
+     右侧「免拼 / 拼团」二选一。人数已在第一步地图页填写并全局缓存（localStorage），
+     这里点按钮直接沿用该人数提交，不再弹出输入框；只有缓存为空（直接从地址
+     打开本页）才回退到弹窗，另外提供「修改人数」小入口供中途调整。
+     提交体带选中的点位 ID + 出行方式 + 人数，后台按「点位ID + 方式 + 人数 +
+     当前打卡时间」记录，不收集游客称呼或联系方式。 */
   function renderForm() {
     var d = t();
     $('ctaPrivate').textContent = d.tourPrivate;
     $('ctaShared').textContent = d.tourShared;
     $('peopleTip').textContent = d.peopleTip;
     $('peopleInput').placeholder = d.peoplePh;
-    $('peopleOk').textContent = d.peopleOk;
     $('peopleCancel').textContent = d.peopleCancel;
     renderPrice();
+    renderPeopleEntry();
   }
-  /* 点出行方式按钮：校验露营点 / 打卡点选择状态后，打开人数弹窗 */
-  function openPeople(type) {
-    if (!campSite) { alert(t().needCamp); return; }
-    if (!selIds.length) { alert(t().needSpot); return; }
-    tourType = type;
+  /* 「修改人数」小入口：显示了当前人数，点它可改；没有缓存人数时隐藏 */
+  function renderPeopleEntry() {
     var d = t();
-    $('peopleTitle').textContent =
-      d.peopleTitleWith(type === 'private' ? d.tourPrivate : d.tourShared);
+    var btn = $('ctaEdit');
+    if (people > 0) {
+      btn.hidden = false;
+      btn.textContent = d.peopleCurrent(people) + ' · ' + d.peopleEdit;
+    } else {
+      btn.hidden = true;
+    }
+  }
+  /* 弹窗：editing = true 表示只是修改人数（不提交）；否则是第一步没填人的兜底 */
+  function openPeople(editing) {
+    editingPeople = !!editing;
+    var d = t();
+    $('peopleTitle').textContent = editingPeople ? d.peopleEditTitle : d.peopleTitle;
+    $('peopleInput').value = people > 0 ? people : '';
+    $('peopleOk').textContent = editingPeople ? d.peopleSave : d.peopleOk;
     $('peopleErr').textContent = '';
     $('peopleMask').hidden = false;
     setTimeout(function () { $('peopleInput').focus(); }, 30);
   }
   function closePeople() { $('peopleMask').hidden = true; }
-  /* 弹窗确认：校验 1-9 整数人数，通过即提交；超 9 提示客服定制，停留本页 */
+  /* 弹窗确认：校验 1-9 整数人数并写入全局缓存；修改模式只保存，否则直接提交 */
   function confirmPeople() {
     var d = t();
     var raw = $('peopleInput').value.trim();
@@ -621,16 +652,30 @@
     if (n < 1) { $('peopleErr').textContent = d.peopleErrRange; return; }
     if (n > 9) { $('peopleErr').textContent = d.peopleOver; return; }
     people = n;
+    try { localStorage.setItem(PEOPLE_KEY, String(n)); } catch (e) {}   /* 与第一步共用同一份缓存 */
     closePeople();
-    doSubmit();
+    renderPeopleEntry();
+    if (!editingPeople) doSubmit();
+  }
+  /* 点免拼 / 拼团：已有缓存人数则直接提交，跳过二次填写 */
+  function pickTour(type) {
+    if (!campSite) { alert(t().needCamp); return; }
+    if (!selIds.length) { alert(t().needSpot); return; }
+    tourType = type;
+    if (people > 0) { doSubmit(); return; }
+    openPeople(false);                 /* 仅兜底：第一步没填人数时 */
   }
   $('ctaPrivate').onclick = function () {
     if (this.disabled || this.dataset.busy) return;
-    openPeople('private');
+    pickTour('private');
   };
   $('ctaShared').onclick = function () {
     if (this.disabled || this.dataset.busy) return;
-    openPeople('shared');
+    pickTour('shared');
+  };
+  $('ctaEdit').onclick = function () {
+    if ($('ctaPrivate').dataset.busy) return;
+    openPeople(true);
   };
   $('peopleOk').onclick = confirmPeople;
   $('peopleCancel').onclick = closePeople;
@@ -682,6 +727,11 @@
     var saved = '';
     try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
     lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    /* 出行人数：沿用第一步地图页写入的全局缓存（1-9 之外的脏值一律视为未填） */
+    try {
+      var pn = parseInt(localStorage.getItem(PEOPLE_KEY), 10);
+      if (pn >= 1 && pn <= 9) people = pn;
+    } catch (e) {}
     applyLang();
 
     var pid = '';
