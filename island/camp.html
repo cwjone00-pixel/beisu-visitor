@@ -633,15 +633,26 @@
   /* 下一步：先弹出人数填写弹窗；确认有效人数（1-9 整数）后写入本地缓存全局生效，
      再带着露营点位 id 进入第二个子页面。后续页面（免拼 / 拼团）直接沿用该人数，
      不再重复询问，避免客户重复操作流失。 */
+  var peopleOpenedAt = 0;
+  /* 弹窗显示/隐藏统一走这个函数：除了 hidden 属性，再直接写内联 display。
+     原因是 .camp-people-mask 自身是 display:flex，一旦环境里 [hidden] 规则没生效
+     （旧缓存 CSS、浏览器扩展改写等），这层全屏遮罩就会一直盖在页面上，
+     表现为「地图点不动 / 点下一步没反应」；内联 display 优先级最高，能兜住这种情况。 */
+  function showPeopleMask(on) {
+    var m = $('peopleMask');
+    m.hidden = !on;
+    m.style.display = on ? 'flex' : 'none';
+  }
   function openPeople() {
     var saved = 0;
     try { saved = parseInt(localStorage.getItem(PEOPLE_KEY), 10) || 0; } catch (e) {}
     $('peopleInput').value = (saved >= 1 && saved <= 9) ? saved : '';   /* 已填过则预填，方便直接确认 */
     $('peopleErr').textContent = '';
-    $('peopleMask').hidden = false;
+    peopleOpenedAt = Date.now();
+    showPeopleMask(true);
     setTimeout(function () { $('peopleInput').focus(); }, 30);
   }
-  function closePeople() { $('peopleMask').hidden = true; }
+  function closePeople() { showPeopleMask(false); }
   /* 校验并跳转：必填；仅 1-9 正整数；超过 9 提示联系客服定制，停留本页 */
   function confirmPeople() {
     var d = t();
@@ -660,13 +671,20 @@
   };
   $('peopleOk').onclick = confirmPeople;
   $('peopleCancel').onclick = closePeople;
-  $('peopleMask').onclick = function (ev) { if (ev.target === this) closePeople(); };
+  /* 点遮罩空白处关闭弹窗：刚打开后的 400ms 内忽略，
+     避免用户连点两下「下一步」时，第二下正好落在遮罩上把弹窗立刻关掉（表现为「点了没弹窗」） */
+  $('peopleMask').onclick = function (ev) {
+    if (ev.target !== this) return;
+    if (Date.now() - peopleOpenedAt < 400) return;
+    closePeople();
+  };
   $('peopleInput').onkeydown = function (ev) {
     if (ev.key === 'Enter') confirmPeople();
     else if (ev.key === 'Escape') closePeople();
   };
 
   function boot() {
+    showPeopleMask(false);                         /* 进页面先确保弹窗是关闭的，绝不留全屏遮罩挡住地图 */
     var saved = '';
     try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
     lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';

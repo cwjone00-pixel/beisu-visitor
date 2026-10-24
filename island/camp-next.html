@@ -783,6 +783,15 @@
     }
   }
   /* 弹窗：editing = true 表示只是修改人数（不提交）；否则是第一步没填人的兜底 */
+  var peopleOpenedAt = 0;
+  /* 弹窗显隐统一走这里：hidden 属性 + 内联 display 双保险。
+     .camp-people-mask 自身是 display:flex，若环境里 [hidden] 规则没生效，
+     全屏遮罩会一直盖住页面，表现为「点按钮没反应 / 地图点不动」。 */
+  function showPeopleMask(on) {
+    var m = $('peopleMask');
+    m.hidden = !on;
+    m.style.display = on ? 'flex' : 'none';
+  }
   function openPeople(editing) {
     editingPeople = !!editing;
     var d = t();
@@ -790,10 +799,11 @@
     $('peopleInput').value = people > 0 ? people : '';
     $('peopleOk').textContent = editingPeople ? d.peopleSave : d.peopleOk;
     $('peopleErr').textContent = '';
-    $('peopleMask').hidden = false;
+    peopleOpenedAt = Date.now();
+    showPeopleMask(true);
     setTimeout(function () { $('peopleInput').focus(); }, 30);
   }
-  function closePeople() { $('peopleMask').hidden = true; }
+  function closePeople() { showPeopleMask(false); }
   /* 弹窗确认：校验 1-9 整数人数并写入全局缓存；修改模式只保存，否则直接提交 */
   function confirmPeople() {
     var d = t();
@@ -831,7 +841,13 @@
   };
   $('peopleOk').onclick = confirmPeople;
   $('peopleCancel').onclick = closePeople;
-  $('peopleMask').onclick = function (ev) { if (ev.target === this) closePeople(); };
+  /* 点遮罩空白处关闭弹窗：刚打开后的 400ms 内忽略，
+     避免连点两下按钮时第二下落在遮罩上把弹窗立刻关掉（表现为「点了没弹窗」） */
+  $('peopleMask').onclick = function (ev) {
+    if (ev.target !== this) return;
+    if (Date.now() - peopleOpenedAt < 400) return;
+    closePeople();
+  };
   $('peopleInput').onkeydown = function (ev) {
     if (ev.key === 'Enter') confirmPeople();
     else if (ev.key === 'Escape') closePeople();
@@ -876,6 +892,7 @@
      2) 若地址带 ?point=，再从 /api/camp-points 取回上一步选中的露营点，
         在本页用专属紫色印记标出来。 */
   function boot() {
+    showPeopleMask(false);                         /* 进页面先确保弹窗关闭，避免全屏遮罩挡住地图与按钮 */
     var saved = '';
     try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
     lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
