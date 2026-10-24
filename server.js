@@ -1097,6 +1097,30 @@ function addMsg(sid, m){
   return m;
 }
 
+/* 全岛游行程提交的访客消息文案：按游客当前界面语种拼接，后台人工可在实时对话里翻译 */
+function islandSummary(lang, d){
+  const L = {
+    zh: { title:'【全岛游行程提交】', name:'称呼', contact:'联系方式', camp:'露营点',
+          spots:'打卡点', note:'备注', none:'（未选择）', sep:'、' },
+    en: { title:'[Island tour request]', name:'Name', contact:'Contact', camp:'Campsite',
+          spots:'Sightseeing spots', note:'Note', none:'(none)', sep:', ' },
+    ru: { title:'[Заявка на экскурсию]', name:'Имя', contact:'Контакт', camp:'Кемпинг',
+          spots:'Достопримечательности', note:'Примечание', none:'(нет)', sep:', ' }
+  }[lang] || {
+    title:'【全岛游行程提交】', name:'称呼', contact:'联系方式', camp:'露营点',
+    spots:'打卡点', note:'备注', none:'（未选择）', sep:'、'
+  };
+  const lines = [
+    L.title,
+    L.name + ': ' + d.name,
+    L.contact + ': ' + d.contact,
+    L.camp + ': ' + (d.camp || L.none),
+    L.spots + ': ' + (d.spots.length ? d.spots.join(L.sep) : L.none)
+  ];
+  if (d.note) lines.push(L.note + ': ' + d.note);
+  return lines.join('\n');
+}
+
 /* ---------------- 图片媒体：独立存储（避免把 base64 塞进 chats 单体文档撑爆 16MB 上限） ----------------
    有云库 → 单独集合 media 一图一文；无云库 → data/media/<id>.bin + <id>.json（服务器不对外暴露 data 目录） */
 const MEDIA_DIR = path.join(ROOT, 'data', 'media');
@@ -1491,6 +1515,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/status' || p === '/api/auth/login' || p === '/api/auth/logout' ||
       p === '/api/auth/heartbeat' || p === '/api/auth/close' ||
       p === '/api/config' || p === '/api/match' || p === '/api/media' ||
+      (p === '/api/island/submit' && req.method === 'POST') ||
       (p === '/api/camp-points' && req.method === 'GET') ||
       (p === '/api/play-points' && req.method === 'GET') ||
       (p === '/api/articles' && req.method === 'GET') ||
@@ -1952,6 +1977,35 @@ const server = http.createServer(async (req, res) => {
     payload.sid = activeSid || undefined;
     payload.reset = reset;
     return send(res, 200, payload);
+  }
+
+  /* ---- 全岛游行程提交（游客子页面调用，免鉴权）----
+     客户在露营点 / 打卡点页面填好称呼与联系方式后点「提交」，这里把行程信息
+     作为一条普通访客消息写入其会话流。提交后前端跳回主站首页，右侧聊天框
+     通过既有的消息同步把这条内容按访客消息展示，后台人工也能在实时对话里看到。 */
+  if (p === '/api/island/submit' && req.method === 'POST'){
+    const body = await readBody(req);
+    const name = String(body.name || '').trim().slice(0, 40);
+    const contact = String(body.contact || '').trim().slice(0, 80);
+    const note = String(body.note || '').trim().slice(0, 300);
+    if (!name || !contact) return send(res, 400, { ok:false, error:'请填写称呼和联系方式' });
+    const lang = ['zh', 'en', 'ru'].indexOf(body.lang) >= 0 ? body.lang : 'zh';
+    const campRaw = body.camp && typeof body.camp === 'object' ? body.camp : {};
+    const camp = String(campRaw.name || '').trim().slice(0, 80);
+    if (!camp) return send(res, 400, { ok:false, error:'请先选择露营点' });
+    const spots = (Array.isArray(body.spots) ? body.spots : [])
+      .map(function (s) { return String(s == null ? '' : s).trim().slice(0, 80); })
+      .filter(Boolean).slice(0, 30);
+
+    let sid = String(body.sessionId || '').trim().slice(0, 64);
+    /* 旧会话已被后台人工结束：改写到全新会话，避免把消息追加进已关闭的对话 */
+    if (sid && loadChats().sessions[sid] && loadChats().sessions[sid].ended) sid = crypto.randomUUID();
+    if (!sid) sid = crypto.randomUUID();
+
+    const sess = getSession(sid);
+    sess.lang = lang;
+    addMsg(sid, { role:'visitor', text: islandSummary(lang, { name:name, contact:contact, note:note, camp:camp, spots:spots }) });
+    return send(res, 200, { ok:true, sid });
   }
 
   /* ---- 人工介入聊天接口 ---- */
