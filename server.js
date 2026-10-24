@@ -147,10 +147,15 @@ function shapeData(raw){
     /* 页面卡片（聊天里发送的方块富媒体卡片：标题/简介/封面图/跳转地址，三语） */
     if (!Array.isArray(d.cards)) d.cards = [];
     d.cards = d.cards.map(normCard);
-    /* 全岛游价格区间（后台配置；0 = 未配置，前端先占位展示） */
-    if (!d.islandPrice || typeof d.islandPrice !== 'object') d.islandPrice = { min: 0, max: 0 };
-    d.islandPrice.min = Math.max(0, Math.min(999999, Math.round(+d.islandPrice.min || 0)));
-    d.islandPrice.max = Math.max(0, Math.min(999999, Math.round(+d.islandPrice.max || 0)));
+    /* 全岛游价格方案（后台配置；0 = 未配置，前端占位展示）：
+       免拼 = 包下整台车，4/7/9 座（座位含司机）各自一个整车价；
+       拼团 = 与其他游客拼车按人头付费，shared 为单人单价 */
+    if (!d.islandPricing || typeof d.islandPricing !== 'object') d.islandPricing = {};
+    if (!d.islandPricing.private || typeof d.islandPricing.private !== 'object') d.islandPricing.private = {};
+    ['seat4', 'seat7', 'seat9'].forEach(function (k) {
+      d.islandPricing.private[k] = Math.max(0, Math.min(999999, Math.round(+d.islandPricing.private[k] || 0)));
+    });
+    d.islandPricing.shared = Math.max(0, Math.min(999999, Math.round(+d.islandPricing.shared || 0)));
     /* 人工消息自动翻译总开关（缺省开启）+ 机器人总开关（缺省开启） */
     if (!d.agentChat || typeof d.agentChat !== 'object') d.agentChat = {};
     d.agentChat.translate = d.agentChat.translate !== false;
@@ -1161,20 +1166,32 @@ function islandSummary(lang, d){
   const L = {
     zh: { title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
           tour:'出行方式', tourPrivate:'免拼', tourShared:'拼团',
-          people:function (n, s){ return '出行人数: ' + n + ' 人 · 建议 ' + s + ' 座车 · 露营装备 ' + n + ' 套'; } },
+          sug:function (s){ return s ? '建议 ' + s + ' 座车' : '人数较多，车型需定制'; },
+          people:function (n, s){ return '出行人数: ' + n + ' 人 · ' + s + ' · 露营装备 ' + n + ' 套'; },
+          priceP:function (v, p){ return '包车价格: ' + v + ' 座车 ¥' + p; },
+          priceS:function (pp, n, sum){ return '拼团价格: 单人 ¥' + pp + ' × ' + n + ' 人 = ¥' + sum; } },
     en: { title:'[Island tour check-in]', camp:'Campsite', spots:'Spots', none:'(none)', sep:', ',
           tour:'Tour type', tourPrivate:'Private Tour', tourShared:'Shared Tour',
-          people:function (n, s){ return 'Travelers: ' + n + ' · Suggested ' + s + '-seat vehicle · Camping gear ×' + n; } },
+          sug:function (s){ return s ? 'Suggested ' + s + '-seat vehicle' : 'Larger group — vehicle to be customized'; },
+          people:function (n, s){ return 'Travelers: ' + n + ' · ' + s + ' · Camping gear ×' + n; },
+          priceP:function (v, p){ return 'Charter price: ' + v + '-seat car ¥' + p; },
+          priceS:function (pp, n, sum){ return 'Shared price: ¥' + pp + ' × ' + n + ' travelers = ¥' + sum; } },
     ru: { title:'[Отметка на экскурсии]', camp:'Кемпинг', spots:'Места', none:'(нет)', sep:', ',
           tour:'Формат тура', tourPrivate:'Индивидуальный тур', tourShared:'Совместный тур',
-          people:function (n, s){ return 'Человек: ' + n + ' · Рекомендуется ' + s + '-местный автомобиль · Снаряжение ×' + n; } }
+          sug:function (s){ return s ? 'Рекомендуется ' + s + '-местный автомобиль' : 'Большая группа — транспорт подбирается индивидуально'; },
+          people:function (n, s){ return 'Человек: ' + n + ' · ' + s + ' · Снаряжение ×' + n; },
+          priceP:function (v, p){ return 'Цена аренды авто: ' + v + '-местный ¥' + p; },
+          priceS:function (pp, n, sum){ return 'Цена совместного тура: ¥' + pp + ' × ' + n + ' чел. = ¥' + sum; } }
   }[lang] || {
     title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
     tour:'出行方式', tourPrivate:'免拼', tourShared:'拼团',
-    people:function (n, s){ return '出行人数: ' + n + ' 人 · 建议 ' + s + ' 座车 · 露营装备 ' + n + ' 套'; }
+    sug:function (s){ return s ? '建议 ' + s + ' 座车' : '人数较多，车型需定制'; },
+    people:function (n, s){ return '出行人数: ' + n + ' 人 · ' + s + ' · 露营装备 ' + n + ' 套'; },
+    priceP:function (v, p){ return '包车价格: ' + v + ' 座车 ¥' + p; },
+    priceS:function (pp, n, sum){ return '拼团价格: 单人 ¥' + pp + ' × ' + n + ' 人 = ¥' + sum; }
   };
-  /* 人数匹配车型：1-3 人 → 5 座，4-6 人 → 7 座，7-9 人 → 9 座 */
-  function seatsOf(n){ return n <= 3 ? 5 : (n <= 6 ? 7 : 9); }
+  /* 人数匹配车型（座位数含司机，乘客上限 3/6/8）：1-3 人 → 4 座，4-6 人 → 7 座，7-8 人 → 9 座，9 人需定制 */
+  function seatsOf(n){ return n <= 3 ? 4 : (n <= 6 ? 7 : (n <= 8 ? 9 : 0)); }
   /* 按 ID 反查点位名称，只输出地名（不带 p_mv 编码），
      ID 仍保留在消息结构化字段 island.campId / island.spots 里供后台识别 */
   const all = loadMap().points;
@@ -1191,7 +1208,16 @@ function islandSummary(lang, d){
   /* 出行方式（免拼 / 拼团）：选择了才追加这一行 */
   if (d.tourType) lines.push(L.tour + ': ' + (d.tourType === 'private' ? L.tourPrivate : L.tourShared));
   /* 填了出行人数才追加这一行（人数 · 建议车型 · 装备套数） */
-  if (d.people) lines.push(L.people(d.people, seatsOf(d.people)));
+  if (d.people) lines.push(L.people(d.people, L.sug(seatsOf(d.people))));
+  /* 所选方案价格（后台已配置才附加）：免拼带所选车型整车价，拼团带 单价×人数=总价 */
+  const pricing = loadData().islandPricing || {};
+  if (d.tourType === 'private' && d.vehicle){
+    const p = pricing.private && +pricing.private['seat' + d.vehicle];
+    if (p > 0) lines.push(L.priceP(d.vehicle, p));
+  } else if (d.tourType === 'shared' && d.people){
+    const pp = +pricing.shared || 0;
+    if (pp > 0) lines.push(L.priceS(pp, d.people, pp * d.people));
+  }
   return lines.join('\n');
 }
 
@@ -2058,25 +2084,29 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, payload);
   }
 
-  /* ---- 全岛游价格区间配置 ---- */
-  /* 公开：游客端打卡点页面读取价格区间（未配置时 min/max 为 0，前端占位展示） */
+  /* ---- 全岛游价格方案配置 ---- */
+  /* 公开：游客端打卡点页面读取报价（免拼 4/7/9 座整车价 + 拼团单人价；0 = 未配置，前端占位展示） */
   if (p === '/api/island-config' && req.method === 'GET'){
-    const pr = loadData().islandPrice || { min: 0, max: 0 };
-    return send(res, 200, { ok:true, priceMin: pr.min || 0, priceMax: pr.max || 0 });
+    const pr = loadData().islandPricing || {};
+    const pv = pr.private || {};
+    return send(res, 200, { ok:true, pricing: {
+      private: { seat4: pv.seat4 || 0, seat7: pv.seat7 || 0, seat9: pv.seat9 || 0 },
+      shared: +pr.shared || 0
+    }});
   }
-  /* 后台：设置价格区间（单位：元/天）。两个值都为正时要求 max >= min；都填 0 即清空回占位态 */
+  /* 后台：设置价格方案。seat4/seat7/seat9 为免拼各车型整车价，perPerson 为拼团单人单价；
+     各项 0-999999，填 0 即未配置（游客端该项显示占位） */
   if (p === '/api/admin/island-config' && req.method === 'PUT'){
     const body = await readBody(req);
-    const min = Math.round(+body.priceMin || 0);
-    const max = Math.round(+body.priceMax || 0);
-    if (!(min >= 0 && min <= 999999) || !(max >= 0 && max <= 999999))
+    function num(v){ const n = Math.round(+v || 0); return (n >= 0 && n <= 999999) ? n : -1; }
+    const seat4 = num(body.seat4), seat7 = num(body.seat7), seat9 = num(body.seat9);
+    const per = num(body.perPerson);
+    if (seat4 < 0 || seat7 < 0 || seat9 < 0 || per < 0)
       return send(res, 400, { ok:false, error:'价格需为 0-999999 的数字' });
-    if (min > 0 && max > 0 && max < min)
-      return send(res, 400, { ok:false, error:'价格上限不能低于下限' });
     const d = loadData();
-    d.islandPrice = { min: min, max: max };
+    d.islandPricing = { private: { seat4: seat4, seat7: seat7, seat9: seat9 }, shared: per };
     await saveData(d);
-    return send(res, 200, { ok:true, priceMin: min, priceMax: max });
+    return send(res, 200, { ok:true, pricing: d.islandPricing });
   }
 
   /* ---- 全岛游打卡提交（游客子页面调用，免鉴权）----
@@ -2102,6 +2132,20 @@ const server = http.createServer(async (req, res) => {
     const people = (pp >= 1 && pp <= 9) ? pp : 0;
     /* 出行方式：免拼 private / 拼团 shared，其它值按未选择处理 */
     const tourType = (body.tourType === 'private' || body.tourType === 'shared') ? body.tourType : '';
+    /* 免拼所选车型：4/7/9 座（座位含司机，乘客上限 3/6/8）。
+       客户端选的车型坐不下时自动改派最小可坐车型；9 人无适配车型则留空（客服定制） */
+    let vehicle = 0;
+    if (tourType === 'private'){
+      const CAPS = { 4:3, 7:6, 9:8 };
+      const v = parseInt(body.vehicle, 10);
+      if (CAPS[v] && (!people || CAPS[v] >= people)) vehicle = v;
+      if (!vehicle && people){
+        const order = [4, 7, 9];
+        for (let i = 0; i < order.length; i++){
+          if (CAPS[order[i]] >= people){ vehicle = order[i]; break; }
+        }
+      }
+    }
 
     let sid = String(body.sessionId || '').trim().slice(0, 64);
     /* 旧会话已被后台人工结束：改写到全新会话，避免把消息追加进已关闭的对话 */
@@ -2112,8 +2156,8 @@ const server = http.createServer(async (req, res) => {
     sess.lang = lang;
     addMsg(sid, {
       role:'visitor',
-      text: islandSummary(lang, { campId: campId, spots: spotIds, people: people, tourType: tourType }),
-      island: { campId: campId, spots: spotIds, tourType: tourType || undefined, people: people || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 方式 + 人数 + 打卡时间
+      text: islandSummary(lang, { campId: campId, spots: spotIds, people: people, tourType: tourType, vehicle: vehicle }),
+      island: { campId: campId, spots: spotIds, tourType: tourType || undefined, people: people || undefined, vehicle: vehicle || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 方式 + 人数 + 车型 + 打卡时间
     });
     return send(res, 200, { ok:true, sid });
   }

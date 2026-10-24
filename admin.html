@@ -526,18 +526,25 @@
     <div id="cardListBox" class="rule-list"></div>
   </div>
 
-  <!-- 全岛游价格区间（打卡点页「免拼/拼团」按钮下方展示；都留空则前端显示占位） -->
+  <!-- 全岛游价格方案（打卡点页「免拼/拼团」两个板块独立展示；留空（0）的项前端显示占位） -->
   <div class="card">
     <div class="head-row">
-      <h2>全岛游价格区间</h2>
+      <h2>全岛游价格方案</h2>
       <button class="btn btn-primary" onclick="saveIslandPrice()">保存价格</button>
     </div>
-    <div class="desc">游客端打卡点页面「免拼 / 拼团」按钮正下方展示的价格区间（¥XXX - ¥XXX /天）。两个值都填才展示数值；都留空则游客端显示「暂无报价，请咨询客服」占位。</div>
-    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
-      <input class="input" id="priceMin" type="number" min="0" max="999999" placeholder="最低价（元/天）" style="width:170px;">
-      <span style="color:#8b94a0;">—</span>
-      <input class="input" id="priceMax" type="number" min="0" max="999999" placeholder="最高价（元/天）" style="width:170px;">
-      <span id="priceState" style="font-size:12px; color:#8b94a0;"></span>
+    <div class="desc">游客端打卡点页面分【免拼】【拼团】两个板块独立展示价格。<b>免拼</b> = 游客包下整台车（座位数含司机），按车型分别填整车包车价，前端会按出行人数自动置灰坐不下的车型；<b>拼团</b> = 与其他游客拼车按人头付费，填单人单价，前端按人数自动算总价。</div>
+    <div style="margin-top:10px;">
+      <div style="font-size:13px; font-weight:700; color:#1f2d3d;">免拼（包车整车价）</div>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+        <input class="input" id="priceSeat4" type="number" min="0" max="999999" placeholder="4 座车价（元）" style="width:150px;">
+        <input class="input" id="priceSeat7" type="number" min="0" max="999999" placeholder="7 座车价（元）" style="width:150px;">
+        <input class="input" id="priceSeat9" type="number" min="0" max="999999" placeholder="9 座车价（元）" style="width:150px;">
+      </div>
+      <div style="font-size:13px; font-weight:700; color:#1f2d3d; margin-top:12px;">拼团（按人头）</div>
+      <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+        <input class="input" id="pricePerPerson" type="number" min="0" max="999999" placeholder="单人单价（元）" style="width:150px;">
+        <span id="priceState" style="font-size:12px; color:#8b94a0;"></span>
+      </div>
     </div>
   </div>
 
@@ -1322,7 +1329,7 @@ function renderChatPanel(msgs, reset, keepScroll){
       /* 全岛游打卡提交：仅后台可见的点位 ID 行，便于排查问题（前台聊天框只展示地名） */
       if (m.island && m.island.campId){
         const ids = [m.island.campId].concat(Array.isArray(m.island.spots) ? m.island.spots : []);
-        extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0; font-family:ui-monospace,Consolas,monospace; word-break:break-all;">点位ID：${esc(ids.join('，'))}${m.island.tourType ? ' · 方式：' + (m.island.tourType === 'private' ? '免拼' : '拼团') : ''}${m.island.people ? ' · 人数：' + m.island.people : ''}${m.island.checkedAt ? ' · ' + new Date(m.island.checkedAt).toLocaleString() : ''}</div>`;
+        extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0; font-family:ui-monospace,Consolas,monospace; word-break:break-all;">点位ID：${esc(ids.join('，'))}${m.island.tourType ? ' · 方式：' + (m.island.tourType === 'private' ? '免拼' : '拼团') : ''}${m.island.vehicle ? ' · 车型：' + m.island.vehicle + '座' : ''}${m.island.people ? ' · 人数：' + m.island.people : ''}${m.island.checkedAt ? ' · ' + new Date(m.island.checkedAt).toLocaleString() : ''}</div>`;
       }
       /* 页面卡片消息：后台渲染同款卡片预览（标题取中文，附跳转地址，点击新标签打开） */
       if (m.card){
@@ -1865,25 +1872,39 @@ async function delCard(id){
   if (confirm('确定删除该卡片？绑定它的关键词规则会自动解除绑定。')){ await API.cardDelete(id); loadCards(); }
 }
 
-/* ================= 全岛游价格区间 ================= */
-/* 打卡点页「免拼 / 拼团」按钮下方展示；min/max 都 > 0 才展示数值，都为 0 即回占位态 */
+/* ================= 全岛游价格方案 ================= */
+/* 打卡点页分「免拼 / 拼团」两个板块展示：免拼按车型整车价（4/7/9 座，座位含司机），
+   拼团按单人单价（前端乘人数得总价）；填 0 / 留空的项游客端显示占位 */
 async function loadIslandPrice(){
   try {
     const d = await _rawFetch('/api/island-config').then(r => r.json());
-    $('priceMin').value = d.priceMin > 0 ? d.priceMin : '';
-    $('priceMax').value = d.priceMax > 0 ? d.priceMax : '';
-    $('priceState').textContent = (d.priceMin > 0 && d.priceMax > 0)
-      ? '当前：¥' + d.priceMin + ' - ¥' + d.priceMax + ' /天'
+    const pv = (d && d.pricing && d.pricing.private) || {};
+    const per = (d && d.pricing && +d.pricing.shared) || 0;
+    $('priceSeat4').value = pv.seat4 > 0 ? pv.seat4 : '';
+    $('priceSeat7').value = pv.seat7 > 0 ? pv.seat7 : '';
+    $('priceSeat9').value = pv.seat9 > 0 ? pv.seat9 : '';
+    $('pricePerPerson').value = per > 0 ? per : '';
+    const parts = [];
+    if (pv.seat4 > 0) parts.push('4座 ¥' + pv.seat4);
+    if (pv.seat7 > 0) parts.push('7座 ¥' + pv.seat7);
+    if (pv.seat9 > 0) parts.push('9座 ¥' + pv.seat9);
+    if (per > 0) parts.push('拼团单人 ¥' + per);
+    $('priceState').textContent = parts.length
+      ? '当前：' + parts.join(' · ')
       : '当前未配置，游客端显示占位';
   } catch(e){ $('priceState').textContent = '加载失败'; }
 }
 async function saveIslandPrice(){
-  const min = parseInt($('priceMin').value, 10) || 0;
-  const max = parseInt($('priceMax').value, 10) || 0;
+  const body = {
+    seat4: parseInt($('priceSeat4').value, 10) || 0,
+    seat7: parseInt($('priceSeat7').value, 10) || 0,
+    seat9: parseInt($('priceSeat9').value, 10) || 0,
+    perPerson: parseInt($('pricePerPerson').value, 10) || 0
+  };
   const r = await fetch('/api/admin/island-config', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', 'X-Op-Token': opToken },
-    body: JSON.stringify({ priceMin: min, priceMax: max })
+    body: JSON.stringify(body)
   }).then(r => r.json());
   if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
   loadIslandPrice();
