@@ -91,25 +91,66 @@
   /* 行程信息卡（称呼 / 联系方式 / 备注）：已按需求隐藏，不再展示也不收集游客联系方式 */
   .camp__form { display: none; }
 
-  /* 提交打卡：固定在页面右侧垂直居中。未选中任何打卡点时保持禁用（灰显），
-     一旦在地图上选中至少一个打卡点即启用（恢复主站蓝）。 */
-  .camp__submit {
+  /* 出行方式操作区：免拼 / 拼团 两个并排主按钮 + 正下方居中的价格区间，
+     整体固定在页面右侧垂直居中。未选中打卡点时按钮禁用（灰显），选中即启用。 */
+  .camp__cta {
     position: absolute; right: 18px; top: 50%; transform: translateY(-50%); z-index: 6;
-    height: 40px; padding: 0 20px;
+    width: 248px; text-align: center;
+  }
+  .camp__cta-btns { display: flex; gap: 10px; }
+  .camp__cta-btn {
+    flex: 1; height: 40px; padding: 0 6px;
     border: 0; border-radius: 999px;
     background: #2f7cf6; color: #fff;
-    font: inherit; font-size: 14px; font-weight: 700; cursor: pointer;
+    font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
     box-shadow: 0 10px 24px rgba(47,124,246,.3);
     transition: background .18s ease, box-shadow .18s ease;
+    white-space: nowrap;
   }
-  .camp__submit:hover:not(:disabled) { background: #2a6ee0; }
-  .camp__submit:disabled { background: #b8c4d4; box-shadow: none; cursor: not-allowed; }
+  .camp__cta-btn:hover:not(:disabled) { background: #2a6ee0; }
+  .camp__cta-btn:disabled { background: #b8c4d4; box-shadow: none; cursor: not-allowed; }
+  /* 价格区间：按钮正下方居中。数值由后台配置，未配置时先占位展示 */
+  .camp__cta-price { margin-top: 10px; font-size: 11.5px; color: #8a94a6; line-height: 1.6; }
+  .camp__cta-price b { display: block; font-size: 14.5px; color: #1f2d3d; }
+
+  /* 人数弹窗：点「免拼 / 拼团」后弹出，填 1-9 的整数人数，确认即提交；
+     超过 9 人提示联系客服定制 */
+  .camp-people-mask {
+    position: fixed; inset: 0; z-index: 20;
+    background: rgba(18, 32, 52, .45);
+    display: flex; align-items: center; justify-content: center;
+    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+  }
+  .camp-people-mask[hidden] { display: none; }
+  .camp-people {
+    width: min(320px, 86vw); background: #fff; border-radius: 16px;
+    padding: 22px 20px 18px; box-shadow: 0 18px 50px rgba(18, 32, 52, .3);
+  }
+  .camp-people__title { font-size: 15px; font-weight: 700; color: #1f2d3d; }
+  .camp-people__tip { margin-top: 6px; font-size: 12px; color: #8a94a6; line-height: 1.6; }
+  .camp-people__input {
+    margin-top: 12px; width: 100%; box-sizing: border-box;
+    height: 42px; padding: 0 14px; font: inherit; font-size: 15px;
+    border: 1.5px solid #dde5f0; border-radius: 10px; outline: none;
+  }
+  .camp-people__input:focus { border-color: #2f7cf6; }
+  .camp-people__err { min-height: 18px; margin-top: 6px; font-size: 12px; color: #e0492f; }
+  .camp-people__btns { display: flex; gap: 10px; margin-top: 4px; }
+  .camp-people__btn {
+    flex: 1; height: 40px; border: 0; border-radius: 999px;
+    font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
+  }
+  .camp-people__btn--ok { background: #2f7cf6; color: #fff; }
+  .camp-people__btn--ok:hover { background: #2a6ee0; }
+  .camp-people__btn--cancel { background: #f4f7fc; color: #5a6a82; }
 
   /* 底部信息卡占位：把左下「已选」与右下「详情」整体上移，避免互相遮挡 */
   .camp__picked, .camp__detail { bottom: 112px; }
 
   @media (max-width: 820px) {
     .camp__picked, .camp__detail { bottom: 176px; max-width: 64vw; }
+    .camp__cta { width: 216px; }
+    .camp__cta-btn { font-size: 12.5px; }
   }
 </style>
 </head>
@@ -143,8 +184,30 @@
   <!-- 行程信息卡：按需求隐藏，不再收集游客联系方式 -->
   <div class="camp__form" id="campForm"></div>
 
-  <!-- 提交打卡：页面右侧垂直居中；选中至少一个打卡点后启用 -->
-  <button type="button" class="camp__submit" id="cfSubmit" disabled></button>
+  <!-- 出行方式二选一 + 价格区间：固定在页面右侧垂直居中。
+       未选中打卡点时两个按钮保持禁用；点击后弹出人数填写，确认即提交。
+       价格区间数值由后台配置接口下发，未配置时先占位展示。 -->
+  <div class="camp__cta" id="campCta">
+    <div class="camp__cta-btns">
+      <button type="button" class="camp__cta-btn" id="ctaPrivate" disabled></button>
+      <button type="button" class="camp__cta-btn" id="ctaShared" disabled></button>
+    </div>
+    <div class="camp__cta-price" id="ctaPrice"></div>
+  </div>
+
+  <!-- 人数弹窗：选择出行方式后填写 1-9 的整数人数，必填；超过 9 人提示联系客服定制 -->
+  <div class="camp-people-mask" id="peopleMask" hidden>
+    <div class="camp-people" role="dialog" aria-modal="true">
+      <div class="camp-people__title" id="peopleTitle"></div>
+      <div class="camp-people__tip" id="peopleTip"></div>
+      <input class="camp-people__input" id="peopleInput" type="number" min="1" max="9" step="1" inputmode="numeric">
+      <div class="camp-people__err" id="peopleErr"></div>
+      <div class="camp-people__btns">
+        <button type="button" class="camp-people__btn camp-people__btn--cancel" id="peopleCancel"></button>
+        <button type="button" class="camp-people__btn camp-people__btn--ok" id="peopleOk"></button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="/island/echarts.min.js"></script>
@@ -181,8 +244,22 @@
       submitFail: '提交失败：',
       needCamp: '请先返回上一步选择露营点',
       needSpot: '请先在地图上选择打卡点',
-      /* 出行人数行：人数 · 建议车型（1-3→5座 / 4-6→7座 / 7-9→9座）· 装备按人数配 */
-      peopleLine: function (n, seats) { return '出行人数：' + n + ' 人 · 建议 ' + seats + ' 座车 · 露营装备 ' + n + ' 套'; }
+      /* 出行方式双按钮 + 价格区间（数值由后台配置，未配置时占位） */
+      tourPrivate: '免拼',
+      tourShared: '拼团',
+      priceLabel: '价格区间',
+      perDay: '/天',
+      priceUnset: '暂无报价，请咨询客服',
+      /* 人数弹窗：点出行方式后弹出，标题带上所选方式 */
+      peopleTitle: '填写出行人数',
+      peopleTitleWith: function (name) { return name + ' · 填写出行人数'; },
+      peopleTip: '请输入本次出行的具体人数（1-9 人）',
+      peoplePh: '人数',
+      peopleOk: '确认提交',
+      peopleCancel: '取消',
+      peopleErrEmpty: '请填写出行人数',
+      peopleErrRange: '请输入 1-9 的整数人数',
+      peopleOver: '9 人以上请联系客服定制'
     },
     en: {
       title: 'Sightseeing Spots',
@@ -208,7 +285,20 @@
       submitFail: 'Submit failed: ',
       needCamp: 'Please go back and choose a campsite first',
       needSpot: 'Please select spots on the map first',
-      peopleLine: function (n, seats) { return 'Travelers: ' + n + ' · Suggested ' + seats + '-seat vehicle · Camping gear ×' + n; }
+      tourPrivate: 'Private Tour',
+      tourShared: 'Shared Tour',
+      priceLabel: 'Price Range',
+      perDay: '/day',
+      priceUnset: 'No quote yet — please ask our agent',
+      peopleTitle: 'Number of travelers',
+      peopleTitleWith: function (name) { return name + ' · Number of travelers'; },
+      peopleTip: 'Enter the exact number of travelers (1-9)',
+      peoplePh: 'People',
+      peopleOk: 'Confirm & submit',
+      peopleCancel: 'Cancel',
+      peopleErrEmpty: 'Please enter the number of travelers',
+      peopleErrRange: 'Please enter a whole number between 1 and 9',
+      peopleOver: 'For groups over 9, please contact our agent for a custom plan'
     },
     ru: {
       title: 'Достопримечательности',
@@ -234,7 +324,20 @@
       submitFail: 'Ошибка отправки: ',
       needCamp: 'Сначала вернитесь и выберите кемпинг',
       needSpot: 'Сначала выберите места на карте',
-      peopleLine: function (n, seats) { return 'Человек: ' + n + ' · Рекомендуется ' + seats + '-местный автомобиль · Снаряжение ×' + n; }
+      tourPrivate: 'Индивидуальный тур',
+      tourShared: 'Совместный тур',
+      priceLabel: 'Диапазон цен',
+      perDay: '/день',
+      priceUnset: 'Цена уточняется — спросите оператора',
+      peopleTitle: 'Количество человек',
+      peopleTitleWith: function (name) { return name + ' · Количество человек'; },
+      peopleTip: 'Укажите точное количество человек (1-9)',
+      peoplePh: 'Человек',
+      peopleOk: 'Подтвердить',
+      peopleCancel: 'Отмена',
+      peopleErrEmpty: 'Укажите количество человек',
+      peopleErrRange: 'Введите целое число от 1 до 9',
+      peopleOver: 'Более 9 человек — свяжитесь с оператором для индивидуального плана'
     }
   };
 
@@ -244,7 +347,9 @@
   var spots = [];                      /* 游玩打卡点（直接读库里「游玩打卡」分类那批点位） */
   var kind = null;                     /* 该分类在后台的配色 / 名称，与地图页保持一致 */
   var campSite = null;                 /* 上一步选中的露营点（带 ?point= 进来时才有） */
-  var people = 0;                      /* 上一步填写的出行人数（?people=，1-9；0 = 未填，直接打开本页时） */
+  var people = 0;                      /* 弹窗里确认的出行人数（1-9） */
+  var tourType = '';                   /* 出行方式：'private' 免拼 / 'shared' 拼团（点按钮时记录） */
+  var priceCfg = { min: 0, max: 0 };   /* 价格区间：/api/island-config 下发，0 = 后台未配置（占位展示） */
   var detailId = null;                 /* 右下角详情当前展示的标记 id */
   var selIds = [];                     /* 已多选的游玩打卡点 id，按选择先后排列 */
 
@@ -355,11 +460,23 @@
   }
   function toggleSpot(id) { if (isSel(id)) unselectSpot(id); else selectSpot(id); }
 
-  /* 提交打卡按钮：选中至少一个打卡点即启用，否则禁用 */
+  /* 免拼 / 拼团 双按钮：选中至少一个打卡点即启用，否则禁用（提交中保持禁用） */
   function syncSubmit() {
-    var btn = $('cfSubmit');
-    if (!btn) return;
-    if (!btn.dataset.busy) btn.disabled = !selIds.length;
+    var busy = !!$('ctaPrivate').dataset.busy;
+    var off = busy || !selIds.length;
+    $('ctaPrivate').disabled = off;
+    $('ctaShared').disabled = off;
+  }
+
+  /* 价格区间：后台配置了 min/max 才显示数值，否则占位提示 */
+  function renderPrice() {
+    var d = t();
+    if (priceCfg.min > 0 && priceCfg.max > 0) {
+      $('ctaPrice').innerHTML = esc(d.priceLabel) +
+        '<b>¥' + priceCfg.min + ' - ¥' + priceCfg.max + ' ' + esc(d.perDay) + '</b>';
+    } else {
+      $('ctaPrice').innerHTML = esc(d.priceLabel) + '<b>' + esc(d.priceUnset) + '</b>';
+    }
   }
 
   /* 顶部说明：全岛游玩打卡点共几个；并标出上一步选中的露营点 */
@@ -369,10 +486,6 @@
     if (campSite) {
       html += '<div class="camp__origin">' +
               esc(t().origin(pick(campSite.names, campSite.name))) + '</div>';
-    }
-    /* 上一步填了人数才显示这一行：人数 · 建议车型 · 装备套数（装备按人数配） */
-    if (people) {
-      html += '<div class="camp__people">' + esc(t().peopleLine(people, seatsOf(people))) + '</div>';
     }
     $('campHead').innerHTML = html;
   }
@@ -470,19 +583,64 @@
     b.onclick = function () { setLang(b.dataset.lang); };
   });
 
-  /* ---------- 提交打卡 ----------
-     选中至少一个打卡点后启用右侧按钮。提交体只带选中的点位 ID，
-     后台按「点位ID + 当前打卡时间」记录，不收集游客称呼或联系方式。 */
+  /* ---------- 出行方式 + 人数 + 提交 ----------
+     右侧「免拼 / 拼团」二选一：点击后先弹人数填写弹窗（1-9 必填整数，
+     超过 9 提示联系客服定制），确认即提交。提交体带选中的点位 ID +
+     出行方式 + 人数，后台按「点位ID + 方式 + 人数 + 当前打卡时间」记录，
+     不收集游客称呼或联系方式。 */
   function renderForm() {
-    if (!$('cfSubmit').dataset.busy) $('cfSubmit').textContent = t().submit;
+    var d = t();
+    $('ctaPrivate').textContent = d.tourPrivate;
+    $('ctaShared').textContent = d.tourShared;
+    $('peopleTip').textContent = d.peopleTip;
+    $('peopleInput').placeholder = d.peoplePh;
+    $('peopleOk').textContent = d.peopleOk;
+    $('peopleCancel').textContent = d.peopleCancel;
+    renderPrice();
   }
-  $('cfSubmit').onclick = function () {
-    var btn = $('cfSubmit');
-    if (btn.disabled || btn.dataset.busy) return;
-    /* 行程必须挂在上一步选中的露营点上；直接从地址打开本页时给出提示 */
+  /* 点出行方式按钮：校验露营点 / 打卡点选择状态后，打开人数弹窗 */
+  function openPeople(type) {
     if (!campSite) { alert(t().needCamp); return; }
     if (!selIds.length) { alert(t().needSpot); return; }
+    tourType = type;
+    var d = t();
+    $('peopleTitle').textContent =
+      d.peopleTitleWith(type === 'private' ? d.tourPrivate : d.tourShared);
+    $('peopleErr').textContent = '';
+    $('peopleMask').hidden = false;
+    setTimeout(function () { $('peopleInput').focus(); }, 30);
+  }
+  function closePeople() { $('peopleMask').hidden = true; }
+  /* 弹窗确认：校验 1-9 整数人数，通过即提交；超 9 提示客服定制，停留本页 */
+  function confirmPeople() {
+    var d = t();
+    var raw = $('peopleInput').value.trim();
+    if (!raw) { $('peopleErr').textContent = d.peopleErrEmpty; return; }
+    if (!/^\d+$/.test(raw)) { $('peopleErr').textContent = d.peopleErrRange; return; }
+    var n = parseInt(raw, 10);
+    if (n < 1) { $('peopleErr').textContent = d.peopleErrRange; return; }
+    if (n > 9) { $('peopleErr').textContent = d.peopleOver; return; }
+    people = n;
+    closePeople();
+    doSubmit();
+  }
+  $('ctaPrivate').onclick = function () {
+    if (this.disabled || this.dataset.busy) return;
+    openPeople('private');
+  };
+  $('ctaShared').onclick = function () {
+    if (this.disabled || this.dataset.busy) return;
+    openPeople('shared');
+  };
+  $('peopleOk').onclick = confirmPeople;
+  $('peopleCancel').onclick = closePeople;
+  $('peopleMask').onclick = function (ev) { if (ev.target === this) closePeople(); };
+  $('peopleInput').onkeydown = function (ev) {
+    if (ev.key === 'Enter') confirmPeople();
+    else if (ev.key === 'Escape') closePeople();
+  };
 
+  function doSubmit() {
     var sid = '';
     try { sid = sessionStorage.getItem('beisu_sid') || ''; } catch (e) {}
     if (!sid) {
@@ -490,7 +648,8 @@
       try { sessionStorage.setItem('beisu_sid', sid); } catch (e) {}
     }
 
-    btn.dataset.busy = '1'; btn.disabled = true; btn.textContent = t().submitting;
+    $('ctaPrivate').dataset.busy = '1';
+    syncSubmit();
     fetch('/api/island/submit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -498,7 +657,8 @@
         sessionId: sid, lang: lang,
         camp: { id: campSite.id, name: pick(campSite.names, campSite.name) },
         spots: selIds.slice(),
-        people: people || undefined        /* 上一步填写的出行人数（直接打开本页时为空，服务端按可选项处理） */
+        tourType: tourType,                /* 出行方式：private 免拼 / shared 拼团 */
+        people: people                     /* 弹窗确认的出行人数（1-9） */
       })
     })
       .then(function (r) { return r.json(); })
@@ -509,10 +669,10 @@
       })
       .catch(function (e) {
         alert(t().submitFail + (e.message || ''));
-        delete btn.dataset.busy; btn.textContent = t().submit;
+        delete $('ctaPrivate').dataset.busy;
         syncSubmit();
       });
-  };
+  }
 
   /* 直接向服务端接口取数据（接口读的是本地数据库），不抓取任何网页。
      1) /api/play-points 取「游玩打卡」分类那批点位（与全岛地图页同一份数据）；
@@ -525,13 +685,18 @@
     applyLang();
 
     var pid = '';
-    try {
-      var q = new URLSearchParams(location.search);
-      pid = q.get('point') || '';
-      /* 出行人数：仅接受 1-9 的整数，其它一律视为未填写 */
-      var pp = parseInt(q.get('people'), 10);
-      if (pp >= 1 && pp <= 9) people = pp;
-    } catch (e) {}
+    try { pid = new URLSearchParams(location.search).get('point') || ''; } catch (e) {}
+
+    /* 价格区间配置：后台录入的 min/max，未配置时保持 0（前端占位展示） */
+    fetch('/api/island-config', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (c) {
+        if (c && +c.priceMin > 0 && +c.priceMax > 0) {
+          priceCfg = { min: +c.priceMin, max: +c.priceMax };
+          renderPrice();
+        }
+      })
+      .catch(function () {});              /* 配置拉取失败不影响页面其余功能 */
 
     fetch('/api/play-points', { cache: 'no-store' })
       .then(function (r) { return r.json(); })

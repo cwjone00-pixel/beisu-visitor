@@ -147,6 +147,10 @@ function shapeData(raw){
     /* 页面卡片（聊天里发送的方块富媒体卡片：标题/简介/封面图/跳转地址，三语） */
     if (!Array.isArray(d.cards)) d.cards = [];
     d.cards = d.cards.map(normCard);
+    /* 全岛游价格区间（后台配置；0 = 未配置，前端先占位展示） */
+    if (!d.islandPrice || typeof d.islandPrice !== 'object') d.islandPrice = { min: 0, max: 0 };
+    d.islandPrice.min = Math.max(0, Math.min(999999, Math.round(+d.islandPrice.min || 0)));
+    d.islandPrice.max = Math.max(0, Math.min(999999, Math.round(+d.islandPrice.max || 0)));
     /* 人工消息自动翻译总开关（缺省开启）+ 机器人总开关（缺省开启） */
     if (!d.agentChat || typeof d.agentChat !== 'object') d.agentChat = {};
     d.agentChat.translate = d.agentChat.translate !== false;
@@ -1156,13 +1160,17 @@ function addMsg(sid, m){
 function islandSummary(lang, d){
   const L = {
     zh: { title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
+          tour:'出行方式', tourPrivate:'免拼', tourShared:'拼团',
           people:function (n, s){ return '出行人数: ' + n + ' 人 · 建议 ' + s + ' 座车 · 露营装备 ' + n + ' 套'; } },
     en: { title:'[Island tour check-in]', camp:'Campsite', spots:'Spots', none:'(none)', sep:', ',
+          tour:'Tour type', tourPrivate:'Private Tour', tourShared:'Shared Tour',
           people:function (n, s){ return 'Travelers: ' + n + ' · Suggested ' + s + '-seat vehicle · Camping gear ×' + n; } },
     ru: { title:'[Отметка на экскурсии]', camp:'Кемпинг', spots:'Места', none:'(нет)', sep:', ',
+          tour:'Формат тура', tourPrivate:'Индивидуальный тур', tourShared:'Совместный тур',
           people:function (n, s){ return 'Человек: ' + n + ' · Рекомендуется ' + s + '-местный автомобиль · Снаряжение ×' + n; } }
   }[lang] || {
     title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
+    tour:'出行方式', tourPrivate:'免拼', tourShared:'拼团',
     people:function (n, s){ return '出行人数: ' + n + ' 人 · 建议 ' + s + ' 座车 · 露营装备 ' + n + ' 套'; }
   };
   /* 人数匹配车型：1-3 人 → 5 座，4-6 人 → 7 座，7-9 人 → 9 座 */
@@ -1180,6 +1188,8 @@ function islandSummary(lang, d){
     L.camp + ': ' + nameOf(d.campId),
     L.spots + ': ' + (d.spots.length ? d.spots.map(nameOf).join(L.sep) : L.none)
   ];
+  /* 出行方式（免拼 / 拼团）：选择了才追加这一行 */
+  if (d.tourType) lines.push(L.tour + ': ' + (d.tourType === 'private' ? L.tourPrivate : L.tourShared));
   /* 填了出行人数才追加这一行（人数 · 建议车型 · 装备套数） */
   if (d.people) lines.push(L.people(d.people, seatsOf(d.people)));
   return lines.join('\n');
@@ -1580,6 +1590,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/heartbeat' || p === '/api/auth/close' ||
       p === '/api/config' || p === '/api/match' || p === '/api/media' ||
       (p === '/api/island/submit' && req.method === 'POST') ||
+      (p === '/api/island-config' && req.method === 'GET') ||
       (p === '/api/camp-points' && req.method === 'GET') ||
       (p === '/api/play-points' && req.method === 'GET') ||
       (p === '/api/articles' && req.method === 'GET') ||
@@ -2047,9 +2058,31 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, payload);
   }
 
+  /* ---- 全岛游价格区间配置 ---- */
+  /* 公开：游客端打卡点页面读取价格区间（未配置时 min/max 为 0，前端占位展示） */
+  if (p === '/api/island-config' && req.method === 'GET'){
+    const pr = loadData().islandPrice || { min: 0, max: 0 };
+    return send(res, 200, { ok:true, priceMin: pr.min || 0, priceMax: pr.max || 0 });
+  }
+  /* 后台：设置价格区间（单位：元/天）。两个值都为正时要求 max >= min；都填 0 即清空回占位态 */
+  if (p === '/api/admin/island-config' && req.method === 'PUT'){
+    const body = await readBody(req);
+    const min = Math.round(+body.priceMin || 0);
+    const max = Math.round(+body.priceMax || 0);
+    if (!(min >= 0 && min <= 999999) || !(max >= 0 && max <= 999999))
+      return send(res, 400, { ok:false, error:'价格需为 0-999999 的数字' });
+    if (min > 0 && max > 0 && max < min)
+      return send(res, 400, { ok:false, error:'价格上限不能低于下限' });
+    const d = loadData();
+    d.islandPrice = { min: min, max: max };
+    await saveData(d);
+    return send(res, 200, { ok:true, priceMin: min, priceMax: max });
+  }
+
   /* ---- 全岛游打卡提交（游客子页面调用，免鉴权）----
-     游客在打卡点地图选中点位后点「提交打卡」，这里只记录：
+     游客在打卡点地图选中点位后点「免拼 / 拼团」并填写人数，这里记录：
        · 选中的点位 ID（露营点 + 打卡点）
+       · 出行方式（免拼 / 拼团）与出行人数
        · 当前打卡时间（消息自带的 ts）
      不收集任何游客联系方式。提交后前端跳回主站首页，右侧聊天框
      通过既有的消息同步把这条内容按访客消息展示，后台人工也能在实时对话里看到。 */
@@ -2067,6 +2100,8 @@ const server = http.createServer(async (req, res) => {
     /* 出行人数：可选项，仅接受 1-9 的整数；非法值按未填写处理（不影响提交） */
     const pp = parseInt(body.people, 10);
     const people = (pp >= 1 && pp <= 9) ? pp : 0;
+    /* 出行方式：免拼 private / 拼团 shared，其它值按未选择处理 */
+    const tourType = (body.tourType === 'private' || body.tourType === 'shared') ? body.tourType : '';
 
     let sid = String(body.sessionId || '').trim().slice(0, 64);
     /* 旧会话已被后台人工结束：改写到全新会话，避免把消息追加进已关闭的对话 */
@@ -2077,8 +2112,8 @@ const server = http.createServer(async (req, res) => {
     sess.lang = lang;
     addMsg(sid, {
       role:'visitor',
-      text: islandSummary(lang, { campId: campId, spots: spotIds, people: people }),
-      island: { campId: campId, spots: spotIds, people: people || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 人数 + 打卡时间
+      text: islandSummary(lang, { campId: campId, spots: spotIds, people: people, tourType: tourType }),
+      island: { campId: campId, spots: spotIds, tourType: tourType || undefined, people: people || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 方式 + 人数 + 打卡时间
     });
     return send(res, 200, { ok:true, sid });
   }

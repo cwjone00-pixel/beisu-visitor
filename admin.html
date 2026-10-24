@@ -526,6 +526,21 @@
     <div id="cardListBox" class="rule-list"></div>
   </div>
 
+  <!-- 全岛游价格区间（打卡点页「免拼/拼团」按钮下方展示；都留空则前端显示占位） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>全岛游价格区间</h2>
+      <button class="btn btn-primary" onclick="saveIslandPrice()">保存价格</button>
+    </div>
+    <div class="desc">游客端打卡点页面「免拼 / 拼团」按钮正下方展示的价格区间（¥XXX - ¥XXX /天）。两个值都填才展示数值；都留空则游客端显示「暂无报价，请咨询客服」占位。</div>
+    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px;">
+      <input class="input" id="priceMin" type="number" min="0" max="999999" placeholder="最低价（元/天）" style="width:170px;">
+      <span style="color:#8b94a0;">—</span>
+      <input class="input" id="priceMax" type="number" min="0" max="999999" placeholder="最高价（元/天）" style="width:170px;">
+      <span id="priceState" style="font-size:12px; color:#8b94a0;"></span>
+    </div>
+  </div>
+
   </div><!-- /main-col -->
 
   <!-- 右列：独立用户列表（支持搜索 + 内部滚动，客户再多也不挤压左列） -->
@@ -1070,6 +1085,7 @@ async function unlockAdmin(loggedInAs){
   loadArts();
   loadEvts();
   loadCards();
+  loadIslandPrice();
   loadMapPts();
   loadUsers();
   routeByHash();     /* 支持带 #map 直接进入海南全岛地图子页 */
@@ -1306,7 +1322,7 @@ function renderChatPanel(msgs, reset, keepScroll){
       /* 全岛游打卡提交：仅后台可见的点位 ID 行，便于排查问题（前台聊天框只展示地名） */
       if (m.island && m.island.campId){
         const ids = [m.island.campId].concat(Array.isArray(m.island.spots) ? m.island.spots : []);
-        extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0; font-family:ui-monospace,Consolas,monospace; word-break:break-all;">点位ID：${esc(ids.join('，'))}${m.island.people ? ' · 人数：' + m.island.people : ''}${m.island.checkedAt ? ' · ' + new Date(m.island.checkedAt).toLocaleString() : ''}</div>`;
+        extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0; font-family:ui-monospace,Consolas,monospace; word-break:break-all;">点位ID：${esc(ids.join('，'))}${m.island.tourType ? ' · 方式：' + (m.island.tourType === 'private' ? '免拼' : '拼团') : ''}${m.island.people ? ' · 人数：' + m.island.people : ''}${m.island.checkedAt ? ' · ' + new Date(m.island.checkedAt).toLocaleString() : ''}</div>`;
       }
       /* 页面卡片消息：后台渲染同款卡片预览（标题取中文，附跳转地址，点击新标签打开） */
       if (m.card){
@@ -1847,6 +1863,30 @@ async function toggleCardEnabled(id){
 }
 async function delCard(id){
   if (confirm('确定删除该卡片？绑定它的关键词规则会自动解除绑定。')){ await API.cardDelete(id); loadCards(); }
+}
+
+/* ================= 全岛游价格区间 ================= */
+/* 打卡点页「免拼 / 拼团」按钮下方展示；min/max 都 > 0 才展示数值，都为 0 即回占位态 */
+async function loadIslandPrice(){
+  try {
+    const d = await _rawFetch('/api/island-config').then(r => r.json());
+    $('priceMin').value = d.priceMin > 0 ? d.priceMin : '';
+    $('priceMax').value = d.priceMax > 0 ? d.priceMax : '';
+    $('priceState').textContent = (d.priceMin > 0 && d.priceMax > 0)
+      ? '当前：¥' + d.priceMin + ' - ¥' + d.priceMax + ' /天'
+      : '当前未配置，游客端显示占位';
+  } catch(e){ $('priceState').textContent = '加载失败'; }
+}
+async function saveIslandPrice(){
+  const min = parseInt($('priceMin').value, 10) || 0;
+  const max = parseInt($('priceMax').value, 10) || 0;
+  const r = await fetch('/api/admin/island-config', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Op-Token': opToken },
+    body: JSON.stringify({ priceMin: min, priceMax: max })
+  }).then(r => r.json());
+  if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
+  loadIslandPrice();
 }
 
 /* ================= 全岛游地图（露营点 / 游玩打卡点，共用同一份数据源） ================= */

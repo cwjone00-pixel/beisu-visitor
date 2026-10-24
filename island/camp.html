@@ -198,36 +198,6 @@
   .camp__next:hover { background: #2a6ee0; }
   .camp__next svg { width: 14px; height: 14px; }
   .camp__next[hidden] { display: none; }
-
-  /* 人数弹窗：点「下一步」后先填出行人数（1-9 整数），确认才进入打卡点页面 */
-  .camp-people-mask {
-    position: fixed; inset: 0; z-index: 20;
-    background: rgba(18, 32, 52, .45);
-    display: flex; align-items: center; justify-content: center;
-    -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
-  }
-  .camp-people-mask[hidden] { display: none; }
-  .camp-people {
-    width: min(320px, 86vw); background: #fff; border-radius: 16px;
-    padding: 22px 20px 18px; box-shadow: 0 18px 50px rgba(18, 32, 52, .3);
-  }
-  .camp-people__title { font-size: 15px; font-weight: 700; color: #1f2d3d; }
-  .camp-people__tip { margin-top: 6px; font-size: 12px; color: #8a94a6; line-height: 1.6; }
-  .camp-people__input {
-    margin-top: 12px; width: 100%; box-sizing: border-box;
-    height: 42px; padding: 0 14px; font: inherit; font-size: 15px;
-    border: 1.5px solid #dde5f0; border-radius: 10px; outline: none;
-  }
-  .camp-people__input:focus { border-color: #2f7cf6; }
-  .camp-people__err { min-height: 18px; margin-top: 6px; font-size: 12px; color: #e0492f; }
-  .camp-people__btns { display: flex; gap: 10px; margin-top: 4px; }
-  .camp-people__btn {
-    flex: 1; height: 40px; border: 0; border-radius: 999px;
-    font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer;
-  }
-  .camp-people__btn--ok { background: #2f7cf6; color: #fff; }
-  .camp-people__btn--ok:hover { background: #2a6ee0; }
-  .camp-people__btn--cancel { background: #f4f7fc; color: #5a6a82; }
 </style>
 </head>
 <body>
@@ -267,21 +237,6 @@
     <span id="campNextLabel"></span>
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
   </button>
-
-  <!-- 人数弹窗：点「下一步」后先弹出，填 1-9 的整数人数，确认才进入打卡点页面；
-       超过 9 人提示联系客服定制，不跳转 -->
-  <div class="camp-people-mask" id="peopleMask" hidden>
-    <div class="camp-people" role="dialog" aria-modal="true">
-      <div class="camp-people__title" id="peopleTitle"></div>
-      <div class="camp-people__tip" id="peopleTip"></div>
-      <input class="camp-people__input" id="peopleInput" type="number" min="1" max="9" step="1" inputmode="numeric">
-      <div class="camp-people__err" id="peopleErr"></div>
-      <div class="camp-people__btns">
-        <button type="button" class="camp-people__btn camp-people__btn--cancel" id="peopleCancel"></button>
-        <button type="button" class="camp-people__btn camp-people__btn--ok" id="peopleOk"></button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <script src="/island/echarts.min.js"></script>
@@ -309,15 +264,6 @@
       noIntro: '暂无介绍',
       loadFail: '数据加载失败：',
       next: '下一步',
-      /* 人数弹窗：点「下一步」后先填人数，确认才进入打卡点页面 */
-      peopleTitle: '填写出行人数',
-      peopleTip: '请输入本次出行的具体人数（1-9 人）',
-      peoplePh: '人数',
-      peopleOk: '确认',
-      peopleCancel: '取消',
-      peopleErrEmpty: '请填写出行人数',
-      peopleErrRange: '请输入 1-9 的整数人数',
-      peopleOver: '9 人以上请联系客服定制',
       /* 地图悬浮提示（与地图组件里的提示保持一致，只是换成当前语种） */
       tipDense: function (n, rows) {
         return '<b>密集区域 · ' + n + ' 个点位</b><br>' + rows +
@@ -337,14 +283,6 @@
       noIntro: 'No description yet',
       loadFail: 'Failed to load data: ',
       next: 'Next',
-      peopleTitle: 'Number of travelers',
-      peopleTip: 'Enter the exact number of travelers (1-9)',
-      peoplePh: 'People',
-      peopleOk: 'Confirm',
-      peopleCancel: 'Cancel',
-      peopleErrEmpty: 'Please enter the number of travelers',
-      peopleErrRange: 'Please enter a whole number between 1 and 9',
-      peopleOver: 'For groups over 9, please contact our agent for a custom plan',
       tipDense: function (n, rows) {
         return '<b>Dense area · ' + n + ' campsites</b><br>' + rows +
                '<br><span style="opacity:.72">Click the bubble to expand all sites in place</span>';
@@ -363,14 +301,6 @@
       noIntro: 'Описания пока нет',
       loadFail: 'Не удалось загрузить данные: ',
       next: 'Далее',
-      peopleTitle: 'Количество человек',
-      peopleTip: 'Укажите точное количество человек (1-9)',
-      peoplePh: 'Человек',
-      peopleOk: 'Подтвердить',
-      peopleCancel: 'Отмена',
-      peopleErrEmpty: 'Укажите количество человек',
-      peopleErrRange: 'Введите целое число от 1 до 9',
-      peopleOver: 'Более 9 человек — свяжитесь с оператором для индивидуального плана',
       tipDense: function (n, rows) {
         return '<b>Плотная зона · ' + n + ' кемпингов</b><br>' + rows +
                '<br><span style="opacity:.72">Нажмите на пузырь, чтобы раскрыть все точки на месте</span>';
@@ -604,13 +534,6 @@
 
     $('campBack').textContent = d.back;            /* 返回首页入口文字跟随语种 */
     $('campNextLabel').textContent = d.next;       /* 下一步按钮文字跟随语种 */
-    /* 人数弹窗文字跟随语种（错误提示一并清掉，避免残留上一语种的文案） */
-    $('peopleTitle').textContent = d.peopleTitle;
-    $('peopleTip').textContent = d.peopleTip;
-    $('peopleInput').placeholder = d.peoplePh;
-    $('peopleOk').textContent = d.peopleOk;
-    $('peopleCancel').textContent = d.peopleCancel;
-    $('peopleErr').textContent = '';
     renderNote();
     renderDetail();
     refreshMap();
@@ -627,36 +550,12 @@
     b.onclick = function () { setLang(b.dataset.lang); };
   });
 
-  /* 下一步：不直接跳页，先弹出人数填写弹窗；确认有效人数（1-9 整数）后
-     带着露营点位 id + 人数进入第二个子页面（该点位附近的游玩打卡点）。
-     站内路径，不暴露地图自己的独立网址，也不新开浏览器标签页。 */
-  function openPeople() {
-    $('peopleErr').textContent = '';
-    $('peopleMask').hidden = false;
-    setTimeout(function () { $('peopleInput').focus(); }, 30);
-  }
-  function closePeople() { $('peopleMask').hidden = true; }
-  /* 校验并跳转：必填；仅 1-9 正整数；超过 9 提示联系客服定制，停留本页 */
-  function confirmPeople() {
-    var d = t();
-    var raw = $('peopleInput').value.trim();
-    if (!raw) { $('peopleErr').textContent = d.peopleErrEmpty; return; }
-    if (!/^\d+$/.test(raw)) { $('peopleErr').textContent = d.peopleErrRange; return; }
-    var n = parseInt(raw, 10);
-    if (n < 1) { $('peopleErr').textContent = d.peopleErrRange; return; }
-    if (n > 9) { $('peopleErr').textContent = d.peopleOver; return; }
-    location.href = '/island/spots?point=' + encodeURIComponent(picked) + '&people=' + n;
-  }
+  /* 下一步：带着当前选中的露营点位 id 进入第二个子页面（该点位附近的游玩打卡点）。
+     站内路径，不暴露地图自己的独立网址，也不新开浏览器标签页。
+     人数填写在第二页选择「免拼 / 拼团」之后进行，本页不再弹窗。 */
   $('campNextBtn').onclick = function () {
     if (!isCampPoint(picked)) return;
-    openPeople();
-  };
-  $('peopleOk').onclick = confirmPeople;
-  $('peopleCancel').onclick = closePeople;
-  $('peopleMask').onclick = function (ev) { if (ev.target === this) closePeople(); };
-  $('peopleInput').onkeydown = function (ev) {
-    if (ev.key === 'Enter') confirmPeople();
-    else if (ev.key === 'Escape') closePeople();
+    location.href = '/island/spots?point=' + encodeURIComponent(picked);
   };
 
   function boot() {
