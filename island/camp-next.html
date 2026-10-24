@@ -4,16 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
-/* 设备判断：手机 / 平板（触屏或移动端 UA）自动启用专门的移动端布局（<html class="is-mobile">），
-   电脑访问不加这个类，页面样式与交互完全保持原样。
+/* 设备判断：只有「明确的手机 / 平板 UA + 窄屏」才启用移动端布局（<html class="is-mobile">）。
+   其余情况一律按电脑端处理（加 is-pc），页面样式与交互完全保持原样。
+   注意：这里刻意不看触屏能力（navigator.maxTouchPoints），也不把 MicroMessenger 认成手机 ——
+   带触摸屏的 Windows 笔记本、微信电脑版都会命中，会把电脑端误判成手机端，必须排除。
    放在 head 里提前执行，避免首屏先按电脑布局渲染再跳变。 */
 (function () {
-  var UA_MOBILE = /Android|iPhone|iPod|iPad|Mobile|Windows Phone|HarmonyOS|MicroMessenger/i
+  var UA_MOBILE = /Android|iPhone|iPod|iPad|Windows Phone|HarmonyOS|Mobile\//i
     .test(navigator.userAgent);
-  var mqNarrow = window.matchMedia ? window.matchMedia('(max-width: 820px)') : null;
+  var mqNarrow = window.matchMedia ? window.matchMedia('(max-width: 900px)') : null;
   function sync() {
-    var touch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-    var mobile = UA_MOBILE || (!!mqNarrow && mqNarrow.matches && touch);
+    var narrow = !mqNarrow || mqNarrow.matches;
+    var mobile = UA_MOBILE && narrow;
     document.documentElement.classList.toggle('is-mobile', mobile);
     document.documentElement.classList.toggle('is-pc', !mobile);
   }
@@ -197,7 +199,10 @@
      这里改成：地图占满背景，底部按「已选打卡点 → 出行方式面板」上下堆叠的
      静态布局（不再绝对定位，天然不会重叠），两个按钮纵向分开各占一行，
      顶部说明 / 点位详情移到左上并按行排布，互不遮挡。
+     双重保险：这些规则同时要求「html 带 is-mobile」且「视口宽度 ≤ 900px」，
+     万一某台电脑被误判成手机，只要窗口够宽也绝不会套用移动端样式。
      ================================================================== */
+  @media (max-width: 900px) {
 
   /* 视口：用 dvh 兜住手机地址栏伸缩，避免底部面板被顶出屏幕 */
   .is-mobile .camp {
@@ -233,6 +238,9 @@
   /* 点位详情 / 未选提示：跟在说明下方，不再贴右下角，彻底让出底部按钮区 */
   .is-mobile .camp__detail {
     position: static; max-width: none; text-align: left;
+    /* 必须清掉窄屏媒体查询里遗留的 bottom / top，以及基类的 right，
+       否则 static/relative 下会被上下推移、左右错位 */
+    top: auto; bottom: auto; left: auto; right: auto;
     font-size: 11.5px; line-height: 1.6;
   }
   .is-mobile .camp__kind { font-size: 11px; }
@@ -242,11 +250,13 @@
   /* 未选提示：移动端为普通流布局，这里补回 relative，让底部扫光带仍相对自身移动 */
   .is-mobile .camp__detail--hint {
     position: relative; padding: 7px 12px; font-size: 12.5px;
+    top: auto; bottom: auto;
   }
 
   /* 已选打卡点：变成底部面板的第一条，静态排布（在按钮面板正上方） */
   .is-mobile .camp__picked {
     position: static; max-width: none; margin: 0;
+    top: auto; bottom: auto;
     background: rgba(255,255,255,.94); border-radius: 12px;
     padding: 9px 11px; box-shadow: 0 6px 18px rgba(18,32,52,.12);
   }
@@ -266,6 +276,9 @@
   }
   .is-mobile .camp__cta-btns { flex-direction: column; gap: 9px; }
   .is-mobile .camp__cta-btn {
+    /* 基类有 flex:1（basis 0），纵向排列时会退化成一整行文字的高度，
+       这里改成不伸缩、固定 46px，按钮才有足够的可点区域 */
+    flex: 0 0 auto;
     width: 100%; height: 46px; font-size: 14px;
     white-space: normal; line-height: 1.2;
   }
@@ -283,6 +296,8 @@
   .is-mobile .camp-people { padding: 20px 18px 16px; }
   .is-mobile .camp-people__btn { height: 44px; font-size: 13px; }
   .is-mobile .camp-people__input { height: 46px; font-size: 16px; }
+
+  } /* 移动端样式块结束（@media max-width: 900px） */
 </style>
 </head>
 <body>
