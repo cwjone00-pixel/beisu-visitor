@@ -357,6 +357,8 @@
           <div id="cpMessages" class="chat-messages"></div>
           <div class="chat-composer">
             <input class="input" id="cpInput" placeholder="输入人工回复内容，回车或点「发送」">
+            <select class="input" id="cpCardSel" style="flex:0 0 auto;max-width:180px;" title="选择页面卡片一键发送给游客"></select>
+            <button class="btn btn-ghost" onclick="sendAgentCard()">发卡片</button>
             <button class="btn btn-primary" onclick="sendAgentMsg()">发送</button>
           </div>
         </div>
@@ -512,6 +514,16 @@
     </div>
     <div class="desc">录入标题、正文、配图，支持中文 / 英文 / 俄语三语独立填写；保存后直接展示在前端左侧「商业活动」板块，与「文章资讯」分开管理、分开展示。</div>
     <div id="evtList" class="rule-list"></div>
+  </div>
+
+  <!-- 页面卡片（聊天里发送的方块富媒体卡片：关键词触发 / 人工发送） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>页面卡片 <span class="tag" id="cardCount">0 张</span></h2>
+      <button class="btn btn-primary" onclick="openCardEditor()">+ 新建卡片</button>
+    </div>
+    <div class="desc">聊天里发送的方块富媒体卡片（标题 / 简介 / 封面图 / 跳转地址），三语分开配置。绑定到关键词规则后命中自动推送；人工聊天面板可手动选择一键发送。目前仅【全岛游】是已做好的页面，其余页面（租房/租车/项目体验/合作）后续另做，可先建卡片、跳转地址待页面就绪后回填。</div>
+    <div id="cardListBox" class="rule-list"></div>
   </div>
 
   </div><!-- /main-col -->
@@ -739,6 +751,48 @@
   </div>
 </div>
 
+<!-- 页面卡片编辑弹窗 -->
+<div class="modal-mask hidden" id="cardModal">
+  <div class="modal" style="max-width:640px;">
+    <h3 id="cardModalTitle">新建卡片</h3>
+    <div class="field">
+      <label>绑定页面（卡片点击后跳转的目标页面）</label>
+      <select class="input" id="cdPageKey" onchange="cdPageChange()"></select>
+      <div id="cdUrlHint" style="margin-top:6px;font-size:12px;color:#8b94a0;"></div>
+    </div>
+    <div class="field" id="cdUrlRow">
+      <label>跳转地址（站内路径如 /island，或 http(s) 外链；页面已有固定地址时无需填写）</label>
+      <input class="input" id="cdUrl" placeholder="/island 或 https://...">
+    </div>
+    <div class="field">
+      <label>卡片标题（三语独立录入，至少填写一种；游客按当前界面语种显示对应文字）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="cdTitleZh" placeholder="例如：海南全岛露营地图"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="cdTitleEn" placeholder="e.g. Hainan Island Camping Map"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="cdTitleRu" placeholder="напр. Карта кемпингов Хайнаня"></div>
+    </div>
+    <div class="field">
+      <label>卡片简介（三语独立录入，一句话介绍，显示在标题下方）</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="cdDescZh" placeholder="例如：点我选露营点，规划全岛行程"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="cdDescEn" placeholder="e.g. Tap to pick campsites"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="cdDescRu" placeholder="напр. Выберите кемпинг"></div>
+    </div>
+    <div class="field">
+      <label>封面图（可选，卡片顶部预览图）</label>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="file" id="cdCoverFile" accept="image/*" style="display:none" onchange="cdCoverPick(this)">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cdCoverFile').click()">选择图片</button>
+        <button class="btn btn-ghost btn-sm" onclick="cdCoverClear()">清除</button>
+        <span id="cdCoverHint" style="color:#9aa3ad;font-size:12px;"></span>
+      </div>
+      <img id="cdCoverPreview" alt="" style="display:none;max-width:100%;margin-top:10px;border-radius:10px;">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('cardModal')">取消</button>
+      <button class="btn btn-primary" onclick="saveCard()">保存</button>
+    </div>
+  </div>
+</div>
+
 <!-- 全岛游地图 · 点位编辑弹窗（露营点 / 游玩打卡点共用） -->
 <div class="modal-mask hidden" id="mapModal">
   <div class="modal" style="max-width:640px;">
@@ -840,6 +894,10 @@
         <input type="checkbox" id="rmAppendLink"> 是否附加底部链接（打开后回复末尾自动追加预设链接）
       </label>
     </div>
+    <div class="field">
+      <label>绑定页面卡片（命中关键词后自动推送该卡片；不绑定则只发文本回复）</label>
+      <select class="input" id="rmCardId"></select>
+    </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('ruleModal')">取消</button>
       <button class="btn btn-primary" onclick="saveRule()">保存</button>
@@ -924,6 +982,11 @@ const API = {
   mapCreate: d => fetch('/api/admin/map-points', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   mapUpdate: (id,d) => fetch('/api/admin/map-points/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   mapDelete: id => fetch('/api/admin/map-points/'+id, { method:'DELETE' }),
+  /* 页面卡片（聊天里发送的方块富媒体卡片：标题/简介/封面图/跳转地址，三语） */
+  cardList: () => fetch('/api/admin/cards').then(r=>r.json()),
+  cardCreate: d => fetch('/api/admin/cards', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  cardUpdate: (id,d) => fetch('/api/admin/cards/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
+  cardDelete: id => fetch('/api/admin/cards/'+id, { method:'DELETE' }),
   /* 海南全岛地图 · 图层（分类）：决定标记颜色 / 图标 / 大小 */
   layerList: () => fetch('/api/admin/map-layers').then(r=>r.json()),
   layerCreate: d => fetch('/api/admin/map-layers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
@@ -1006,6 +1069,7 @@ async function unlockAdmin(loggedInAs){
   loadCb();
   loadArts();
   loadEvts();
+  loadCards();
   loadMapPts();
   loadUsers();
   routeByHash();     /* 支持带 #map 直接进入海南全岛地图子页 */
@@ -1140,6 +1204,7 @@ API.chats = () => fetch('/api/chats').then(r=>r.json());
 API.chatGet = id => fetch('/api/chat/'+encodeURIComponent(id)).then(r=>r.json());
 API.chatSince = (id,since) => fetch('/api/chat/'+encodeURIComponent(id)+'/messages?since='+since).then(r=>r.json());
 API.chatAgent = (id,text) => fetch('/api/chat/'+encodeURIComponent(id)+'/agent', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ text }) });
+API.chatAgentCard = (id,cardId) => fetch('/api/chat/'+encodeURIComponent(id)+'/agent-card', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ cardId }) });
 API.chatMode = (id,mode) => fetch('/api/chat/'+encodeURIComponent(id)+'/mode', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ mode }) });
 API.chatEnd = id => fetch('/api/chat/'+encodeURIComponent(id)+'/end', { method:'POST' });
 API.getTr = () => fetch('/api/agent-translate').then(r=>r.json());
@@ -1243,6 +1308,19 @@ function renderChatPanel(msgs, reset, keepScroll){
         const ids = [m.island.campId].concat(Array.isArray(m.island.spots) ? m.island.spots : []);
         extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0; font-family:ui-monospace,Consolas,monospace; word-break:break-all;">点位ID：${esc(ids.join('，'))}${m.island.checkedAt ? ' · ' + new Date(m.island.checkedAt).toLocaleString() : ''}</div>`;
       }
+      /* 页面卡片消息：后台渲染同款卡片预览（标题取中文，附跳转地址，点击新标签打开） */
+      if (m.card){
+        const ct = (m.card.titles && (m.card.titles.zh || m.card.titles.en || m.card.titles.ru)) || '';
+        const cd = (m.card.descs && (m.card.descs.zh || m.card.descs.en || m.card.descs.ru)) || '';
+        text = '';
+        extra += `<a href="${escAttr(m.card.url)}" target="_blank" rel="noopener" style="display:block; text-decoration:none; margin-top:2px; border:1px solid rgba(25,50,95,.1); border-radius:10px; overflow:hidden; max-width:240px; background:#fff;">
+          ${m.card.cover ? `<img src="${escAttr(m.card.cover)}" style="width:100%;height:120px;object-fit:cover;display:block;">` : ''}
+          <div style="padding:9px 11px;">
+            <div style="font-weight:700;font-size:13px;color:#20242b;">${esc(ct)}</div>
+            ${cd ? `<div style="font-size:12px;color:#6a7382;margin-top:3px;line-height:1.5;">${esc(cd)}</div>` : ''}
+            <div style="font-size:11px;color:#2f7cf6;margin-top:5px;">${esc(m.card.url)}</div>
+          </div></a>`;
+      }
       const align = m.role === 'agent' ? 'right' : 'left';
       const tag = `<div style="font-size:10px; color:#9aa3ad; margin:0 4px 2px; text-align:${align};">${ROLE_NAME[m.role]||m.role} · ${new Date(m.ts).toLocaleTimeString()}</div>`;
       return `<div data-mid="${m.id}">${tag}<div style="${bubble(m.role)} padding:8px 12px; font-size:13px; line-height:1.55; max-width:78%; word-break:break-word; box-shadow:0 1px 4px rgba(30,60,110,.06);"><div style="color:#20242b;">${esc(text)}</div>${extra}</div></div>`;
@@ -1331,6 +1409,23 @@ async function sendAgentMsg(){
   loadChatList();
 }
 document.getElementById('cpInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendAgentMsg(); });
+
+/* 人工实时对话：选中页面卡片一键发送给游客 */
+async function sendAgentCard(){
+  const sel = document.getElementById('cpCardSel');
+  const cardId = sel.value;
+  if (!cardId){ alert('请先在右侧下拉选择要发送的页面卡片'); return; }
+  if (!activeChat){ alert('请先选择一个会话'); return; }
+  let r;
+  try { r = await API.chatAgentCard(activeChat, cardId); }
+  catch(e){ alert('网络异常，卡片发送失败，请重试'); return; }
+  if (r.status === 409){ alert('该会话已结束，无法继续发送'); clearChatSelection(); loadChatList(); return; }
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok){ alert(j.error || '卡片发送失败，请重试'); return; }
+  sel.value = '';
+  await pollActiveChat();
+  loadChatList();
+}
 
 /* ---- 人工消息自动翻译总开关 ---- */
 let agentTranslate = true;
@@ -1631,6 +1726,127 @@ async function saveEvt(){
 }
 async function delEvt(id){
   if (confirm('确定删除该商业活动？删除后前端将不再展示。')){ await API.evtDelete(id); loadEvts(); }
+}
+
+/* ================= 页面卡片（聊天里发送的方块富媒体卡片） ================= */
+let cards = [], cardPages = [], editingCard = null, cardCoverPath = '';
+async function loadCards(){
+  let d;
+  try { d = await API.cardList(); } catch(e){ $('cardListBox').innerHTML = '<div class="empty">加载失败</div>'; return; }
+  cards = d.cards || [];
+  cardPages = d.pages || [];
+  $('cardCount').textContent = cards.length + ' 张';
+  renderCardList();
+  renderCardPageOptions();   // 同步刷新规则弹窗与聊天面板的卡片下拉
+}
+function cardPageName(key){
+  const p = cardPages.filter(x => x.key === key)[0];
+  return p ? (p.names.zh || key) : key;
+}
+function renderCardList(){
+  const box = $('cardListBox');
+  if (!cards.length){ box.innerHTML = '<div class="empty">还没有卡片，点右上角「+ 新建卡片」开始配置</div>'; return; }
+  box.innerHTML = cards.map(c => {
+    const title = c.titles.zh || c.titles.en || c.titles.ru || '(无标题)';
+    const url = c.url || '(未配置跳转地址)';
+    const state = c.enabled === false ? '<span class="tag" style="background:#f3e5e5;color:#c04a4a;">已停用</span>' : '';
+    const noUrl = !c.url ? '<span class="tag" style="background:#fdf3e0;color:#c08a2a;">待填地址</span>' : '';
+    return `<div class="rule-item">
+      ${c.cover ? `<img src="${escAttr(c.cover)}" style="width:64px;height:44px;object-fit:cover;border-radius:8px;flex:none;">` : ''}
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:700;font-size:13.5px;">${esc(title)} ${state}${noUrl}</div>
+        <div style="font-size:12px;color:#8b94a0;margin-top:3px;">页面：${esc(cardPageName(c.pageKey))} · 跳转：${esc(url)}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="openCardEditor('${c.id}')">编辑</button>
+      <button class="btn btn-ghost btn-sm" onclick="toggleCardEnabled('${c.id}')">${c.enabled === false ? '启用' : '停用'}</button>
+      <button class="btn btn-danger btn-sm" onclick="delCard('${c.id}')">删除</button>
+    </div>`;
+  }).join('');
+}
+/* 卡片下拉：规则弹窗的「绑定卡片」与聊天面板的「发送卡片」共用这份数据 */
+function renderCardPageOptions(){
+  const opts = cards.filter(c => c.enabled !== false);
+  const ruleSel = document.getElementById('rmCardId');
+  if (ruleSel){
+    const cur = ruleSel.value;
+    ruleSel.innerHTML = '<option value="">（不绑定卡片）</option>' +
+      opts.map(c => `<option value="${c.id}">${esc(cardPageName(c.pageKey))} · ${esc(c.titles.zh || c.titles.en || c.titles.ru || '(无标题)')}</option>`).join('');
+    ruleSel.value = cur;
+  }
+  const chatSel = document.getElementById('cpCardSel');
+  if (chatSel){
+    chatSel.innerHTML = '<option value="">发送页面卡片…</option>' +
+      opts.map(c => `<option value="${c.id}">${esc(cardPageName(c.pageKey))} · ${esc(c.titles.zh || c.titles.en || c.titles.ru || '(无标题)')}</option>`).join('');
+  }
+}
+function cdPageChange(){
+  const key = val('cdPageKey');
+  const p = cardPages.filter(x => x.key === key)[0];
+  const hasFixedUrl = p && p.url;
+  $('cdUrlRow').style.display = hasFixedUrl ? 'none' : '';
+  $('cdUrlHint').textContent = hasFixedUrl ? ('该页面已有固定地址：' + p.url + '，无需填写') : '该页面尚未做成，需手动填写跳转地址（后续页面就绪后回填）';
+}
+function openCardEditor(id){
+  editingCard = id || null;
+  $('cardModalTitle').textContent = id ? '编辑卡片' : '新建卡片';
+  const c = id ? cards.find(x => x.id === id) : { pageKey:'island', url:'', cover:'', titles:{zh:'',en:'',ru:''}, descs:{zh:'',en:'',ru:''}, enabled:true };
+  /* 页面下拉 */
+  $('cdPageKey').innerHTML = cardPages.map(p => `<option value="${p.key}">${esc(p.names.zh || p.key)}</option>`).join('');
+  $('cdPageKey').value = c.pageKey || 'island';
+  cdPageChange();
+  $('cdUrl').value = c.url && !((cardPages.filter(x=>x.key===c.pageKey)[0]||{}).url) ? c.url : '';
+  $('cdTitleZh').value = (c.titles && c.titles.zh) || '';
+  $('cdTitleEn').value = (c.titles && c.titles.en) || '';
+  $('cdTitleRu').value = (c.titles && c.titles.ru) || '';
+  $('cdDescZh').value = (c.descs && c.descs.zh) || '';
+  $('cdDescEn').value = (c.descs && c.descs.en) || '';
+  $('cdDescRu').value = (c.descs && c.descs.ru) || '';
+  cardCoverPath = c.cover || '';
+  cdCoverPreview();
+  show('cardModal');
+}
+function cdCoverPreview(){
+  const img = $('cdCoverPreview');
+  if (cardCoverPath){ img.src = cardCoverPath; img.style.display = 'block'; }
+  else { img.removeAttribute('src'); img.style.display = 'none'; }
+}
+function cdCoverClear(){ cardCoverPath = ''; cdCoverPreview(); }
+async function cdCoverPick(input){
+  const f = input.files && input.files[0];
+  input.value = '';
+  if (!f) return;
+  const hint = $('cdCoverHint');
+  hint.textContent = '上传中…';
+  try {
+    const r = await uploadImage(f);
+    if (r.error){ hint.textContent = r.error; return; }
+    cardCoverPath = r.url; cdCoverPreview(); hint.textContent = '';
+  } catch(e){ hint.textContent = '上传失败'; }
+}
+async function saveCard(){
+  const titles = { zh: val('cdTitleZh'), en: val('cdTitleEn'), ru: val('cdTitleRu') };
+  if (!titles.zh.trim() && !titles.en.trim() && !titles.ru.trim()){ alert('请至少填写一种语言的卡片标题'); return; }
+  const pageKey = val('cdPageKey');
+  const p = cardPages.filter(x => x.key === pageKey)[0];
+  const d = {
+    pageKey,
+    url: (p && p.url) ? '' : val('cdUrl'),   // 页面已有固定地址时不提交 url（服务端自动锁定）
+    cover: cardCoverPath,
+    titles,
+    descs: { zh: val('cdDescZh'), en: val('cdDescEn'), ru: val('cdDescRu') }
+  };
+  const r = editingCard ? await API.cardUpdate(editingCard, d) : await API.cardCreate(d);
+  if (!r || r.error){ alert((r && r.error) || '保存失败'); return; }
+  closeModal('cardModal'); loadCards();
+}
+async function toggleCardEnabled(id){
+  const c = cards.find(x => x.id === id);
+  if (!c) return;
+  await API.cardUpdate(id, { enabled: c.enabled === false ? true : false });
+  loadCards();
+}
+async function delCard(id){
+  if (confirm('确定删除该卡片？绑定它的关键词规则会自动解除绑定。')){ await API.cardDelete(id); loadCards(); }
 }
 
 /* ================= 全岛游地图（露营点 / 游玩打卡点，共用同一份数据源） ================= */
@@ -2148,6 +2364,9 @@ function openRuleEditor(id){
   document.getElementById('rmAppendLink').checked = r.appendLink === true;
   rmBtns = (r.quickButtons||[]).map(b => ({ ...b.label }));
   renderRmBtns();
+  /* 绑定卡片下拉：先填充选项，再回显当前规则绑定的卡片 */
+  renderCardPageOptions();
+  document.getElementById('rmCardId').value = r.cardId || '';
   show('ruleModal');
 }
 async function saveRule(){
@@ -2164,7 +2383,8 @@ async function saveRule(){
     quickButtons: rmBtns.map(b => ({ label: { zh:(b.zh||'').trim(), en:(b.en||'').trim(), ru:(b.ru||'').trim() } }))
       .filter(b => b.label.zh || b.label.en || b.label.ru),
     enabled: true,
-    appendLink: document.getElementById('rmAppendLink').checked
+    appendLink: document.getElementById('rmAppendLink').checked,
+    cardId: document.getElementById('rmCardId').value || ''
   };
   if (editingRule) await API.update(editingRule, d); else await API.create(d);
   closeModal('ruleModal'); loadRules();

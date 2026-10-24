@@ -295,6 +295,23 @@
   }
   /* 图片消息：等比缩略图，点击可查看原图 */
   .msg-img{ display:block; max-width:240px; max-height:240px; border-radius:12px; margin:2px 0; cursor:zoom-in; }
+  /* 页面卡片消息：方块富媒体（封面图 + 标题 + 简介），点击跳转到对应成品页面（站内加载，不新开标签） */
+  .msg-card{
+    display:block; margin-top:4px; max-width:240px;
+    border:1px solid rgba(25,50,95,.1); border-radius:12px; overflow:hidden;
+    background:#fff; text-decoration:none;
+    box-shadow:0 4px 14px rgba(18,32,52,.08);
+    transition:transform .18s ease, box-shadow .18s ease;
+  }
+  .msg-card:hover{ transform:translateY(-2px); box-shadow:0 8px 22px rgba(18,32,52,.14); }
+  .msg-card img{ width:100%; height:130px; object-fit:cover; display:block; }
+  .msg-card-bd{ padding:10px 12px 12px; }
+  .msg-card-title{ font-size:13.5px; font-weight:700; color:#1f2d3d; line-height:1.45; }
+  .msg-card-desc{
+    margin-top:3px; font-size:12px; line-height:1.5; color:#8a94a6;
+    display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+  }
+  .msg-card-url{ margin-top:6px; font-size:11px; color:#2f7cf6; word-break:break-all; }
 
   .tabs{
     margin-top:26px; display:inline-flex; padding:4px; border-radius:999px;
@@ -2011,6 +2028,19 @@ function renderChat(){
       if (m.image) inner += `<img class="msg-img" src="${escapeAttr(m.image)}" alt="" onclick="window.open(this.src,'_blank')">`;
       if (m.text) inner += (inner ? '<br>' : '') + escapeHtml(m.text);
       return `<div class="msg-row user"><div class="msg-bubble">${inner}</div></div>`;
+    }
+    /* 页面卡片消息：关键词命中或人工发送的方块富媒体卡片，点击跳转对应成品页面 */
+    if (m.card){
+      const ct = (m.card.titles && (m.card.titles[lang] || m.card.titles.zh || m.card.titles.en || m.card.titles.ru)) || '';
+      const cd = (m.card.descs && (m.card.descs[lang] || m.card.descs.zh || m.card.descs.en || m.card.descs.ru)) || '';
+      const tg = (m.role === 'agent') ? roleTag.agent : roleTag.bot;
+      let cInner = `<span class="msg-tag">${escapeHtml(labelOf(tg, lang))}</span>`;
+      cInner += `<a class="msg-card" href="${escapeAttr(m.card.url)}">`;
+      if (m.card.cover) cInner += `<img src="${escapeAttr(m.card.cover)}" alt="">`;
+      cInner += `<div class="msg-card-bd"><div class="msg-card-title">${escapeHtml(ct)}</div>`;
+      if (cd) cInner += `<div class="msg-card-desc">${escapeHtml(cd)}</div>`;
+      cInner += `<div class="msg-card-url">${escapeHtml(m.card.url)}</div></div></a>`;
+      return `<div class="msg-row bot${m.role === 'agent' ? ' agent' : ''}"><div class="msg-bubble">${cInner}</div></div>`;
     }
     /* 机器人 / 人工客服消息：客户界面同时展示【中文原文 + 对应语种翻译】
        选俄 → 中文原文 + 俄语翻译；选英 → 中文原文 + 英文翻译；选中文 → 仅中文原文 */

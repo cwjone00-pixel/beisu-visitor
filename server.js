@@ -99,6 +99,7 @@ function ensureDataFile(){
       placeholder: { bot: { zh:'', en:'', ru:'' }, agent: { zh:'', en:'', ru:'' } },
       articles: [],
       events: [],
+      cards: [],
       agentChat: { translate: true }
     };
     fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), 'utf-8');
@@ -143,6 +144,9 @@ function shapeData(raw){
     /* 商业活动（后台录入的图文；与文章资讯分开存储，仅用于前端左侧「商业活动」板块展示） */
     if (!Array.isArray(d.events)) d.events = [];
     d.events = d.events.map(e => normEvent(e));
+    /* 页面卡片（聊天里发送的方块富媒体卡片：标题/简介/封面图/跳转地址，三语） */
+    if (!Array.isArray(d.cards)) d.cards = [];
+    d.cards = d.cards.map(normCard);
     /* 人工消息自动翻译总开关（缺省开启）+ 机器人总开关（缺省开启） */
     if (!d.agentChat || typeof d.agentChat !== 'object') d.agentChat = {};
     d.agentChat.translate = d.agentChat.translate !== false;
@@ -663,7 +667,8 @@ function normalizeRule(r){
   const quickButtons = normButtons(r.quickButtons, 4);
   const enabled = r.enabled === false ? false : true;
   const appendLink = r.appendLink === true;   // 是否附加底部链接，默认关闭
-  return { id: r.id || crypto.randomUUID(), type, keywords, reply, quickButtons, enabled, appendLink };
+  const cardId = String(r.cardId || '').trim().slice(0, 64);   // 绑定的页面卡片 ID（空=不绑定）
+  return { id: r.id || crypto.randomUUID(), type, keywords, reply, quickButtons, enabled, appendLink, cardId };
 }
 function normalizeFallback(fb){
   fb = fb || {};
@@ -708,11 +713,18 @@ function matchPayload(hit){
   if (hit.appendLink === true && data.link && data.link.url){
     link = { text: data.link.text, url: data.link.url };
   }
+  /* 规则绑定的页面卡片：仅当卡片存在且启用时下发；游客端按当前语种渲染标题/简介 */
+  let card = null;
+  if (hit.cardId){
+    const c = data.cards.filter(function (x) { return x.id === hit.cardId && x.enabled !== false; })[0];
+    if (c && c.url) card = { id:c.id, pageKey:c.pageKey, url:c.url, cover:c.cover, titles:c.titles, descs:c.descs };
+  }
   return {
     reply: hit.reply || { zh:'', en:'', ru:'' },
     quickButtons: hit.quickButtons || [],
     matched: !hit.isFallback,
-    link
+    link,
+    card
   };
 }
 
@@ -835,6 +847,49 @@ function normEvent(input){
   };
 }
 function articlePath(a){ return '/article/' + a.slug; }
+
+/* ---------------- 页面卡片（聊天里发送的方块富媒体卡片） ----------------
+   每张卡片绑定一个页面：卡片标题 / 简介 / 封面图 / 跳转地址，三语文案分开配置。
+   目前只有【全岛游】是已做好的真页面（/island），其余四个页面（租房/租车/项目体验/合作）
+   后续另做，卡片 url 先留空待填；pageKey 用于关键词规则与人工发送时识别归属页面。 */
+const CARD_PAGES = [
+  { key:'island',    url:'/island', names:{ zh:'全岛游',           en:'Island Tour',              ru:'Островной тур' } },
+  { key:'rent',      url:'',        names:{ zh:'租房',             en:'Housing Rental',           ru:'Аренда жилья' } },
+  { key:'car',       url:'',        names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
+  { key:'review',    url:'',        names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
+  { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } }
+];
+function cardPageByKey(key){ return CARD_PAGES.filter(function (p) { return p.key === key; })[0] || null; }
+function normCard(input){
+  const c = (input && typeof input === 'object') ? input : {};
+  const id = c.id || crypto.randomUUID();
+  const pageKey = cardPageByKey(c.pageKey) ? c.pageKey : 'island';
+  const page = cardPageByKey(pageKey);
+  /* 跳转地址：页面已有固定路由时锁定为页面地址，否则用手动填写的 url（后续新页面用） */
+  const url = page.url || String(c.url || '').trim().slice(0, 300);
+  return {
+    id,
+    pageKey,
+    url,
+    cover: String(c.cover || '').slice(0, 300),
+    titles: normLabel(c.titles),   // 三语卡片标题
+    descs: normLabel(c.descs),     // 三语卡片简介
+    enabled: c.enabled === false ? false : true,
+    createdAt: c.createdAt || Date.now(),
+    updatedAt: c.updatedAt || Date.now()
+  };
+}
+/* 校验卡片：至少一种语言标题；url 必须是站内路径或 http(s) 外链 */
+function validateCard(body){
+  const titles = normLabel(body && body.titles);
+  if (!titles.zh && !titles.en && !titles.ru) return '请至少填写一种语言的卡片标题';
+  const pageKey = body && body.pageKey;
+  if (!cardPageByKey(pageKey)) return '未知页面：' + pageKey;
+  const page = cardPageByKey(pageKey);
+  const url = page.url || String((body && body.url) || '').trim();
+  if (url && !/^(\/|https?:\/\/)/.test(url)) return '跳转地址必须是站内路径或 http(s) 链接';
+  return null;
+}
 /* 爬虫识别：Yandex 系 UA（YandexBot / YandexImages / YandexMobileBot 等）统一命中 */
 function isYandexBot(ua){ return /yandex/i.test(String(ua || '')); }
 /* 某 slug 被当前文章启用后，把它从其它文章的历史别名里摘除，避免留下指向别处的死重定向 */
@@ -1971,6 +2026,10 @@ const server = http.createServer(async (req, res) => {
     const payload = matchPayload(matchInput(body.text, body.lang));
     // 命中规则或兜底回复（任一语种有内容）均入会话流，游客端轮询同步可见
     const _reply = payload.reply || {};
+    /* 命中规则且绑定了卡片 → 追加一条卡片消息；有文本回复时也照常写入，二者互不影响 */
+    if (activeSid && payload.card){
+      addMsg(activeSid, { role:'bot', card:payload.card });
+    }
     if (activeSid && (_reply.zh || _reply.en || _reply.ru)){
       addMsg(activeSid, { role:'bot', reply:payload.reply, quickButtons:payload.quickButtons, link:payload.link });
     }
@@ -2059,6 +2118,19 @@ const server = http.createServer(async (req, res) => {
       msg.trLang = s.lang;       // text 所属语种（客户切换语种后据此判断能否直接复用 text）
     }
     const m = addMsg(sid, msg);
+    return send(res, 200, { ok:true, message:m });
+  }
+  /* ---- 人工实时对话发送页面卡片：客服在聊天面板选卡片一键发送给游客 ---- */
+  if (p.startsWith('/api/chat/') && p.endsWith('/agent-card') && req.method === 'POST'){
+    const sid = decodeURIComponent(p.slice('/api/chat/'.length, -'/agent-card'.length));
+    const body = await readBody(req);
+    const cardId = String(body.cardId || '').trim();
+    const c = loadData().cards.filter(function (x) { return x.id === cardId && x.enabled !== false; })[0];
+    if (!c) return send(res, 404, { error:'card not found' });
+    if (!c.url) return send(res, 400, { error:'该页面尚未配置跳转地址' });
+    const s = getSession(sid);
+    if (s.ended) return send(res, 409, { error:'session ended' });
+    const m = addMsg(sid, { role:'agent', card:{ id:c.id, pageKey:c.pageKey, url:c.url, cover:c.cover, titles:c.titles, descs:c.descs } });
     return send(res, 200, { ok:true, message:m });
   }
   /* ---- 后台人工主动结束会话：硬删除全部消息，服务器不留存；旧会话锁定 ---- */
@@ -2279,6 +2351,47 @@ const server = http.createServer(async (req, res) => {
   if ((m = p.match(/^\/api\/admin\/events\/([^/]+)$/)) && req.method === 'DELETE'){
     const d = loadData();
     d.events = d.events.filter(e => e.id !== m[1]);
+    saveData(d);
+    return send(res, 200, { ok:true });
+  }
+
+  /* ---- 页面卡片：后台 CRUD（未加入白名单 → 必须带 token） ---- */
+  /* 列出全部页面 + 各页面已绑定的卡片；pages 常量一并下发供后台渲染下拉 */
+  if (p === '/api/admin/cards' && req.method === 'GET'){
+    const d = loadData();
+    return send(res, 200, {
+      pages: CARD_PAGES.map(function (pg) { return { key:pg.key, url:pg.url, names:pg.names }; }),
+      cards: d.cards
+    });
+  }
+  if (p === '/api/admin/cards' && req.method === 'POST'){
+    const body = await readBody(req);
+    const err = validateCard(body);
+    if (err) return send(res, 400, { error:err });
+    const d = loadData();
+    const card = normCard({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() });
+    d.cards.unshift(card);
+    saveData(d);
+    return send(res, 201, card);
+  }
+  if ((m = p.match(/^\/api\/admin\/cards\/([^/]+)$/)) && req.method === 'PUT'){
+    const body = await readBody(req);
+    const d = loadData();
+    const i = d.cards.findIndex(c => c.id === m[1]);
+    if (i < 0) return send(res, 404, { error:'card not found' });
+    const prev = d.cards[i];
+    /* 合并旧数据后再校验：允许只传部分字段（如仅切换 enabled 停用/启用） */
+    const err = validateCard({ ...prev, ...body, pageKey: body.pageKey || prev.pageKey });
+    if (err) return send(res, 400, { error:err });
+    d.cards[i] = normCard({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, updatedAt:Date.now() });
+    saveData(d);
+    return send(res, 200, d.cards[i]);
+  }
+  if ((m = p.match(/^\/api\/admin\/cards\/([^/]+)$/)) && req.method === 'DELETE'){
+    const d = loadData();
+    d.cards = d.cards.filter(c => c.id !== m[1]);
+    /* 解除所有关键词规则对这张卡片的绑定，避免留下指向已删卡片的死引用 */
+    d.rules.forEach(function (r) { if (r.cardId === m[1]) r.cardId = ''; });
     saveData(d);
     return send(res, 200, { ok:true });
   }
