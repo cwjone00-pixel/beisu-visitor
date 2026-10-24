@@ -1100,25 +1100,25 @@ function addMsg(sid, m){
 /* 全岛游行程提交的访客消息文案：按游客当前界面语种拼接，后台人工可在实时对话里翻译 */
 function islandSummary(lang, d){
   const L = {
-    zh: { title:'【全岛游行程提交】', name:'称呼', contact:'联系方式', camp:'露营点',
-          spots:'打卡点', note:'备注', none:'（未选择）', sep:'、' },
-    en: { title:'[Island tour request]', name:'Name', contact:'Contact', camp:'Campsite',
-          spots:'Sightseeing spots', note:'Note', none:'(none)', sep:', ' },
-    ru: { title:'[Заявка на экскурсию]', name:'Имя', contact:'Контакт', camp:'Кемпинг',
-          spots:'Достопримечательности', note:'Примечание', none:'(нет)', sep:', ' }
+    zh: { title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、' },
+    en: { title:'[Island tour check-in]', camp:'Campsite', spots:'Spots', none:'(none)', sep:', ' },
+    ru: { title:'[Отметка на экскурсии]', camp:'Кемпинг', spots:'Места', none:'(нет)', sep:', ' }
   }[lang] || {
-    title:'【全岛游行程提交】', name:'称呼', contact:'联系方式', camp:'露营点',
-    spots:'打卡点', note:'备注', none:'（未选择）', sep:'、'
+    title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、'
   };
-  const lines = [
+  /* 按 ID 反查点位名称，便于人工阅读；查不到就原样展示 ID */
+  const all = loadMap().points;
+  function nameOf(id){
+    const p = all.filter(function (x) { return x.id === id; })[0];
+    if (!p) return id;
+    const nm = (p.names && (p.names[lang] || p.names.zh)) || p.name || '';
+    return nm ? nm + '(' + id + ')' : id;
+  }
+  return [
     L.title,
-    L.name + ': ' + d.name,
-    L.contact + ': ' + d.contact,
-    L.camp + ': ' + (d.camp || L.none),
-    L.spots + ': ' + (d.spots.length ? d.spots.join(L.sep) : L.none)
-  ];
-  if (d.note) lines.push(L.note + ': ' + d.note);
-  return lines.join('\n');
+    L.camp + ': ' + nameOf(d.campId),
+    L.spots + ': ' + (d.spots.length ? d.spots.map(nameOf).join(L.sep) : L.none)
+  ].join('\n');
 }
 
 /* ---------------- 图片媒体：独立存储（避免把 base64 塞进 chats 单体文档撑爆 16MB 上限） ----------------
@@ -1979,23 +1979,23 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, payload);
   }
 
-  /* ---- 全岛游行程提交（游客子页面调用，免鉴权）----
-     客户在露营点 / 打卡点页面填好称呼与联系方式后点「提交」，这里把行程信息
-     作为一条普通访客消息写入其会话流。提交后前端跳回主站首页，右侧聊天框
+  /* ---- 全岛游打卡提交（游客子页面调用，免鉴权）----
+     游客在打卡点地图选中点位后点「提交打卡」，这里只记录：
+       · 选中的点位 ID（露营点 + 打卡点）
+       · 当前打卡时间（消息自带的 ts）
+     不收集任何游客联系方式。提交后前端跳回主站首页，右侧聊天框
      通过既有的消息同步把这条内容按访客消息展示，后台人工也能在实时对话里看到。 */
   if (p === '/api/island/submit' && req.method === 'POST'){
     const body = await readBody(req);
-    const name = String(body.name || '').trim().slice(0, 40);
-    const contact = String(body.contact || '').trim().slice(0, 80);
-    const note = String(body.note || '').trim().slice(0, 300);
-    if (!name || !contact) return send(res, 400, { ok:false, error:'请填写称呼和联系方式' });
     const lang = ['zh', 'en', 'ru'].indexOf(body.lang) >= 0 ? body.lang : 'zh';
     const campRaw = body.camp && typeof body.camp === 'object' ? body.camp : {};
-    const camp = String(campRaw.name || '').trim().slice(0, 80);
-    if (!camp) return send(res, 400, { ok:false, error:'请先选择露营点' });
-    const spots = (Array.isArray(body.spots) ? body.spots : [])
-      .map(function (s) { return String(s == null ? '' : s).trim().slice(0, 80); })
-      .filter(Boolean).slice(0, 30);
+    const campId = String(campRaw.id || '').trim().slice(0, 64);
+    if (!campId) return send(res, 400, { ok:false, error:'请先选择露营点' });
+    /* 只保留合法的点位 ID 形态，杜绝注入；spots 为空也允许（只打卡露营点） */
+    const spotIds = (Array.isArray(body.spots) ? body.spots : [])
+      .map(function (s) { return String(s == null ? '' : s).trim().slice(0, 64); })
+      .filter(function (s) { return /^[A-Za-z0-9_-]{2,64}$/.test(s); })
+      .slice(0, 30);
 
     let sid = String(body.sessionId || '').trim().slice(0, 64);
     /* 旧会话已被后台人工结束：改写到全新会话，避免把消息追加进已关闭的对话 */
@@ -2004,7 +2004,11 @@ const server = http.createServer(async (req, res) => {
 
     const sess = getSession(sid);
     sess.lang = lang;
-    addMsg(sid, { role:'visitor', text: islandSummary(lang, { name:name, contact:contact, note:note, camp:camp, spots:spots }) });
+    addMsg(sid, {
+      role:'visitor',
+      text: islandSummary(lang, { campId: campId, spots: spotIds }),
+      island: { campId: campId, spots: spotIds, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 打卡时间
+    });
     return send(res, 200, { ok:true, sid });
   }
 
