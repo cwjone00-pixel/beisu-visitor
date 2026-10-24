@@ -1155,12 +1155,18 @@ function addMsg(sid, m){
 /* 全岛游行程提交的访客消息文案：按游客当前界面语种拼接，后台人工可在实时对话里翻译 */
 function islandSummary(lang, d){
   const L = {
-    zh: { title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、' },
-    en: { title:'[Island tour check-in]', camp:'Campsite', spots:'Spots', none:'(none)', sep:', ' },
-    ru: { title:'[Отметка на экскурсии]', camp:'Кемпинг', spots:'Места', none:'(нет)', sep:', ' }
+    zh: { title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
+          people:function (n, s){ return '出行人数: ' + n + ' 人 · 建议 ' + s + ' 座车 · 露营装备 ' + n + ' 套'; } },
+    en: { title:'[Island tour check-in]', camp:'Campsite', spots:'Spots', none:'(none)', sep:', ',
+          people:function (n, s){ return 'Travelers: ' + n + ' · Suggested ' + s + '-seat vehicle · Camping gear ×' + n; } },
+    ru: { title:'[Отметка на экскурсии]', camp:'Кемпинг', spots:'Места', none:'(нет)', sep:', ',
+          people:function (n, s){ return 'Человек: ' + n + ' · Рекомендуется ' + s + '-местный автомобиль · Снаряжение ×' + n; } }
   }[lang] || {
-    title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、'
+    title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
+    people:function (n, s){ return '出行人数: ' + n + ' 人 · 建议 ' + s + ' 座车 · 露营装备 ' + n + ' 套'; }
   };
+  /* 人数匹配车型：1-3 人 → 5 座，4-6 人 → 7 座，7-9 人 → 9 座 */
+  function seatsOf(n){ return n <= 3 ? 5 : (n <= 6 ? 7 : 9); }
   /* 按 ID 反查点位名称，只输出地名（不带 p_mv 编码），
      ID 仍保留在消息结构化字段 island.campId / island.spots 里供后台识别 */
   const all = loadMap().points;
@@ -1169,11 +1175,14 @@ function islandSummary(lang, d){
     if (!p) return id;
     return (p.names && (p.names[lang] || p.names.zh)) || p.name || id;
   }
-  return [
+  const lines = [
     L.title,
     L.camp + ': ' + nameOf(d.campId),
     L.spots + ': ' + (d.spots.length ? d.spots.map(nameOf).join(L.sep) : L.none)
-  ].join('\n');
+  ];
+  /* 填了出行人数才追加这一行（人数 · 建议车型 · 装备套数） */
+  if (d.people) lines.push(L.people(d.people, seatsOf(d.people)));
+  return lines.join('\n');
 }
 
 /* ---------------- 图片媒体：独立存储（避免把 base64 塞进 chats 单体文档撑爆 16MB 上限） ----------------
@@ -2055,6 +2064,9 @@ const server = http.createServer(async (req, res) => {
       .map(function (s) { return String(s == null ? '' : s).trim().slice(0, 64); })
       .filter(function (s) { return /^[A-Za-z0-9_-]{2,64}$/.test(s); })
       .slice(0, 30);
+    /* 出行人数：可选项，仅接受 1-9 的整数；非法值按未填写处理（不影响提交） */
+    const pp = parseInt(body.people, 10);
+    const people = (pp >= 1 && pp <= 9) ? pp : 0;
 
     let sid = String(body.sessionId || '').trim().slice(0, 64);
     /* 旧会话已被后台人工结束：改写到全新会话，避免把消息追加进已关闭的对话 */
@@ -2065,8 +2077,8 @@ const server = http.createServer(async (req, res) => {
     sess.lang = lang;
     addMsg(sid, {
       role:'visitor',
-      text: islandSummary(lang, { campId: campId, spots: spotIds }),
-      island: { campId: campId, spots: spotIds, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 打卡时间
+      text: islandSummary(lang, { campId: campId, spots: spotIds, people: people }),
+      island: { campId: campId, spots: spotIds, people: people || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 人数 + 打卡时间
     });
     return send(res, 200, { ok:true, sid });
   }

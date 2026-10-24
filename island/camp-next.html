@@ -69,6 +69,8 @@
   .camp__kind--camp { color: #7b4bc4; }
   /* 顶部说明里追加的一行：上一步选中的是哪个露营点 */
   .camp__origin { margin: 6px 0 0; font-size: 12px; font-weight: 700; color: #7b4bc4; }
+  /* 顶部说明里追加的一行：上一步填写的出行人数（含建议车型与装备套数） */
+  .camp__people { margin: 6px 0 0; font-size: 12px; font-weight: 700; color: #2f7cf6; }
 
   /* 左下角：已多选的游玩打卡点（可单个取消，也可一键清空） */
   .camp__picked { position: absolute; left: 18px; bottom: 16px; z-index: 3; max-width: 40vw; }
@@ -178,7 +180,9 @@
       submitting: '提交中…',
       submitFail: '提交失败：',
       needCamp: '请先返回上一步选择露营点',
-      needSpot: '请先在地图上选择打卡点'
+      needSpot: '请先在地图上选择打卡点',
+      /* 出行人数行：人数 · 建议车型（1-3→5座 / 4-6→7座 / 7-9→9座）· 装备按人数配 */
+      peopleLine: function (n, seats) { return '出行人数：' + n + ' 人 · 建议 ' + seats + ' 座车 · 露营装备 ' + n + ' 套'; }
     },
     en: {
       title: 'Sightseeing Spots',
@@ -203,7 +207,8 @@
       submitting: 'Submitting…',
       submitFail: 'Submit failed: ',
       needCamp: 'Please go back and choose a campsite first',
-      needSpot: 'Please select spots on the map first'
+      needSpot: 'Please select spots on the map first',
+      peopleLine: function (n, seats) { return 'Travelers: ' + n + ' · Suggested ' + seats + '-seat vehicle · Camping gear ×' + n; }
     },
     ru: {
       title: 'Достопримечательности',
@@ -228,7 +233,8 @@
       submitting: 'Отправка…',
       submitFail: 'Ошибка отправки: ',
       needCamp: 'Сначала вернитесь и выберите кемпинг',
-      needSpot: 'Сначала выберите места на карте'
+      needSpot: 'Сначала выберите места на карте',
+      peopleLine: function (n, seats) { return 'Человек: ' + n + ' · Рекомендуется ' + seats + '-местный автомобиль · Снаряжение ×' + n; }
     }
   };
 
@@ -238,8 +244,12 @@
   var spots = [];                      /* 游玩打卡点（直接读库里「游玩打卡」分类那批点位） */
   var kind = null;                     /* 该分类在后台的配色 / 名称，与地图页保持一致 */
   var campSite = null;                 /* 上一步选中的露营点（带 ?point= 进来时才有） */
+  var people = 0;                      /* 上一步填写的出行人数（?people=，1-9；0 = 未填，直接打开本页时） */
   var detailId = null;                 /* 右下角详情当前展示的标记 id */
   var selIds = [];                     /* 已多选的游玩打卡点 id，按选择先后排列 */
+
+  /* 人数匹配车型：1-3 人 → 5 座，4-6 人 → 7 座，7-9 人 → 9 座 */
+  function seatsOf(n) { return n <= 3 ? 5 : (n <= 6 ? 7 : 9); }
 
   /* 各图层配色：露营点用专属紫色大头针，与黄色的打卡点、红色的「已选」一眼区分 */
   var CAMP_KEY = 'camp', CAMP_COLOR = '#7b4bc4';
@@ -359,6 +369,10 @@
     if (campSite) {
       html += '<div class="camp__origin">' +
               esc(t().origin(pick(campSite.names, campSite.name))) + '</div>';
+    }
+    /* 上一步填了人数才显示这一行：人数 · 建议车型 · 装备套数（装备按人数配） */
+    if (people) {
+      html += '<div class="camp__people">' + esc(t().peopleLine(people, seatsOf(people))) + '</div>';
     }
     $('campHead').innerHTML = html;
   }
@@ -483,7 +497,8 @@
       body: JSON.stringify({
         sessionId: sid, lang: lang,
         camp: { id: campSite.id, name: pick(campSite.names, campSite.name) },
-        spots: selIds.slice()
+        spots: selIds.slice(),
+        people: people || undefined        /* 上一步填写的出行人数（直接打开本页时为空，服务端按可选项处理） */
       })
     })
       .then(function (r) { return r.json(); })
@@ -510,7 +525,13 @@
     applyLang();
 
     var pid = '';
-    try { pid = new URLSearchParams(location.search).get('point') || ''; } catch (e) {}
+    try {
+      var q = new URLSearchParams(location.search);
+      pid = q.get('point') || '';
+      /* 出行人数：仅接受 1-9 的整数，其它一律视为未填写 */
+      var pp = parseInt(q.get('people'), 10);
+      if (pp >= 1 && pp <= 9) people = pp;
+    } catch (e) {}
 
     fetch('/api/play-points', { cache: 'no-store' })
       .then(function (r) { return r.json(); })
