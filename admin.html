@@ -1238,6 +1238,11 @@ function renderChatPanel(msgs, reset, keepScroll){
       if (m.role === 'visitor' && m.transZh){
         extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:12px; color:#5b7bb2;">译文：${esc(m.transZh)}</div>`;
       }
+      /* 全岛游打卡提交：仅后台可见的点位 ID 行，便于排查问题（前台聊天框只展示地名） */
+      if (m.island && m.island.campId){
+        const ids = [m.island.campId].concat(Array.isArray(m.island.spots) ? m.island.spots : []);
+        extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0; font-family:ui-monospace,Consolas,monospace; word-break:break-all;">点位ID：${esc(ids.join('，'))}${m.island.checkedAt ? ' · ' + new Date(m.island.checkedAt).toLocaleString() : ''}</div>`;
+      }
       const align = m.role === 'agent' ? 'right' : 'left';
       const tag = `<div style="font-size:10px; color:#9aa3ad; margin:0 4px 2px; text-align:${align};">${ROLE_NAME[m.role]||m.role} · ${new Date(m.ts).toLocaleTimeString()}</div>`;
       return `<div data-mid="${m.id}">${tag}<div style="${bubble(m.role)} padding:8px 12px; font-size:13px; line-height:1.55; max-width:78%; word-break:break-word; box-shadow:0 1px 4px rgba(30,60,110,.06);"><div style="color:#20242b;">${esc(text)}</div>${extra}</div></div>`;

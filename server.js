@@ -1106,13 +1106,13 @@ function islandSummary(lang, d){
   }[lang] || {
     title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、'
   };
-  /* 按 ID 反查点位名称，便于人工阅读；查不到就原样展示 ID */
+  /* 按 ID 反查点位名称，只输出地名（不带 p_mv 编码），
+     ID 仍保留在消息结构化字段 island.campId / island.spots 里供后台识别 */
   const all = loadMap().points;
   function nameOf(id){
     const p = all.filter(function (x) { return x.id === id; })[0];
     if (!p) return id;
-    const nm = (p.names && (p.names[lang] || p.names.zh)) || p.name || '';
-    return nm ? nm + '(' + id + ')' : id;
+    return (p.names && (p.names[lang] || p.names.zh)) || p.name || id;
   }
   return [
     L.title,
