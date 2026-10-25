@@ -216,124 +216,130 @@
   .camp__top { display: contents; }
 
   /* ==================================================================
-     移动端专用布局（仅 <html class="is-mobile"> 时生效，电脑端完全不受影响）
-     手机上的问题根源是：电脑版的「免拼/拼团 + 价格」是 216px 宽的绝对定位浮块，
-     固定在屏幕右侧垂直居中，正好压住地图中央的点位与景点名称，而且两个按钮
-     横向并排时英文文案会溢出叠在一起；左下「已选」与右下「详情」又都贴底，
-     窄屏时左右各占 64vw 必然互相叠加。
-     这里改成：地图占满背景，底部按「已选打卡点 → 出行方式面板」上下堆叠的
-     静态布局（不再绝对定位，天然不会重叠），两个按钮纵向分开各占一行，
-     顶部说明 / 点位详情移到左上并按行排布，互不遮挡。
-     双重保险：这些规则同时要求「html 带 is-mobile」且「视口宽度 ≤ 900px」，
-     万一某台电脑被误判成手机，只要窗口够宽也绝不会套用移动端样式。
+     移动端专用布局（仅 <html class="is-mobile"> 且视口 ≤ 900px 时生效）
+     要求：地图全程满铺底层，任何文字卡片浮于地图上方但呈半透明毛玻璃，
+     重点按钮（确定 / 免拼 / 拼团）保持实色，不遮挡视线也不影响点按。
      ================================================================== */
   @media (max-width: 900px) {
 
-  /* 视口：三段式竖向布局「顶部控件条 → 地图 → 底部文字面板」。
-     用 dvh 兜住手机地址栏伸缩；overflow 裁掉溢出，保证任何文字都不许浮到地图上 */
-  .is-mobile .camp {
-    display: flex; flex-direction: column;
-    height: 100vh; height: 100dvh; overflow: hidden;
-  }
+  /* 地图满铺底层，容器即地图 */
+  .is-mobile .camp { height: 100vh; height: 100dvh; overflow: hidden; }
+  .is-mobile .map { position: absolute; inset: 0; width: 100%; height: 100%; }
 
-  /* 顶部控件条：返回首页 + 语言切换移出地图，独占一行（不再浮在地图上） */
+  /* 顶部控件条：浮在地图上方，半透明毛玻璃 */
   .is-mobile .island-top {
-    position: relative; order: 0; z-index: 3; top: auto; right: auto;
+    position: absolute; top: 10px; left: 10px; right: 10px; z-index: 8;
     display: flex; align-items: center; justify-content: space-between;
-    gap: 8px; padding: 8px 12px;
-    background: #fff; box-shadow: 0 4px 14px rgba(18, 32, 52, .08);
+    gap: 8px; padding: 8px 12px; border-radius: 12px;
+    background: rgba(255, 255, 255, .55);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    box-shadow: 0 6px 18px rgba(18, 32, 52, .1);
   }
   .is-mobile .lang { gap: 4px; }
   .is-mobile .lang-opt { height: 30px; padding: 0 10px; font-size: 11.5px; border-radius: 7px; }
   .is-mobile .island-back { height: 30px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
 
-  /* 地图：吃掉顶部条与底部面板之间的全部剩余高度，高度自适应 */
-  .is-mobile .map {
-    order: 1; flex: 1 1 0; min-height: 0; width: 100%; height: auto;
-  }
-
-  /* 底部文字面板：所有文字（点位详情 / 已选区 / 价格方案）都收在这块里，
-     普通流布局，内容过长时面板自身滚动，绝不会盖到地图上 */
-  .is-mobile .camp__panel {
-    order: 2; position: relative; z-index: 3;
-    display: flex; flex-direction: column; gap: 8px;
-    flex: 0 1 auto; max-height: 52vh; overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    padding: 10px 12px 12px;
-    background: #fff; box-shadow: 0 -6px 18px rgba(18, 32, 52, .08);
-  }
-
-  /* 顶部文字区包裹层在移动端同样不生成盒子，详情直接排进面板 */
+  /* 顶部文字区包裹层不生成盒子 */
   .is-mobile .camp__top { display: contents; }
+  .is-mobile .camp__panel { display: contents; }
 
-  /* 点位详情 / 未选提示：跟在说明下方，不再贴右下角，彻底让出底部按钮区 */
+  /* 点位详情 / 未选提示：浮于地图上方左侧，半透明毛玻璃，文字不遮地图 */
   .is-mobile .camp__detail {
-    position: static; max-width: none; text-align: left;
-    /* 必须清掉窄屏媒体查询里遗留的 bottom / top，以及基类的 right，
-       否则 static/relative 下会被上下推移、左右错位 */
-    top: auto; bottom: auto; left: auto; right: auto;
+    position: absolute; top: 64px; left: 12px; right: 12px; z-index: 6;
+    max-width: none; text-align: left;
+    top: 64px; bottom: auto; right: auto;
     font-size: 11.5px; line-height: 1.6;
+    pointer-events: none;
   }
   .is-mobile .camp__kind { font-size: 11px; }
   .is-mobile .camp__name { font-size: 14px; }
   .is-mobile .camp__intro { font-size: 11.5px; }
   .is-mobile .camp__coords { font-size: 11px; }
-  /* 未选提示：移动端为普通流布局，这里补回 relative，让底部扫光带仍相对自身移动 */
   .is-mobile .camp__detail--hint {
-    position: relative; padding: 7px 12px; font-size: 12.5px;
-    top: auto; bottom: auto;
+    position: absolute; padding: 8px 14px; font-size: 12.5px;
+    background: rgba(18, 32, 52, .5);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  }
+  /* 点位详情内容卡：半透明 */
+  .is-mobile .camp__detail:not(.camp__detail--hint) {
+    background: rgba(255, 255, 255, .55);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border-radius: 12px; padding: 8px 12px;
+    box-shadow: 0 6px 18px rgba(18, 32, 52, .1);
   }
 
-  /* 已选打卡点：面板内的第一条，静态排布（白底由面板统一提供，不再自建卡片） */
+  /* 已选打卡点：浮在地图上方左侧中部，半透明 */
   .is-mobile .camp__picked {
-    position: static; max-width: none; margin: 0;
-    top: auto; bottom: auto;
-    background: none; box-shadow: none; padding: 0;
+    position: absolute; top: 170px; left: 12px; right: 12px; z-index: 6;
+    max-width: none; margin: 0;
+    top: auto; bottom: 180px;
+    background: rgba(255, 255, 255, .5);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border-radius: 12px; padding: 8px 11px;
+    box-shadow: 0 6px 18px rgba(18, 32, 52, .1);
+    max-height: 22vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
-  .is-mobile .camp__picked-tip { display: none; }     /* 手机上省掉这行说明，压缩高度 */
-  .is-mobile .camp__picked.is-empty { display: none; } /* 未选中任何打卡点时整条不占位 */
+  .is-mobile .camp__picked-tip { display: none; }
+  .is-mobile .camp__picked.is-empty { display: none; }
   .is-mobile .camp__chips {
     flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
     -webkit-overflow-scrolling: touch; padding-bottom: 2px; margin-top: 5px;
   }
   .is-mobile .camp__chip { flex: 0 0 auto; font-size: 11px; }
 
-  /* 出行方式面板：面板内静态排布；免拼 / 拼团 两个方案上下分区，各自独立可点 */
+  /* 出行方式面板：浮在地图上方底部，半透明毛玻璃卡片；
+     里面的确定 / 免拼 / 拼团按钮保持实色（不透明） */
   .is-mobile .camp__cta {
-    position: static; transform: none; width: auto; text-align: center;
-    background: none; box-shadow: none; padding: 0;
+    position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 8;
+    transform: none; width: auto; text-align: center;
+    background: rgba(255, 255, 255, .62);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border-radius: 16px; padding: 11px 12px;
+    box-shadow: 0 10px 28px rgba(18, 32, 52, .16);
   }
-  /* 方案卡在外层大卡内不再叠加底色，两个方案之间用虚线分隔 */
   .is-mobile .camp__plan, .is-mobile .camp__confirm { background: none; box-shadow: none; border-radius: 0; padding: 0; }
   .is-mobile .camp__plan + .camp__plan {
-    margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e9f2;
+    margin-top: 10px; padding-top: 10px; border-top: 1px dashed rgba(0,0,0,.1);
   }
-  /* 车型在手机上横向排成 3 个小卡片，避免纵向列表把底部面板撑太高 */
   .is-mobile .camp__seats { flex-direction: row; gap: 6px; }
   .is-mobile .camp__seat {
     flex: 1; flex-direction: column; gap: 1px;
     padding: 6px 4px; text-align: center;
+    background: rgba(255,255,255,.6); border: 1.5px solid rgba(255,255,255,.5);
   }
+  .is-mobile .camp__seat.on { border-color: #2f7cf6; background: rgba(242,247,255,.85); }
   .is-mobile .camp__seat .pr { margin-left: 0; }
+  /* 重点按钮：保持实色不透明 */
   .is-mobile .camp__cta-btn {
     width: 100%; height: 46px; font-size: 14px;
     white-space: normal; line-height: 1.2;
+    background: #2f7cf6; opacity: 1;
+    box-shadow: 0 8px 20px rgba(47, 124, 246, .35);
   }
+  .is-mobile .camp__cta-btn:disabled { background: #b8c4d4; box-shadow: none; }
   .is-mobile .camp__plan-price { font-size: 11.5px; }
-  /* 辅助提示：手机上最多两行，超出省略，避免把面板撑高挤占地图 */
   .is-mobile .camp__cta-hint {
     margin-top: 4px; font-size: 10px; line-height: 1.5;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    overflow: hidden;
+    overflow: hidden; color: #4c5a70;
   }
   .is-mobile .camp__cta-edit { margin-top: 3px; font-size: 11px; }
 
-  /* 人数弹窗：移动端按钮加高，便于手指点按 */
-  .is-mobile .camp-people { padding: 20px 18px 16px; }
+  /* 人数弹窗：半透明遮罩 + 毛玻璃弹窗，确定按钮实色 */
+  .is-mobile .camp-people-mask {
+    background: rgba(18, 32, 52, .35);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  .is-mobile .camp-people {
+    background: rgba(255, 255, 255, .78);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    padding: 20px 18px 16px;
+  }
   .is-mobile .camp-people__btn { height: 44px; font-size: 13px; }
-  .is-mobile .camp-people__input { height: 46px; font-size: 16px; }
+  .is-mobile .camp-people__btn--ok { background: #2f7cf6; }
+  .is-mobile .camp-people__input { height: 46px; font-size: 16px; background: rgba(255,255,255,.7); }
 
-  } /* 移动端样式块结束（@media max-width: 900px） */
+  } /* 移动端样式块结束 */
 </style>
 </head>
 <body>
