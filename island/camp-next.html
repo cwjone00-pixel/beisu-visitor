@@ -125,6 +125,19 @@
   }
   .camp__plan + .camp__plan { margin-top: 10px; }
   .camp__plan-hd { font-size: 12.5px; font-weight: 700; color: #1f2d3d; }
+  /* 确认前的行程区：与方案卡同款白卡，内放人数行 + 确定按钮；
+     价格方案卡默认隐藏，点「确定」后才切换到方案区 */
+  .camp__confirm {
+    background: rgba(255,255,255,.92); border-radius: 14px;
+    padding: 10px 12px 12px; box-shadow: 0 8px 22px rgba(18,32,52,.12);
+    text-align: left;
+  }
+  .camp__people-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 700; color: #1f2d3d; min-height: 22px;
+  }
+  .camp__people-row .camp__cta-edit { margin-top: 0; }
+  #ctaPlans[hidden], #ctaConfirm[hidden] { display: none; }
   /* 免拼车型列表：每个车型一行（车型名 + 乘客上限 + 整车价），点击选择；
      坐不下的车型置灰不可选，当前选中项蓝框高亮，推荐车型带小徽标 */
   .camp__seats { margin-top: 7px; display: flex; flex-direction: column; gap: 5px; }
@@ -300,7 +313,7 @@
     padding: 11px 12px; box-shadow: 0 8px 22px rgba(18,32,52,.14);
   }
   /* 方案卡在外层大卡内不再叠加底色，两个方案之间用虚线分隔 */
-  .is-mobile .camp__plan { background: none; box-shadow: none; border-radius: 0; padding: 0; }
+  .is-mobile .camp__plan, .is-mobile .camp__confirm { background: none; box-shadow: none; border-radius: 0; padding: 0; }
   .is-mobile .camp__plan + .camp__plan {
     margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e2e9f2;
   }
@@ -369,19 +382,26 @@
 
   <!-- 出行方式两套方案独立成卡：免拼（包车，按车型整车价，坐不下的车型置灰不可选）
        与拼团（按人头，单人价 × 当前人数自动算总价），游客可清晰对比两套价格。
-       整体固定在页面右侧垂直居中；未选中打卡点时两个按钮保持禁用。
-       人数在第一步地图页已填写并全局缓存，点按钮直接提交，不再重复询问；
-       下方提供「修改人数」小入口。 -->
+       方案区默认隐藏 —— 游客先选打卡点、确认出行人数，点「确定」后才展示价格方案，
+       再点对应方案的按钮提交。整体固定在页面右侧垂直居中。 -->
   <div class="camp__cta" id="campCta">
-    <div class="camp__plan">
-      <div class="camp__plan-hd" id="planPrivateHd"></div>
-      <div class="camp__seats" id="planSeats"></div>
-      <button type="button" class="camp__cta-btn" id="ctaPrivate" disabled></button>
+    <!-- 状态 A：确认前的行程区（人数行 + 确定按钮），默认显示 -->
+    <div class="camp__confirm" id="ctaConfirm">
+      <div class="camp__people-row" id="ctaPeopleRow"></div>
+      <button type="button" class="camp__cta-btn" id="ctaGo" disabled></button>
     </div>
-    <div class="camp__plan">
-      <div class="camp__plan-hd" id="planSharedHd"></div>
-      <div class="camp__plan-price" id="planSharedPrice"></div>
-      <button type="button" class="camp__cta-btn" id="ctaShared" disabled></button>
+    <!-- 状态 B：两套价格方案卡，点「确定」后才出现 -->
+    <div id="ctaPlans" hidden>
+      <div class="camp__plan">
+        <div class="camp__plan-hd" id="planPrivateHd"></div>
+        <div class="camp__seats" id="planSeats"></div>
+        <button type="button" class="camp__cta-btn" id="ctaPrivate" disabled></button>
+      </div>
+      <div class="camp__plan">
+        <div class="camp__plan-hd" id="planSharedHd"></div>
+        <div class="camp__plan-price" id="planSharedPrice"></div>
+        <button type="button" class="camp__cta-btn" id="ctaShared" disabled></button>
+      </div>
     </div>
     <div class="camp__cta-hint" id="ctaHint"></div>
     <button type="button" class="camp__cta-edit" id="ctaEdit" hidden></button>
@@ -449,6 +469,9 @@
       totalFor: function (n) { return n + ' 人合计'; },
       totalPending: '填人数后自动算总价',
       priceUnset: '暂无报价，请咨询客服',
+      /* 确认区：价格方案默认隐藏，先选景点与人数、点「确定」才展示 */
+      confirmGo: '确定',
+      peopleFill: '填写出行人数',
       /* 价格下方的小字提示：建议不要一次选太多打卡点，途中可随时追加 */
       ctaHint: '不建议一次性选择过多景点，行程还有富余时间时，可以途中再加景点。',
       /* 人数弹窗：仅在未填人数或点「修改人数」时出现；人数默认沿用第一步缓存 */
@@ -500,6 +523,8 @@
       totalFor: function (n) { return 'Total for ' + n; },
       totalPending: 'Total is calculated once group size is set',
       priceUnset: 'No quote yet — please ask our agent',
+      confirmGo: 'Confirm',
+      peopleFill: 'Enter group size',
       ctaHint: 'It is not recommended to select too many spots at once. You can add more spots during the trip if there is spare time.',
       peopleTitle: 'Number of travelers',
       peopleEditTitle: 'Change number of travelers',
@@ -549,6 +574,8 @@
       totalFor: function (n) { return 'Итого за ' + n; },
       totalPending: 'Итог появится после указания числа людей',
       priceUnset: 'Цена уточняется — спросите оператора',
+      confirmGo: 'Подтвердить',
+      peopleFill: 'Указать число людей',
       ctaHint: 'Не рекомендуем выбирать слишком много локаций сразу. Если останется свободное время, можно добавить места по ходу поездки.',
       peopleTitle: 'Количество человек',
       peopleEditTitle: 'Изменить количество человек',
@@ -579,6 +606,7 @@
      免拼 = 包车，4/7/9 座各自整车价；拼团 = 单人单价 */
   var pricing = { private: { seat4: 0, seat7: 0, seat9: 0 }, shared: 0 };
   var vehSeat = 0;                     /* 免拼已选车型（4/7/9）；0 = 未选，提交时自动取推荐车型 */
+  var plansShown = false;              /* 价格方案区是否已展示：默认隐藏，点「确定」后才出现 */
   var detailId = null;                 /* 右下角详情当前展示的标记 id */
   var selIds = [];                     /* 已多选的游玩打卡点 id，按选择先后排列 */
 
@@ -708,13 +736,23 @@
   }
   function toggleSpot(id) { if (isSel(id)) unselectSpot(id); else selectSpot(id); }
 
-  /* 免拼 / 拼团 双按钮：选中至少一个打卡点即启用，否则禁用（提交中保持禁用）。
+  /* 按钮可用态：选中至少一个打卡点即启用「确定」与两个方案按钮（提交中保持禁用）。
      人数超出全部车型上限（9 人）时免拼不可提交，只能拼团或联系客服定制 */
   function syncSubmit() {
     var busy = !!$('ctaPrivate').dataset.busy;
     var off = busy || !selIds.length;
+    $('ctaGo').disabled = off;
     $('ctaPrivate').disabled = off || (people > 0 && recVehicle() === 0);
     $('ctaShared').disabled = off;
+  }
+
+  /* 价格方案区显隐：默认隐藏（只留人数行 + 确定按钮 + 提示），点「确定」后切换到两套方案卡 */
+  function showPlans(on) {
+    plansShown = on !== false;
+    $('ctaPlans').hidden = !plansShown;
+    $('ctaConfirm').hidden = plansShown;
+    renderPeopleEntry();
+    syncSubmit();
   }
 
   /* 两个方案卡的价格明细：免拼列出 4/7/9 座整车价（坐不下的置灰、推荐的带徽标），
@@ -878,14 +916,26 @@
     $('peopleInput').placeholder = d.peoplePh;
     $('peopleCancel').textContent = d.peopleCancel;
     $('ctaHint').textContent = d.ctaHint;      /* 方案卡下方辅助提示：跟随语种 */
+    $('ctaGo').textContent = d.confirmGo;      /* 「确定」按钮：确认行程后展示价格方案 */
     renderPlans();
     renderPeopleEntry();
   }
-  /* 「修改人数」小入口：显示了当前人数，点它可改；没有缓存人数时隐藏 */
+  /* 人数入口：状态 A 在确认卡内显示人数行（已填：人数 + 修改入口；未填：填写按钮）；
+     状态 B 保留方案卡下方的「修改人数」小入口 */
   function renderPeopleEntry() {
     var d = t();
-    var btn = $('ctaEdit');
+    var row = $('ctaPeopleRow');
     if (people > 0) {
+      row.innerHTML = esc(d.peopleCurrent(people)) +
+        ' <button type="button" class="camp__cta-edit" id="ctaPeopleEdit">' + esc(d.peopleEdit) + '</button>';
+    } else {
+      row.innerHTML = '<button type="button" class="camp__cta-edit" id="ctaPeopleFill">' +
+        esc(d.peopleFill) + '</button>';
+    }
+    var rowBtn = row.querySelector('button');
+    if (rowBtn) rowBtn.onclick = function () { openPeople(true); };
+    var btn = $('ctaEdit');
+    if (plansShown && people > 0) {
       btn.hidden = false;
       btn.textContent = d.peopleCurrent(people) + ' · ' + d.peopleEdit;
     } else {
@@ -930,8 +980,17 @@
     renderPlans();            /* 车型置灰态与拼团总价都随人数刷新 */
     syncSubmit();             /* 9 人无适配车型时免拼按钮随之禁用 */
     renderPeopleEntry();
-    if (!editingPeople) doSubmit();
+    /* 非修改模式（点「确定」时人数未填的兜底）：人数补齐后展示两套价格方案，不直接提交 */
+    if (!editingPeople) showPlans();
   }
+  /* 「确定」按钮：确认已选打卡点与人数后，才展示免拼 / 拼团两套价格方案 */
+  $('ctaGo').onclick = function () {
+    if (this.disabled) return;
+    if (!campSite) { alert(t().needCamp); return; }
+    if (!selIds.length) { alert(t().needSpot); return; }
+    if (people < 1) { openPeople(false); return; }   /* 先补人数，确认后自动进入方案区 */
+    showPlans();
+  };
   /* 点免拼 / 拼团：已有缓存人数则直接提交，跳过二次填写 */
   function pickTour(type) {
     if (!campSite) { alert(t().needCamp); return; }
