@@ -738,8 +738,8 @@
   var tourType = '';                   /* 出行方式：'private' 免拼 / 'shared' 拼团（点按钮时记录） */
   var editingPeople = false;           /* true = 用户点「修改人数」，弹窗只保存不提交 */
   /* 报价方案：/api/island-config 下发，0 = 后台未配置（占位展示）。
-     免拼 = 包车，4/7/9 座各自整车价；拼团 = 单人单价 */
-  var pricing = { private: { seat4: 0, seat7: 0, seat9: 0 }, shared: 0 };
+     免拼 = 包车，4/7/9 座各自整车价；拼团 = 4/7/9 座各自单人单价 */
+  var pricing = { private: { seat4: 0, seat7: 0, seat9: 0 }, shared: { seat4: 0, seat7: 0, seat9: 0 } };
   var vehSeat = 0;                     /* 免拼已选车型（4/7/9）；0 = 未选，提交时自动取推荐车型 */
   var plansShown = false;              /* 价格方案区是否已展示：默认隐藏，点「确定」后才出现 */
   var detailId = null;                 /* 右下角详情当前展示的标记 id */
@@ -940,10 +940,12 @@
         renderPlans();
       };
     });
-    var per = pricing.shared || 0;
-    if (per > 0) {
+    /* 拼团：按当前所选车型（未选则取推荐车型）取该车型的单人单价，再乘人数算总价 */
+    var sv = vehSeat || rec;                                 /* 拼团所用车型：手选优先，否则推荐 */
+    var per = (sv && pricing.shared) ? (pricing.shared['seat' + sv] || 0) : 0;
+    if (sv && per > 0) {
       $('planSharedPrice').innerHTML =
-        '<div>' + esc(d.perPerson) + ' <b>¥' + per + '</b></div>' +
+        '<div>' + esc(d.seatName(sv)) + ' ' + esc(d.perPerson) + ' <b>¥' + per + '</b></div>' +
         (people > 0
           ? '<div>' + esc(d.totalFor(people)) + ' <b>¥' + (per * people) + '</b></div>'
           : '<div class="dim">' + esc(d.totalPending) + '</div>');
@@ -1217,7 +1219,7 @@
         camp: { id: campSite.id, name: pick(campSite.names, campSite.name) },
         spots: selIds.slice(),
         tourType: tourType,                /* 出行方式：private 免拼 / shared 拼团 */
-        vehicle: tourType === 'private' ? (vehSeat || undefined) : undefined,   /* 免拼所选车型（4/7/9 座） */
+        vehicle: (vehSeat || undefined),     /* 所选车型（4/7/9 座），免拼/拼团均带，拼团用于取对应车型单价 */
         people: people,                    /* 弹窗确认的出行人数（1-9） */
         tents: tents || undefined,         /* 帐篷数量（0-9，未填不发送） */
         tentType: tentType || undefined    /* 帐篷类型：single 单人 / shared 多人共用 */
@@ -1273,7 +1275,8 @@
         if (!pr) return;
         var pv = pr.private || {};
         pricing.private = { seat4: +pv.seat4 || 0, seat7: +pv.seat7 || 0, seat9: +pv.seat9 || 0 };
-        pricing.shared = +pr.shared || 0;
+        var ps = pr.shared || {};
+        pricing.shared = { seat4: +ps.seat4 || 0, seat7: +ps.seat7 || 0, seat9: +ps.seat9 || 0 };
         renderPlans();
       })
       .catch(function () {});              /* 配置拉取失败不影响页面其余功能 */

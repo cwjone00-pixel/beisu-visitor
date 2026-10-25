@@ -532,7 +532,7 @@
       <h2>全岛游价格方案</h2>
       <button class="btn btn-primary" onclick="saveIslandPrice()">保存价格</button>
     </div>
-    <div class="desc">游客端打卡点页面分【免拼】【拼团】两个板块独立展示价格。<b>免拼</b> = 游客包下整台车（座位数含司机），按车型分别填整车包车价，前端会按出行人数自动置灰坐不下的车型；<b>拼团</b> = 与其他游客拼车按人头付费，填单人单价，前端按人数自动算总价。</div>
+    <div class="desc">游客端打卡点页面分【免拼】【拼团】两个板块独立展示价格。<b>免拼</b> = 游客包下整台车（座位数含司机），按车型分别填整车包车价，前端会按出行人数自动置灰坐不下的车型；<b>拼团</b> = 与其他游客拼车按人头付费，按车型分别填单人单价，游客选好车型后前端按所选车型的单价 × 人数自动算总价。</div>
     <div style="margin-top:10px;">
       <div style="font-size:13px; font-weight:700; color:#1f2d3d;">免拼（包车整车价）</div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;">
@@ -540,9 +540,11 @@
         <input class="input" id="priceSeat7" type="number" min="0" max="999999" placeholder="7 座车价（元）" style="width:150px;">
         <input class="input" id="priceSeat9" type="number" min="0" max="999999" placeholder="9 座车价（元）" style="width:150px;">
       </div>
-      <div style="font-size:13px; font-weight:700; color:#1f2d3d; margin-top:12px;">拼团（按人头）</div>
+      <div style="font-size:13px; font-weight:700; color:#1f2d3d; margin-top:12px;">拼团（按人头，各车型单人单价）</div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;">
-        <input class="input" id="pricePerPerson" type="number" min="0" max="999999" placeholder="单人单价（元）" style="width:150px;">
+        <input class="input" id="priceShared4" type="number" min="0" max="999999" placeholder="4 座单人价（元）" style="width:150px;">
+        <input class="input" id="priceShared7" type="number" min="0" max="999999" placeholder="7 座单人价（元）" style="width:150px;">
+        <input class="input" id="priceShared9" type="number" min="0" max="999999" placeholder="9 座单人价（元）" style="width:150px;">
         <span id="priceState" style="font-size:12px; color:#8b94a0;"></span>
       </div>
     </div>
@@ -1879,16 +1881,20 @@ async function loadIslandPrice(){
   try {
     const d = await _rawFetch('/api/island-config').then(r => r.json());
     const pv = (d && d.pricing && d.pricing.private) || {};
-    const per = (d && d.pricing && +d.pricing.shared) || 0;
+    const sh = (d && d.pricing && d.pricing.shared) || {};
     $('priceSeat4').value = pv.seat4 > 0 ? pv.seat4 : '';
     $('priceSeat7').value = pv.seat7 > 0 ? pv.seat7 : '';
     $('priceSeat9').value = pv.seat9 > 0 ? pv.seat9 : '';
-    $('pricePerPerson').value = per > 0 ? per : '';
+    $('priceShared4').value = sh.seat4 > 0 ? sh.seat4 : '';
+    $('priceShared7').value = sh.seat7 > 0 ? sh.seat7 : '';
+    $('priceShared9').value = sh.seat9 > 0 ? sh.seat9 : '';
     const parts = [];
     if (pv.seat4 > 0) parts.push('4座 ¥' + pv.seat4);
     if (pv.seat7 > 0) parts.push('7座 ¥' + pv.seat7);
     if (pv.seat9 > 0) parts.push('9座 ¥' + pv.seat9);
-    if (per > 0) parts.push('拼团单人 ¥' + per);
+    if (sh.seat4 > 0) parts.push('拼团4座 ¥' + sh.seat4 + '/人');
+    if (sh.seat7 > 0) parts.push('拼团7座 ¥' + sh.seat7 + '/人');
+    if (sh.seat9 > 0) parts.push('拼团9座 ¥' + sh.seat9 + '/人');
     $('priceState').textContent = parts.length
       ? '当前：' + parts.join(' · ')
       : '当前未配置，游客端显示占位';
@@ -1899,7 +1905,9 @@ async function saveIslandPrice(){
     seat4: parseInt($('priceSeat4').value, 10) || 0,
     seat7: parseInt($('priceSeat7').value, 10) || 0,
     seat9: parseInt($('priceSeat9').value, 10) || 0,
-    perPerson: parseInt($('pricePerPerson').value, 10) || 0
+    shared4: parseInt($('priceShared4').value, 10) || 0,
+    shared7: parseInt($('priceShared7').value, 10) || 0,
+    shared9: parseInt($('priceShared9').value, 10) || 0
   };
   const r = await fetch('/api/admin/island-config', {
     method: 'PUT',
