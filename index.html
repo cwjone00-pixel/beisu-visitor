@@ -481,6 +481,13 @@
   .overlay.alert-modal{ z-index:10003; }
   .alert-box{ width:340px; max-width:88vw; background:#fff; border-radius:16px; padding:24px 22px 18px; box-shadow:0 18px 50px rgba(20,40,80,.22); }
   .alert-text{ font-size:13.5px; color:#2a3140; line-height:1.75; text-align:center; }
+  /* 微信/QQ 内置浏览器提示里的链接原文：可长按选中复制 */
+  .tg-tip-url{
+    margin-top:10px; padding:8px 10px; background:#f2f5fa;
+    border:1px dashed rgba(20,40,80,.18); border-radius:8px;
+    font-size:12px; color:#2f7cf6; text-align:center; word-break:break-all;
+    user-select:text; -webkit-user-select:text;
+  }
   .lm-tabs{ display:flex; gap:8px; margin-top:14px; }
   .lm-tab{
     flex:1; padding:9px 8px; font-size:12.5px; font-weight:600; color:#4a5260; text-align:center;
@@ -918,6 +925,16 @@
   <div class="alert-box">
     <div class="alert-text" id="alertText" data-i18n="authActivatePopup">已发送激活邮件，完成激活后，直接刷新页面，输入账号密码登录</div>
     <button class="lm-btn primary full" onclick="closeAlert()" data-i18n="authPopupOk">知道了</button>
+  </div>
+</div>
+
+<!-- 微信/QQ 等内置浏览器提示：此类 WebView 屏蔽 tg:// 深链，引导改用系统浏览器或复制链接到 Telegram 打开 -->
+<div class="overlay alert-modal" id="tgTipOverlay">
+  <div class="alert-box">
+    <div class="alert-text" id="tgTipText"></div>
+    <div class="tg-tip-url" id="tgTipUrl"></div>
+    <button class="lm-btn primary full" id="tgTipCopy" type="button"></button>
+    <button class="lm-btn ghost full" id="tgTipClose" type="button"></button>
   </div>
 </div>
 
@@ -2131,9 +2148,11 @@ function openTelegram(url, ev){
   const ua = navigator.userAgent;
   const andI = /Android|HarmonyOS/i.test(ua);
   const iosI = /iPhone|iPad|iPod/i.test(ua);
-  /* 微信 / QQ / 微博 / 抖音等内置浏览器的 WebView 会屏蔽 tg:// 自定义协议，先提示改用系统浏览器 */
+  /* 微信 / QQ / 微博 / 抖音等内置浏览器的 WebView 会屏蔽 tg:// 与 intent:// 自定义协议，
+     无法唤起 Telegram，改为醒目弹窗引导：用系统浏览器打开，或复制链接去 Telegram 粘贴打开 */
   const inApp = /MicroMessenger|QQ\/|QQBrowser|Weibo|aweme|BaiduBoxApp|AlipayClient|DingTalk|Lark|Feishu/i.test(ua);
   if ((andI || iosI) && /t\.me\//.test(url)){
+    if (inApp){ showTgTip(url); return false; }   // 内置浏览器：不尝试深链（必然被拦截），直接给可操作的提示
     let deep = '';
     const m = url.match(/t\.me\/([^/?#]+)(?:\/([^/?#]+))?/);
     /* ?start=xxx（机器人深链参数，如 App 内登录 login_<state>）需透传到 tg://resolve，否则 App 打开后丢参数 */
@@ -2147,11 +2166,6 @@ function openTelegram(url, ev){
       else deep = 'tg://resolve?domain=' + encodeURIComponent(seg) + startQ;                      // 频道/用户/机器人（可带 start）
     }
     if (deep){
-      if (inApp){
-        toast(lang === 'ru' ? 'Встроенный браузер не может открыть Telegram. Откройте страницу в браузере и повторите.'
-            : lang === 'en' ? 'This in-app browser cannot open Telegram. Tap "Open in browser" and retry.'
-            : '当前为微信/QQ 等内置浏览器，无法直接唤起 Telegram，请点右上角「在浏览器打开」后重试');
-      }
       /* 打开 App 时页面会进入后台（visibility 变 hidden），此时应取消回落跳转；
          否则超时后回到 t.me 网页版 */
       const onHidden = ()=>{ if (document.hidden){ clearTimeout(fallback); document.removeEventListener('visibilitychange', onHidden); } };
@@ -2173,6 +2187,52 @@ function openTelegram(url, ev){
   window.open(url, '_blank', 'noopener');
   return false;
 }
+/* 内置浏览器提示弹窗：展示链接原文，支持一键复制或长按复制 */
+function showTgTip(url){
+  const L = (lang === 'en' || lang === 'ru') ? lang : 'zh';
+  const tip = {
+    zh: '当前为微信/QQ 内置浏览器，无法直接唤起 Telegram。请点右上角 ⋯ → 在浏览器打开后重试；也可复制下方链接，切换到 Telegram 粘贴打开。',
+    en: 'WeChat/QQ in-app browsers cannot open Telegram directly. Tap ⋯ (top-right) → Open in browser and retry, or copy the link below and paste it in Telegram.',
+    ru: 'Встроенный браузер WeChat/QQ не может открыть Telegram. Нажмите ⋯ справа сверху → «Открыть в браузере», либо скопируйте ссылку ниже и вставьте её в Telegram.'
+  };
+  const btn = {
+    zh: { copy: '复制链接', ok: '我知道了' },
+    en: { copy: 'Copy link', ok: 'Got it' },
+    ru: { copy: 'Копировать ссылку', ok: 'Понятно' }
+  };
+  $('tgTipText').textContent = tip[L];
+  $('tgTipUrl').textContent = url;
+  $('tgTipCopy').textContent = btn[L].copy;
+  $('tgTipClose').textContent = btn[L].ok;
+  $('tgTipOverlay').classList.add('show');
+}
+function closeTgTip(){ $('tgTipOverlay').classList.remove('show'); }
+function copyTgTip(){
+  const url = $('tgTipUrl').textContent || '';
+  const L = (lang === 'en' || lang === 'ru') ? lang : 'zh';
+  const msg = {
+    zh: { ok: '链接已复制', fail: '复制失败，请长按链接手动复制' },
+    en: { ok: 'Link copied', fail: 'Copy failed. Long-press the link to copy.' },
+    ru: { ok: 'Ссылка скопирована', fail: 'Не удалось скопировать. Удерживайте ссылку.' }
+  }[L];
+  const done = ok => toast(ok ? msg.ok : msg.fail);
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(() => done(true)).catch(() => done(false));
+    return;
+  }
+  /* 旧版微信 WebView 没有 clipboard API：退回 textarea + execCommand */
+  const ta = document.createElement('textarea');
+  ta.value = url; ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  let ok = false;
+  try { ok = document.execCommand('copy'); } catch(e){}
+  document.body.removeChild(ta);
+  done(ok);
+}
+$('tgTipClose').addEventListener('click', closeTgTip);
+$('tgTipCopy').addEventListener('click', copyTgTip);
+$('tgTipOverlay').addEventListener('click', e => { if (e.target === $('tgTipOverlay')) closeTgTip(); });
 /* 渲染整个对话区（语言切换后按当前语种重绘所有回复与按钮） */
 function renderChat(){
   const area = $('chatArea');
