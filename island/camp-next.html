@@ -229,27 +229,42 @@
      ================================================================== */
   @media (max-width: 900px) {
 
-  /* 视口：用 dvh 兜住手机地址栏伸缩，避免底部面板被顶出屏幕 */
+  /* 视口：三段式竖向布局「顶部控件条 → 地图 → 底部文字面板」。
+     用 dvh 兜住手机地址栏伸缩；overflow 裁掉溢出，保证任何文字都不许浮到地图上 */
   .is-mobile .camp {
-    display: flex; flex-direction: column; justify-content: flex-end;
-    gap: 8px; padding: 0 12px 12px; box-sizing: border-box;
-    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh; overflow: hidden;
   }
 
-  /* 右上角控件组：收紧尺寸，给左上说明文字让出空间 */
-  .is-mobile .island-top { top: 10px; right: 10px; gap: 8px; }
+  /* 顶部控件条：返回首页 + 语言切换移出地图，独占一行（不再浮在地图上） */
+  .is-mobile .island-top {
+    position: relative; order: 0; z-index: 3; top: auto; right: auto;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 8px 12px;
+    background: #fff; box-shadow: 0 4px 14px rgba(18, 32, 52, .08);
+  }
   .is-mobile .lang { gap: 4px; }
-  .is-mobile .lang-opt { height: 28px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
-  .is-mobile .island-back { height: 28px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
+  .is-mobile .lang-opt { height: 30px; padding: 0 10px; font-size: 11.5px; border-radius: 7px; }
+  .is-mobile .island-back { height: 30px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
 
-  /* 顶部文字区：移动端变成浮层，只放点位详情（顶部说明已按需求移除），
-     位置固定在控件组下方，文案再长也不会压到地图中部 */
-  .is-mobile .camp__top {
-    display: flex; flex-direction: column; gap: 8px;
-    position: absolute; top: 52px; left: 12px; right: 12px; z-index: 3;
-    pointer-events: none;                 /* 不拦截地图的点选操作 */
-    max-height: 34vh; overflow: hidden;   /* 文案过长时裁切，绝不压到地图中部 */
+  /* 地图：吃掉顶部条与底部面板之间的全部剩余高度，高度自适应 */
+  .is-mobile .map {
+    order: 1; flex: 1 1 0; min-height: 0; width: 100%; height: auto;
   }
+
+  /* 底部文字面板：所有文字（点位详情 / 已选区 / 价格方案）都收在这块里，
+     普通流布局，内容过长时面板自身滚动，绝不会盖到地图上 */
+  .is-mobile .camp__panel {
+    order: 2; position: relative; z-index: 3;
+    display: flex; flex-direction: column; gap: 8px;
+    flex: 0 1 auto; max-height: 52vh; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 12px 12px;
+    background: #fff; box-shadow: 0 -6px 18px rgba(18, 32, 52, .08);
+  }
+
+  /* 顶部文字区包裹层在移动端同样不生成盒子，详情直接排进面板 */
+  .is-mobile .camp__top { display: contents; }
 
   /* 点位详情 / 未选提示：跟在说明下方，不再贴右下角，彻底让出底部按钮区 */
   .is-mobile .camp__detail {
@@ -269,12 +284,11 @@
     top: auto; bottom: auto;
   }
 
-  /* 已选打卡点：变成底部面板的第一条，静态排布（在按钮面板正上方） */
+  /* 已选打卡点：面板内的第一条，静态排布（白底由面板统一提供，不再自建卡片） */
   .is-mobile .camp__picked {
     position: static; max-width: none; margin: 0;
     top: auto; bottom: auto;
-    background: rgba(255,255,255,.94); border-radius: 12px;
-    padding: 9px 11px; box-shadow: 0 6px 18px rgba(18,32,52,.12);
+    background: none; box-shadow: none; padding: 0;
   }
   .is-mobile .camp__picked-tip { display: none; }     /* 手机上省掉这行说明，压缩高度 */
   .is-mobile .camp__picked.is-empty { display: none; } /* 未选中任何打卡点时整条不占位 */
@@ -284,11 +298,10 @@
   }
   .is-mobile .camp__chip { flex: 0 0 auto; font-size: 11px; }
 
-  /* 出行方式面板：底部整块卡片；免拼 / 拼团 两个方案上下分区，各自独立可点 */
+  /* 出行方式面板：面板内静态排布；免拼 / 拼团 两个方案上下分区，各自独立可点 */
   .is-mobile .camp__cta {
     position: static; transform: none; width: auto; text-align: center;
-    background: rgba(255,255,255,.96); border-radius: 14px;
-    padding: 11px 12px; box-shadow: 0 8px 22px rgba(18,32,52,.14);
+    background: none; box-shadow: none; padding: 0;
   }
   /* 方案卡在外层大卡内不再叠加底色，两个方案之间用虚线分隔 */
   .is-mobile .camp__plan, .is-mobile .camp__confirm { background: none; box-shadow: none; border-radius: 0; padding: 0; }
@@ -341,11 +354,15 @@
     </div>
   </div>
 
+  <!-- 地图下方的文字面板（手机端）：点位详情 + 已选打卡点 + 价格方案；
+       电脑端此包裹层为 display:contents，各处绝对定位与原来完全一致。
+       手机端所有文字都收进这块面板，不再有任何文字压在地图上。 -->
+  <div class="camp__panel">
   <!-- 顶部文字区：只放点位详情（顶部标题 / 数量说明已按需求移除）。
        电脑端这个包裹层用 display:contents（不生成盒子），详情仍钉在右下角；
-       移动端则由它在控件组下方定位，避免与右上角语言切换重叠。 -->
+       移动端则排进底部面板。 -->
   <div class="camp__top">
-    <!-- 打卡点详情：点击地图上的标记后显示（电脑端在右下角，移动端在顶部） -->
+    <!-- 打卡点详情：点击地图上的标记后显示（电脑端在右下角，移动端在面板内） -->
     <div class="camp__detail" id="campDetail"></div>
   </div>
 
@@ -381,6 +398,7 @@
     <div class="camp__cta-hint" id="ctaHint"></div>
     <button type="button" class="camp__cta-edit" id="ctaEdit" hidden></button>
   </div>
+  </div><!-- /.camp__panel -->
 
   <!-- 人数弹窗：仅在第一步未填人数（如直接从地址打开本页）或点「修改人数」时出现 -->
   <div class="camp-people-mask" id="peopleMask" hidden>

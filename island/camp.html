@@ -3,6 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+/* 设备判断：只有「明确的手机 / 平板 UA + 窄屏」才启用移动端布局（<html class="is-mobile">）。
+   其余情况一律按电脑端处理（加 is-pc），电脑端样式与交互完全保持原样。
+   同样不看触屏能力、不把微信认成手机，避免带触摸屏的笔记本被误判。
+   放在 head 里提前执行，避免首屏先按电脑布局渲染再跳变。 */
+(function () {
+  var UA_MOBILE = /Android|iPhone|iPod|iPad|Windows Phone|HarmonyOS|Mobile\//i
+    .test(navigator.userAgent);
+  var mqNarrow = window.matchMedia ? window.matchMedia('(max-width: 900px)') : null;
+  function sync() {
+    var narrow = !mqNarrow || mqNarrow.matches;
+    var mobile = UA_MOBILE && narrow;
+    document.documentElement.classList.toggle('is-mobile', mobile);
+    document.documentElement.classList.toggle('is-pc', !mobile);
+  }
+  sync();
+  if (mqNarrow && mqNarrow.addEventListener) mqNarrow.addEventListener('change', sync);
+  window.addEventListener('orientationchange', function () { setTimeout(sync, 200); });
+})();
+</script>
 <title>海南露营地图</title>
 <link rel="stylesheet" href="/island/island.css">
 <style>
@@ -229,6 +249,86 @@
   .camp-people__btn--ok { background: #2f7cf6; color: #fff; }
   .camp-people__btn--ok:hover { background: #2a6ee0; }
   .camp-people__btn--cancel { background: #f4f7fc; color: #5a6a82; }
+
+  /* 文字区包裹层：电脑端不生成盒子（display:contents），
+     类型备注 / 点位详情 / 下一步的绝对定位与原来完全一致，PC 表现零变化；
+     手机端则由它变成地图下方的独立面板（见移动端样式）。 */
+  .camp__panel { display: contents; }
+
+  /* ==================================================================
+     移动端专用布局（仅 <html class="is-mobile"> 且视口 ≤ 900px 时生效）
+     核心要求：任何文字都不压在地图上，保证手指点地图不被文字挡住。
+     做法：整页改成「顶部控件条 → 地图（占剩余高度） → 底部文字面板」三段，
+     类型备注 / 点位详情 / 下一步从浮层改为面板内的普通流布局，
+     返回首页与语言切换也移出地图，挪到独立的顶部条。
+     ================================================================== */
+  @media (max-width: 900px) {
+
+  .is-mobile .camp {
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh; overflow: hidden;
+  }
+
+  /* 顶部控件条：返回首页 + 语言切换（不再浮在地图上） */
+  .is-mobile .island-top {
+    position: relative; order: 0; z-index: 3; top: auto; right: auto;
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; padding: 8px 12px;
+    background: #fff; box-shadow: 0 4px 14px rgba(18, 32, 52, .08);
+  }
+  .is-mobile .lang { gap: 4px; }
+  .is-mobile .lang-opt { height: 30px; padding: 0 10px; font-size: 11.5px; border-radius: 7px; }
+  .is-mobile .island-back { height: 30px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
+
+  /* 地图：占满顶部条与底部面板之间的全部空间，高度自动，不再固定 100% */
+  .is-mobile .map {
+    order: 1; flex: 1 1 0; min-height: 0; width: 100%; height: auto;
+  }
+
+  /* 底部文字面板：普通流布局，超长时自身滚动，绝不覆盖地图 */
+  .is-mobile .camp__panel {
+    order: 2; position: relative; z-index: 3;
+    display: flex; flex-direction: column; gap: 8px;
+    flex: 0 1 auto; max-height: 46vh; overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 10px 12px 12px;
+    background: #fff; box-shadow: 0 -6px 18px rgba(18, 32, 52, .08);
+  }
+
+  /* 类型备注：面板内正常换行 */
+  .is-mobile .camp__note {
+    position: static; max-width: none; left: auto; bottom: auto;
+    font-size: 11.5px; gap: 6px 12px;
+  }
+
+  /* 点位详情 / 未选提示：左对齐放面板内，不再贴右下角 */
+  .is-mobile .camp__detail {
+    position: static; max-width: none; text-align: left;
+    right: auto; bottom: auto; top: auto; left: auto;
+    font-size: 11.5px; line-height: 1.6;
+  }
+  .is-mobile .camp__kind { font-size: 11px; }
+  .is-mobile .camp__name { font-size: 14px; }
+  .is-mobile .camp__intro { font-size: 11.5px; }
+  .is-mobile .camp__coords { font-size: 11px; }
+  /* 未选提示：普通流布局下补回 relative，让底部扫光带仍相对自身移动 */
+  .is-mobile .camp__detail--hint {
+    position: relative; padding: 7px 12px; font-size: 12.5px;
+  }
+
+  /* 下一步：整行按钮放在面板最下方，便于拇指点按 */
+  .is-mobile .camp__next {
+    position: static; transform: none; right: auto; top: auto;
+    width: 100%; justify-content: center; height: 46px;
+    font-size: 14px;
+  }
+
+  /* 人数弹窗：移动端按钮加高，便于手指点按 */
+  .is-mobile .camp-people { padding: 20px 18px 16px; }
+  .is-mobile .camp-people__btn { height: 44px; font-size: 13px; }
+  .is-mobile .camp-people__input { height: 46px; font-size: 16px; }
+
+  } /* 移动端样式块结束（@media max-width: 900px） */
 </style>
 </head>
 <body>
@@ -256,18 +356,22 @@
     </div>
   </div>
 
-  <!-- 类型备注：三个色点 + 类型名（文字由后台三语数据下发，跟随语言切换） -->
-  <ul class="camp__note" id="campNote"></ul>
+  <!-- 地图下方的文字面板（手机端）：类型备注 + 点位详情 + 下一步；
+       电脑端此包裹层为 display:contents，不影响原来的绝对定位 -->
+  <div class="camp__panel">
+    <!-- 类型备注：三个色点 + 类型名（文字由后台三语数据下发，跟随语言切换） -->
+    <ul class="camp__note" id="campNote"></ul>
 
-  <!-- 点位详情：点击点位后，名称与位置信息统一显示在页面最右下角 -->
-  <div class="camp__detail" id="campDetail"></div>
+    <!-- 点位详情：点击点位后，名称与位置信息统一显示在页面最右下角 -->
+    <div class="camp__detail" id="campDetail"></div>
 
-  <!-- 下一步：选中露营点位后才出现（点城市 / 机场地标不出现），
-       点它进入第二个子页面，展示该露营点附近的游玩打卡点 -->
-  <button type="button" class="camp__next" id="campNextBtn" hidden>
-    <span id="campNextLabel"></span>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
-  </button>
+    <!-- 下一步：选中露营点位后才出现（点城市 / 机场地标不出现），
+         点它进入第二个子页面，展示该露营点附近的游玩打卡点 -->
+    <button type="button" class="camp__next" id="campNextBtn" hidden>
+      <span id="campNextLabel"></span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+    </button>
+  </div>
 
   <!-- 人数弹窗：点「下一步」后弹出，填 1-9 的整数人数，确认才进入打卡点页面。
        人数写入本地缓存全局生效，后续页面直接沿用，不再重复询问。
