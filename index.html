@@ -2017,8 +2017,11 @@ function setComposerPlaceholder(text){
   const mq = $('inputPhMarquee');
   composerPhText = text || '';
   if (!el) return;
-  el.placeholder = composerPhText;
-  if (!mq || !mq.firstElementChild){ syncPlaceholderMarquee(); return; }   // 结构缺失时退回原生占位
+  if (!mq || !mq.firstElementChild){   // 结构缺失时退回原生占位
+    el.placeholder = composerPhText;
+    syncPlaceholderMarquee();
+    return;
+  }
   mq.firstElementChild.textContent = composerPhText;
   layoutComposerPlaceholder();
 }
@@ -2042,6 +2045,8 @@ function layoutComposerPlaceholder(){
   /* 手机端地址栏收起 / 键盘弹出会连续触发 resize：只要可用宽度和文案宽度都没变，
      就不重启动画，否则滚动会一直从头开始、看起来像没动 */
   if (sig === phLayoutSig && inner.textContent === composerPhText){
+    /* 保持当前模式并只留一条提示：滚动中必须清空原生占位，否则两段文字会叠在一起 */
+    el.placeholder = mq.classList.contains('show') ? '' : composerPhText;
     syncPlaceholderMarquee();
     return;
   }
@@ -2123,8 +2128,11 @@ function msgPairOf(m, lg){
 function openTelegram(url, ev){
   if (ev && ev.preventDefault) ev.preventDefault();
   if (!url) return false;
-  const andI = /Android|HarmonyOS/i.test(navigator.userAgent);
-  const iosI = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const ua = navigator.userAgent;
+  const andI = /Android|HarmonyOS/i.test(ua);
+  const iosI = /iPhone|iPad|iPod/i.test(ua);
+  /* 微信 / QQ / 微博 / 抖音等内置浏览器的 WebView 会屏蔽 tg:// 自定义协议，先提示改用系统浏览器 */
+  const inApp = /MicroMessenger|QQ\/|QQBrowser|Weibo|aweme|BaiduBoxApp|AlipayClient|DingTalk|Lark|Feishu/i.test(ua);
   if ((andI || iosI) && /t\.me\//.test(url)){
     let deep = '';
     const m = url.match(/t\.me\/([^/?#]+)(?:\/([^/?#]+))?/);
@@ -2139,6 +2147,11 @@ function openTelegram(url, ev){
       else deep = 'tg://resolve?domain=' + encodeURIComponent(seg) + startQ;                      // 频道/用户/机器人（可带 start）
     }
     if (deep){
+      if (inApp){
+        toast(lang === 'ru' ? 'Встроенный браузер не может открыть Telegram. Откройте страницу в браузере и повторите.'
+            : lang === 'en' ? 'This in-app browser cannot open Telegram. Tap "Open in browser" and retry.'
+            : '当前为微信/QQ 等内置浏览器，无法直接唤起 Telegram，请点右上角「在浏览器打开」后重试');
+      }
       /* 打开 App 时页面会进入后台（visibility 变 hidden），此时应取消回落跳转；
          否则超时后回到 t.me 网页版 */
       const onHidden = ()=>{ if (document.hidden){ clearTimeout(fallback); document.removeEventListener('visibilitychange', onHidden); } };
@@ -2148,12 +2161,11 @@ function openTelegram(url, ev){
         /* iOS Safari 不允许 iframe 唤起自定义协议，必须直接跳转；未装 App 时 Safari 会提示并停留在原页，回落仍可生效 */
         window.location.href = deep;
       } else {
-        /* Android 用隐藏 iframe 触发 intent：未装 App 时静默失败、页面不会被错误页替换，回落才能继续执行 */
-        const ifr = document.createElement('iframe');
-        ifr.style.cssText = 'display:none;width:0;height:0;border:0';
-        ifr.src = deep;
-        document.body.appendChild(ifr);
-        setTimeout(()=>{ if (ifr.parentNode) ifr.parentNode.removeChild(ifr); }, 2500);
+        /* Android：新版权限下 iframe 已无法触发自定义协议，改为 intent:// 直接导航；
+           S.browser_fallback_url 让未安装 Telegram 时由 Chrome 自动回落网页版，页面不会被错误页替换 */
+        window.location.href = 'intent://' + deep.replace(/^tg:\/\//, '') +
+          '#Intent;scheme=tg;package=org.telegram.messenger;S.browser_fallback_url=' +
+          encodeURIComponent(url) + ';end';
       }
       return false;
     }
