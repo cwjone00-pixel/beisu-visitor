@@ -1155,6 +1155,7 @@ const I18N = {
     authErrCaptcha:'请先完成人机验证', authErrCode:'验证码不正确', authErrNeedCode:'请先获取并填写验证码',
     authCodeDemo:'演示模式：本次验证码为 {c}（未真实发送）', authResendIn:'{s} 秒后可重发',
     authWelcome:'注册成功，欢迎 {n}！', authResetDone:'密码已重置，请用新密码登录', tgLoginFail:'Telegram 登录失败，请重试',
+    tgAppOpening:'正在唤起 Telegram App，请在 App 里点「登录网站」按钮完成授权…', tgUseWeb:'没反应？改用网页登录',
     authActivateSent:'激活链接已发送至 {e}，请查收邮件并点击链接完成注册（24 小时内有效）', authActivateDone:'邮箱激活成功，请登录', authActivateFail:'激活链接无效或已过期', authErrNotActivated:'该账号尚未激活，请点击邮件中的激活链接完成激活',
     authActivatePopup:'已发送激活邮件，完成激活后，直接刷新页面，输入账号密码登录', authPopupOk:'知道了',
     authRequired:'请先登录后再发送消息', authInputPh:'请先点击左下角登录',
@@ -1191,6 +1192,7 @@ const I18N = {
     authErrCaptcha:'Please complete the human verification first', authErrCode:'Incorrect code', authErrNeedCode:'Please request and enter the code first',
     authCodeDemo:'Demo mode: your code is {c} (not actually sent)', authResendIn:'Resend in {s}s',
     authWelcome:'Registered — welcome, {n}!', authResetDone:'Password reset. Please sign in with your new password.', tgLoginFail:'Telegram sign-in failed. Please try again.',
+    tgAppOpening:'Opening Telegram app — tap the "Sign in" button there to authorize…', tgUseWeb:"Didn't open? Use web sign-in",
     authActivateSent:'Activation link sent to {e}. Open the email and click the link to finish (valid for 24 hours).', authActivateDone:'Email activated — please sign in', authActivateFail:'Activation link is invalid or expired', authErrNotActivated:'This account is not activated yet. Please click the activation link in your email.',
     authActivatePopup:'Activation email sent. After activating, refresh this page and sign in with your email and password.', authPopupOk:'Got it',
     authRequired:'Please sign in before sending messages', authInputPh:'Tap the login entry at bottom-left first',
@@ -1227,6 +1229,7 @@ const I18N = {
     authErrCaptcha:'Сначала пройдите проверку на человека', authErrCode:'Неверный код', authErrNeedCode:'Сначала запросите и введите код',
     authCodeDemo:'Демо-режим: ваш код {c} (не отправляется)', authResendIn:'Повтор через {s} с',
     authWelcome:'Регистрация завершена, добро пожаловать, {n}!', authResetDone:'Пароль сброшен. Войдите с новым паролем.', tgLoginFail:'Не удалось войти через Telegram. Попробуйте ещё раз.',
+    tgAppOpening:'Открываем Telegram — нажмите кнопку «Войти» в приложении для авторизации…', tgUseWeb:'Не открылось? Войти через браузер',
     authActivateSent:'Ссылка для активации отправлена на {e}. Откройте письмо и перейдите по ссылке (действует 24 часа).', authActivateDone:'Почта активирована — войдите', authActivateFail:'Ссылка активации недействительна или истекла', authErrNotActivated:'Аккаунт не активирован. Перейдите по ссылке активации в письме.',
     authActivatePopup:'Письмо для активации отправлено. После активации обновите страницу и войдите, указав почту и пароль.', authPopupOk:'Понятно',
     authRequired:'Сначала войдите, чтобы отправлять сообщения', authInputPh:'Сначала нажмите «Войти» внизу слева',
@@ -1256,7 +1259,8 @@ function applyI18n(){
   refreshCardModal();    // 已打开的文章页面按当前语种切内容
   renderEvents();        // 商业活动卡片标题按当前语种刷新
   refreshEventModal();   // 已打开的商业活动详情按当前语种切内容
-  fitInput();
+  /* 语种切换后按钮文案长度变化会改变输入框宽度，重新判断占位文案是否溢出 */
+  layoutComposerPlaceholder();
 }
 
 /* ---------------- 工具 ---------------- */
@@ -1610,15 +1614,27 @@ function renderSsoButtons(){
   const or = $('lgOr'); if (or) or.style.display = tgOn ? 'flex' : 'none';
 }
 /* Telegram 登录入口：交给后端选定授权地址并跳转（已登录则带绑定意图）
-   已登录时带 bind=1&uid&sid，授权完成后把 Telegram 身份绑定到当前账号而非新建账号 */
+   已登录时带 bind=1&uid&sid，授权完成后把 Telegram 身份绑定到当前账号而非新建账号。
+   手机/平板：不直接跳网页授权，先取一次性 state 与机器人深链，唤起 Telegram App 登录
+   （App 内机器人回复登录按钮，点了即授权）；唤起失败自动回落 t.me，提示行另留「网页登录」兜底。
+   电脑端维持原网页授权流程不变。 */
 function startTelegramLogin(bind){
   if (!tgCfg.enabled) return;
-  const err = $(bind ? 'bindErr' : 'tgErr'); if (err) err.textContent = '';
+  const err = $(bind ? 'bindErr' : 'tgErr'); if (err){ err.textContent = ''; err.className = 'lm-err'; }
   let url = '/api/auth/telegram/start';
   if (bind && currentUser){
     url += '?bind=1&uid=' + encodeURIComponent(currentUser.id) + '&sid=' + encodeURIComponent(currentUser.sessionId || '');
   }
-  location.href = url;
+  if (!/Android|HarmonyOS|iPhone|iPad|iPod/i.test(navigator.userAgent)){ location.href = url; return; }
+  (async () => {
+    try {
+      const res = await fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'json=1', { cache:'no-store' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.ok || !d.appLink){ if (err) err.textContent = (d && d.error) || dict().tgLoginFail; return; }
+      if (err){ err.className = 'lm-tip'; err.innerHTML = dict().tgAppOpening + ' <a href="' + d.oauthUrl + '">' + dict().tgUseWeb + '</a>'; }
+      openTelegram(d.appLink);
+    } catch(e){ if (err) err.textContent = dict().tgLoginFail; }
+  })();
 }
 /* 「我的账号」绑定状态：查询当前账号已绑定的 Telegram 身份并展示 */
 async function refreshLinks(){
@@ -2007,17 +2023,33 @@ function setComposerPlaceholder(text){
   layoutComposerPlaceholder();
 }
 /* 依据当前输入框宽度判断是否溢出，并设置滚动距离与时长 */
+let phLayoutSig = '';     // 上次布局签名（可用宽度|文案宽度），未变化时不重启动画
 function layoutComposerPlaceholder(){
   const el = $('composerInput');
   const mq = $('inputPhMarquee');
   if (!el || !mq || !mq.firstElementChild) return;
   const inner = mq.firstElementChild;
-  mq.classList.remove('show');
-  if (!composerPhText){ el.placeholder = ''; syncPlaceholderMarquee(); return; }
+  if (!composerPhText){
+    el.placeholder = '';
+    mq.classList.remove('show');
+    phLayoutSig = '';
+    syncPlaceholderMarquee();
+    return;
+  }
   const avail = mq.clientWidth;
   const need = inner.scrollWidth;
+  const sig = avail + '|' + need;
+  /* 手机端地址栏收起 / 键盘弹出会连续触发 resize：只要可用宽度和文案宽度都没变，
+     就不重启动画，否则滚动会一直从头开始、看起来像没动 */
+  if (sig === phLayoutSig && inner.textContent === composerPhText){
+    syncPlaceholderMarquee();
+    return;
+  }
+  phLayoutSig = sig;
+  mq.classList.remove('show');
   if (need <= avail + 1){                 // 放得下：保持原生占位，不做滚动
     el.placeholder = composerPhText;
+    inner.style.animation = 'none';       // 停止动画，避免隐藏层里空跑
     syncPlaceholderMarquee();
     return;
   }
@@ -2091,17 +2123,20 @@ function msgPairOf(m, lg){
 function openTelegram(url, ev){
   if (ev && ev.preventDefault) ev.preventDefault();
   if (!url) return false;
-  const andI = /Android/i.test(navigator.userAgent);
+  const andI = /Android|HarmonyOS/i.test(navigator.userAgent);
   const iosI = /iPhone|iPad|iPod/i.test(navigator.userAgent);
   if ((andI || iosI) && /t\.me\//.test(url)){
     let deep = '';
     const m = url.match(/t\.me\/([^/?#]+)(?:\/([^/?#]+))?/);
+    /* ?start=xxx（机器人深链参数，如 App 内登录 login_<state>）需透传到 tg://resolve，否则 App 打开后丢参数 */
+    const startM = url.match(/[?&]start=([^&#]+)/);
+    const startQ = startM ? '&start=' + encodeURIComponent(decodeURIComponent(startM[1])) : '';
     if (m){
       const seg = m[1], seg2 = m[2] || '';
       if (seg.charAt(0) === '+') deep = 'tg://join?invite=' + seg.slice(1);                       // 邀请链接 t.me/+hash
       else if (seg.toLowerCase() === 'joinchat' && seg2) deep = 'tg://join?invite=' + encodeURIComponent(seg2); // 旧版邀请链接
       else if (seg2) deep = 'tg://resolve?domain=' + encodeURIComponent(seg) + '&post=' + encodeURIComponent(seg2); // 指定帖子
-      else deep = 'tg://resolve?domain=' + encodeURIComponent(seg);                               // 频道/用户
+      else deep = 'tg://resolve?domain=' + encodeURIComponent(seg) + startQ;                      // 频道/用户/机器人（可带 start）
     }
     if (deep){
       /* 打开 App 时页面会进入后台（visibility 变 hidden），此时应取消回落跳转；

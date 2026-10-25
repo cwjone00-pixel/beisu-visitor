@@ -1039,6 +1039,8 @@ function serveStatic(req, res){
     if (err) return send(res, 404, 'Not Found');
     const ext = path.extname(filePath).toLowerCase();
     const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    /* HTML 页面禁止缓存：移动端浏览器容易复用旧页面，导致前端改动看不到 */
+    if (ext === '.html') headers['Cache-Control'] = 'no-cache';
     /* 地图用的两个大文件（echarts ~1MB / 地理边界）内容极少变动：允许浏览器缓存，
        避免每次进入地图子页面都重新下载一遍 */
     if (/[\\/]island[\\/](echarts\.min\.js|hainan\.geojson\.js)$/.test(filePath)) headers['Cache-Control'] = 'public, max-age=86400';
@@ -1544,6 +1546,45 @@ function tgGetMe(token, timeout){
     req.on('error', reject);
   });
 }
+/* 通用 Bot API POST（sendMessage / setWebhook 等）：返回解析后的 JSON，失败仅抛出由调用方记日志 */
+function tgApi(method, payload){
+  return new Promise((resolve, reject) => {
+    const g = loadSecrets().telegram;
+    if (!g.botToken) return reject(new Error('未配置 Telegram Bot Token'));
+    const data = JSON.stringify(payload || {});
+    const req = https.request({
+      method: 'POST', host: 'api.telegram.org', path: '/bot' + g.botToken + '/' + method,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
+      timeout: 15000
+    }, r => {
+      let d = '';
+      r.on('data', c => d += c);
+      r.on('end', () => { try { resolve(JSON.parse(d)); } catch(e){ reject(new Error('Bot API 响应解析失败')); } });
+    });
+    req.on('timeout', () => req.destroy(new Error('timeout')));
+    req.on('error', reject);
+    req.end(data);
+  });
+}
+/* 手机端唤起 App 登录依赖 webhook 收 /start：仅在线上环境（Render 注入 RENDER=true，或显式 TG_WEBHOOK=1）
+   把 webhook 指到本站，避免本地联调时抢走线上机器人的消息；失败不影响站点其它功能。 */
+/* webhook 密钥：由 botToken 派生（确定性、免配置），setWebhook 时上报，
+   之后每个回调带 X-Telegram-Bot-Api-Secret-Token 头，路由据此拒绝伪造回调 */
+function tgWebhookSecret(){
+  const g = loadSecrets().telegram;
+  return g.botToken ? crypto.createHash('sha256').update(g.botToken + ':webhook').digest('hex').slice(0, 48) : '';
+}
+async function tgSetupWebhook(){
+  try {
+    const g = loadSecrets().telegram;
+    const onRender = !!process.env.RENDER || process.env.TG_WEBHOOK === '1';
+    if (!g.botToken || !onRender || !/^https:\/\//i.test(PUBLIC_BASE_URL) || /localhost|127\.0\.0\.1/i.test(PUBLIC_BASE_URL)) return;
+    const j = await tgApi('setWebhook', { url: PUBLIC_BASE_URL + '/api/tg-webhook',
+      allowed_updates: ['message'], drop_pending_updates: true, secret_token: tgWebhookSecret() });
+    if (j && j.ok) console.log('[Telegram] webhook 已注册 → ' + PUBLIC_BASE_URL + '/api/tg-webhook');
+    else console.error('[Telegram] setWebhook 失败: ' + JSON.stringify(j));
+  } catch(e){ console.error('[Telegram] setWebhook 异常:', e.message); }
+}
 async function tgBotId(){
   if (TG_BOT_ID) return TG_BOT_ID;
   if (TG_BOT_ID_PENDING) return TG_BOT_ID_PENDING;
@@ -1626,6 +1667,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/auth/guest' ||
       p === '/api/auth/activate' || p === '/api/auth/telegram' || p === '/api/auth/telegram/start' ||
       p === '/api/auth/bind/telegram' || p === '/api/auth/links' ||
+      (p === '/api/tg-webhook' && req.method === 'POST') ||   // Telegram 服务器回调，无本站登录态
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/media/') && req.method === 'GET') ||
@@ -1872,8 +1914,54 @@ const server = http.createServer(async (req, res) => {
     TG_STATES.forEach((rec, k) => { if (Date.now() - rec.createdAt > TG_STATE_TTL) TG_STATES.delete(k); });
     const returnTo = PUBLIC_BASE_URL + '/tg/' + state;
     const qs = new URLSearchParams({ bot_id: botId, origin: PUBLIC_BASE_URL, return_to: returnTo }).toString();
-    res.writeHead(302, { 'Location': 'https://oauth.telegram.org/auth?' + qs });
+    const oauthUrl = 'https://oauth.telegram.org/auth?' + qs;
+    /* ?json=1（手机端唤起 App 流程）：不跳转，返回一次性 state 及两条地址 ——
+       appLink 用于唤起 Telegram App 打开本机器人（/start login_<state> 触发 webhook 回复 LoginUrl 登录按钮），
+       oauthUrl 为原有网页授权地址，作为未装 App / 唤起失败时的兜底。两条路径共用同一 state。 */
+    if (url.searchParams.get('json') === '1'){
+      const bot = String(loadSecrets().telegram.botUsername || '').trim().replace(/^@/, '');
+      return send(res, 200, { ok:true, state,
+        appLink: bot ? ('https://t.me/' + bot + '?start=login_' + state) : '',
+        oauthUrl });
+    }
+    res.writeHead(302, { 'Location': oauthUrl });
     return res.end();
+  }
+  /* ---- Telegram Bot webhook：手机端唤起 App 后，用户在机器人里 /start login_<state>，
+     机器人回复一条带 LoginUrl 按钮的消息；用户在 App 内点按钮确认授权，
+     Telegram 即带签名参数（id/first_name/.../hash）打开本站 /tg/<state>，前端解析后走既有 /api/auth/telegram。
+     LoginUrl 的域名沿用 BotFather 已为网页授权绑定的本站域名，无需额外配置。 */
+  if (p === '/api/tg-webhook' && req.method === 'POST'){
+    const body = await readBody(req);
+    /* 只认带正确 secret_token 的回调（注册 webhook 时上报给 Telegram 的密钥），伪造请求直接 403 */
+    if (tgWebhookSecret() && req.headers['x-telegram-bot-api-secret-token'] !== tgWebhookSecret())
+      return send(res, 403, { ok:false });
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end('{"ok":true}');   // 先快速应答，避免 Telegram 重投
+    try {
+      const msg = body && body.message;
+      const text = String((msg && msg.text) || '');
+      const chatId = msg && msg.chat && msg.chat.id;
+      if (!chatId || !/^\/start/i.test(text)) return;
+      const m = text.match(/^\/start(?:@\S+)?\s+login_([0-9a-f]{32})\s*$/i);
+      const g = loadSecrets().telegram;
+      if (!g.botToken) return;
+      if (!m){
+        await tgApi('sendMessage', { chat_id: chatId,
+          text: '本机器人用于网站 Telegram 快捷登录。请回到网站，点击 Telegram 登录按钮。\nThis bot signs you into the website. Please go back to the site and tap the Telegram button.' });
+        return;
+      }
+      const st = TG_STATES.get(m[1]);
+      if (!st || Date.now() - st.createdAt > TG_STATE_TTL){
+        await tgApi('sendMessage', { chat_id: chatId,
+          text: '登录链接已失效，请回到网站重新点击 Telegram 登录。\nThis login link has expired. Please go back to the site and tap Telegram sign-in again.' });
+        return;
+      }
+      await tgApi('sendMessage', { chat_id: chatId,
+        text: '点击下面按钮，即可登录网站 👇\nTap the button below to sign in 👇',
+        reply_markup: { inline_keyboard: [[ { text: '🔐 登录网站 / Sign in / Войти',
+          login_url: { url: PUBLIC_BASE_URL + '/tg/' + m[1] } } ]] } });
+    } catch(e){ console.error('[Telegram] webhook 处理失败:', e.message); }
+    return;
   }
   /* ---- Telegram 快捷登录：校验控件回调签名 → 按 Telegram ID 建/取访客账号 → 返回会话 ----
      Telegram 不提供邮箱，故此类账号 email 为空、注册即激活（status=active），
@@ -2789,6 +2877,7 @@ server.on('upgrade', (req, socket) => {
      （表现为：重启 / 冷启动后没有点「退出」却被登出）。 */
   setInterval(sweepSessions, 2000);
   tgBotId().catch(() => {});   // 启动即预热 Telegram Bot ID，避免用户首次点击时等待外网请求
+  tgSetupWebhook().catch(() => {});   // 线上环境注册 Telegram webhook（手机端唤起 App 登录用）；本地自动跳过
   server.listen(PORT, () => {
     console.log(`[beisu-visitor] server running at http://localhost:${PORT}`);
     console.log(`  游客前端: http://localhost:${PORT}/`);
