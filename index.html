@@ -328,11 +328,27 @@
     box-shadow:0 12px 34px rgba(35,65,115,.12);
   }
   .input-line{ display:flex; align-items:center; gap:8px; }
+  /* 输入框包裹层：承载占位提示的滚动覆盖层（文案放不下时自动左右往返滚动） */
+  .input-wrap{ position:relative; flex:1; min-width:0; display:flex; align-items:center; }
   #composerInput{
-    flex:1; min-width:0; border:none; outline:none; background:transparent;
+    flex:1; min-width:0; width:100%; border:none; outline:none; background:transparent;
     font-size:14px; color:#2a3140; padding:0 4px;
   }
   #composerInput::placeholder{ color:#a6aeba; }
+  /* 占位提示滚动层：原生 placeholder 超宽会被直接截断，这里改为覆盖层滚动展示整句 */
+  .input-ph-marquee{
+    position:absolute; left:4px; right:0; top:50%; transform:translateY(-50%);
+    overflow:hidden; white-space:nowrap; pointer-events:none;
+    font-size:14px; color:#a6aeba; line-height:1.2;
+    visibility:hidden; opacity:0; transition:opacity .18s ease;
+  }
+  .input-ph-marquee.on{ visibility:visible; opacity:1; }
+  .input-ph-marquee span{ display:inline-block; will-change:transform; }
+  @keyframes phMarquee{
+    0%, 8%    { transform:translateX(0); }
+    45%, 55%  { transform:translateX(var(--ph-shift, 0px)); }
+    92%, 100% { transform:translateX(0); }
+  }
   /* 输入框正下方快捷按钮行（租房/租车/旅游搭子） */
   .composer-chips{ display:flex; align-items:center; gap:8px; margin-top:10px; }
   .chip-btn{
@@ -574,7 +590,8 @@
   }
   .mac-window.mode-mobile .input-line::-webkit-scrollbar{ display:none; }
   /* 输入框占满按钮以外的整行宽度：三语下按钮同为纯图标、宽度一致，输入框宽度自然统一，且不留空档 */
-  .mac-window.mode-mobile #composerInput{ flex:1 1 auto; min-width:0; }
+  .mac-window.mode-mobile .input-wrap{ flex:1 1 auto; min-width:0; }
+  .mac-window.mode-mobile #composerInput{ flex:1 1 auto; min-width:0; width:100%; }
   /* 拍照 / 上传图片：文字不换行、不收缩，字号缩小以适配俄语等较长文案 */
   .mac-window.mode-mobile .action-btn{
     flex:none; white-space:nowrap; padding:0 10px; height:34px; font-size:11.5px; gap:5px;
@@ -601,6 +618,7 @@
      此处锁死字号，避免点击输入框时页面自动放大/缩回（用 ID/类选择器覆盖原有 14px/13px 规则）。
      登录弹窗不在 .mac-window 内，用 html.view-mobile 覆盖 */
   .mac-window.mode-mobile #composerInput,
+  .mac-window.mode-mobile .input-ph-marquee,
   html.view-mobile .lm-input{ font-size:16px; }
   /* 输入框下方快捷按钮行：同样单行横向滚动，避免撑高输入区 */
   .mac-window.mode-mobile .composer-chips{
@@ -749,7 +767,11 @@
       <div class="composer">
         <!-- 输入行用 form 包裹：手机键盘的「发送 / Go」动作键会触发提交，不再只依赖回车；发送按钮可点按发送 -->
         <form class="input-line" id="inputLine" autocomplete="off">
-          <input id="composerInput" type="text" data-i18n-ph="inputPh" placeholder="输入信息..." autocomplete="off" enterkeyhint="send">
+          <div class="input-wrap">
+            <input id="composerInput" type="text" data-i18n-ph="inputPh" placeholder="输入信息..." autocomplete="off" enterkeyhint="send">
+            <!-- 占位提示超出输入框宽度时，用该覆盖层左右往返滚动展示整句 -->
+            <div class="input-ph-marquee" id="inputPhMarquee" aria-hidden="true"><span></span></div>
+          </div>
           <button class="action-btn" id="btnPhoto" type="button">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><circle cx="12" cy="13.5" r="3.6"/><path d="M8.5 7l1.4-2.3h4.2L15.5 7"/></svg>
             <span data-i18n="btnPhoto">拍照</span>
@@ -1964,12 +1986,57 @@ function applyHeroTitle(){
 function applyPlaceholder(){
   const el = $('composerInput');
   if (!el) return;
-  if (!currentUser){ el.placeholder = dict().authInputPh; return; }   // 未登录：提示先去登录
+  if (!currentUser){ setComposerPlaceholder(dict().authInputPh); return; }   // 未登录：提示先去登录
   const st = window.getOrbState ? window.getOrbState() : 'bot';   // 球体模块内的闭包状态
   const opOn = st === 'both' || st === 'botoff-online';
   const grp = phText ? (opOn ? phText.agent : phText.bot) : null;
   const t = grp ? (grp[lang] || grp.zh || '') : '';
-  el.placeholder = t || dict().inputPh || '';
+  setComposerPlaceholder(t || dict().inputPh || '');
+}
+/* 占位提示设置入口：文案放得下用原生 placeholder；放不下则改用覆盖层左右往返滚动，
+   避免长句被输入框宽度截断、游客读不到后半句 */
+let composerPhText = '';
+function setComposerPlaceholder(text){
+  const el = $('composerInput');
+  const mq = $('inputPhMarquee');
+  composerPhText = text || '';
+  if (!el) return;
+  el.placeholder = composerPhText;
+  if (!mq || !mq.firstElementChild){ syncPlaceholderMarquee(); return; }   // 结构缺失时退回原生占位
+  mq.firstElementChild.textContent = composerPhText;
+  layoutComposerPlaceholder();
+}
+/* 依据当前输入框宽度判断是否溢出，并设置滚动距离与时长 */
+function layoutComposerPlaceholder(){
+  const el = $('composerInput');
+  const mq = $('inputPhMarquee');
+  if (!el || !mq || !mq.firstElementChild) return;
+  const inner = mq.firstElementChild;
+  mq.classList.remove('show');
+  if (!composerPhText){ el.placeholder = ''; syncPlaceholderMarquee(); return; }
+  const avail = mq.clientWidth;
+  const need = inner.scrollWidth;
+  if (need <= avail + 1){                 // 放得下：保持原生占位，不做滚动
+    el.placeholder = composerPhText;
+    syncPlaceholderMarquee();
+    return;
+  }
+  el.placeholder = '';                    // 溢出：隐藏原生占位，避免与滚动层文字重影
+  const shift = -(need - avail) - 12;     // 滚到末尾再多留 12px
+  mq.style.setProperty('--ph-shift', shift + 'px');
+  const dur = Math.max(7, Math.round(Math.abs(shift) / 26) + 4);   // 距离越长滚动越久，阅读速度保持稳定
+  inner.style.animation = 'none';
+  void inner.offsetWidth;                 // 强制重排，让动画从头播放
+  inner.style.animation = 'phMarquee ' + dur + 's ease-in-out infinite';
+  mq.classList.add('show');
+  syncPlaceholderMarquee();
+}
+/* 输入框有内容（或无需滚动）时隐藏滚动层 */
+function syncPlaceholderMarquee(){
+  const el = $('composerInput');
+  const mq = $('inputPhMarquee');
+  if (!el || !mq) return;
+  mq.classList.toggle('on', mq.classList.contains('show') && !el.value);
 }
 /* 渲染首页快捷按钮（语言切换后自动刷新文字） */
 function renderHomeButtons(){
@@ -2018,6 +2085,47 @@ function msgPairOf(m, lg){
   const tr = (lg === 'zh') ? '' : (r[lg] || '');
   return { orig, tr: (tr && tr !== orig) ? tr : '' };
 }
+/* Telegram 链接跳转：手机端优先用 tg:// 深链唤起 App（装了 Telegram 就直接进 App），
+   1.5s 内未唤起（未装 App / 浏览器拦截/第三方浏览器不转交）则自动回落到 https://t.me 网页版；
+   电脑端一律新窗口打开。避免手机在浏览器内无法正常选择已安装的 Telegram App。 */
+function openTelegram(url, ev){
+  if (ev && ev.preventDefault) ev.preventDefault();
+  if (!url) return false;
+  const andI = /Android/i.test(navigator.userAgent);
+  const iosI = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if ((andI || iosI) && /t\.me\//.test(url)){
+    let deep = '';
+    const m = url.match(/t\.me\/([^/?#]+)(?:\/([^/?#]+))?/);
+    if (m){
+      const seg = m[1], seg2 = m[2] || '';
+      if (seg.charAt(0) === '+') deep = 'tg://join?invite=' + seg.slice(1);                       // 邀请链接 t.me/+hash
+      else if (seg.toLowerCase() === 'joinchat' && seg2) deep = 'tg://join?invite=' + encodeURIComponent(seg2); // 旧版邀请链接
+      else if (seg2) deep = 'tg://resolve?domain=' + encodeURIComponent(seg) + '&post=' + encodeURIComponent(seg2); // 指定帖子
+      else deep = 'tg://resolve?domain=' + encodeURIComponent(seg);                               // 频道/用户
+    }
+    if (deep){
+      /* 打开 App 时页面会进入后台（visibility 变 hidden），此时应取消回落跳转；
+         否则超时后回到 t.me 网页版 */
+      const onHidden = ()=>{ if (document.hidden){ clearTimeout(fallback); document.removeEventListener('visibilitychange', onHidden); } };
+      document.addEventListener('visibilitychange', onHidden);
+      const fallback = setTimeout(()=>{ window.location.href = url; }, 1500);
+      if (iosI){
+        /* iOS Safari 不允许 iframe 唤起自定义协议，必须直接跳转；未装 App 时 Safari 会提示并停留在原页，回落仍可生效 */
+        window.location.href = deep;
+      } else {
+        /* Android 用隐藏 iframe 触发 intent：未装 App 时静默失败、页面不会被错误页替换，回落才能继续执行 */
+        const ifr = document.createElement('iframe');
+        ifr.style.cssText = 'display:none;width:0;height:0;border:0';
+        ifr.src = deep;
+        document.body.appendChild(ifr);
+        setTimeout(()=>{ if (ifr.parentNode) ifr.parentNode.removeChild(ifr); }, 2500);
+      }
+      return false;
+    }
+  }
+  window.open(url, '_blank', 'noopener');
+  return false;
+}
 /* 渲染整个对话区（语言切换后按当前语种重绘所有回复与按钮） */
 function renderChat(){
   const area = $('chatArea');
@@ -2056,7 +2164,7 @@ function renderChat(){
     if (pair.tr) inner += `<div class="msg-tr">${escapeHtml(pair.tr)}</div>`;
     if (m.link && m.link.url){
       const lt = labelOf(m.link.text, lang) || m.link.url;
-      inner += `<br><a class="msg-link" href="${escapeAttr(m.link.url)}" target="_blank" rel="noopener">${escapeHtml(lt)}</a>`;
+      inner += `<br><a class="msg-link" href="${escapeAttr(m.link.url)}" target="_blank" rel="noopener" onclick="return openTelegram(this.href,event)">${escapeHtml(lt)}</a>`;
     }
     let html = `<div class="msg-row bot"><div class="msg-bubble">${inner}</div>`;
     const btns = (m.quickButtons || []).slice(0, 4);
@@ -2183,18 +2291,20 @@ async function submitImageFile(file){
     const d = await res.json().catch(() => ({}));
     if (!res.ok || !d.ok || !d.id){ toast(d.error || dict().imgFail); return; }
     input.value = '';
+    syncPlaceholderMarquee();                        // 输入框已清空，恢复滚动占位提示
     await sendMessage(caption, d.id);                // 选中即提交：图片（可带文字）一起发送
   } catch(e){ toast(dict().imgFail); }
 }
 
 /* 输入框：发送消息（回车 / 手机键盘「发送」键 / 点发送按钮 三条路径统一走这里） */
 const input = $('composerInput');
-function fitInput(){ /* flex 布局自动填充，无需手动设置宽度 */ }
-input.addEventListener('input', fitInput);
+/* 输入内容变化时同步占位滚动层显隐（有内容即隐藏滚动提示） */
+input.addEventListener('input', () => syncPlaceholderMarquee());
 function sendComposer(){
   const v = input.value;
   if (!v || !v.trim()) return;      // 空内容不发送
   input.value = '';
+  syncPlaceholderMarquee();          // 发送后输入框清空，恢复滚动占位提示
   sendMessage(v);
 }
 input.addEventListener('keydown', e => {
@@ -2206,7 +2316,8 @@ input.addEventListener('keydown', e => {
 });
 /* 手机键盘的「发送 / Go」动作键与发送按钮点击都会触发 form 提交；手机端回车不可靠，靠这条兜底 */
 $('inputLine').addEventListener('submit', e => { e.preventDefault(); sendComposer(); });
-window.addEventListener('resize', fitInput);
+/* 窗口宽度变化 → 输入框可视宽度随之变化，重新判断占位文案是否溢出 */
+window.addEventListener('resize', () => layoutComposerPlaceholder());
 
 /* ESC 关闭弹窗 */
 document.addEventListener('keydown', e => {
