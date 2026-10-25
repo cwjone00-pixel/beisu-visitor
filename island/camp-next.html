@@ -217,53 +217,150 @@
 
   /* ==================================================================
      移动端专用布局（仅 <html class="is-mobile"> 且视口 ≤ 900px 时生效）
-     铁律：任何时刻、任何动态变化，地图都不能被任何内容遮住。
-     做法：地图满铺底层；所有浮层【背景完全透明 + 无阴影 + pointer-events:none】，
-     视觉与触摸双重穿透，地图全程完整呈现且任意位置可点可拖。
-     只有真正可点的控件（返回/语言/车型/按钮/chip）保留实色背景 + pointer-events:auto。
+     铁律：地图满铺全屏、视觉零遮挡；所有 UI 组件一律放到屏幕边角，
+     严禁出现在地图正中央 / 正上方。
+     布局分配：
+       左上角：返回小胶囊       右上角：语言切换小胶囊
+       左下角：点位详情（毛玻璃卡）
+       右侧窄侧边栏：已选 chip + 人数行 + 确定按钮 / 方案卡（毛玻璃）
+       「确定」实色突出，其余全部半透明毛玻璃。
      ================================================================== */
   @media (max-width: 900px) {
 
-  /* 地图满铺底层；底部留出空间 = 底部「确定」条实时高度（JS 同步到 <html> 的 --ctaH） */
+  /* 地图满铺整个视口，没有任何 inset 留白 */
   .is-mobile .camp { height: 100vh; height: 100dvh; overflow: hidden; }
   .is-mobile .map {
-    position: absolute; top: 0; left: 0; right: 0;
-    bottom: var(--ctaH, 64px);
-    width: 100%;
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
   }
 
-  /* 底部确定条：实色不透明，固定在视口最底下，与地图完全分离 */
+  /* 顶部控件：返回/语言 各自成小胶囊贴在两角，容器不吃触摸 */
+  .is-mobile .island-top {
+    position: absolute; top: 12px; left: 12px; right: 12px; z-index: 8;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0; background: none; box-shadow: none;
+    pointer-events: none;
+  }
+  .is-mobile .lang { gap: 4px; }
+  .is-mobile .lang-opt {
+    height: 32px; padding: 0 11px; font-size: 11.5px; border-radius: 999px;
+    background: rgba(255, 255, 255, .55);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 2px 10px rgba(18, 32, 52, .12);
+    border: 1px solid rgba(255, 255, 255, .5);
+    pointer-events: auto;
+  }
+  .is-mobile .island-back {
+    height: 32px; padding: 0 12px; font-size: 11.5px; border-radius: 999px;
+    background: rgba(255, 255, 255, .55);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 2px 10px rgba(18, 32, 52, .12);
+    border: 1px solid rgba(255, 255, 255, .5);
+    pointer-events: auto;
+  }
+
+  /* 顶部文字区包裹层不生成盒子 */
+  .is-mobile .camp__top { display: contents; }
+  .is-mobile .camp__panel { display: contents; }
+
+  /* 点位详情 / 未选提示：【左下角】毛玻璃小卡，宽度受限不伸到地图中心 */
+  .is-mobile .camp__detail {
+    position: absolute; left: 12px; bottom: 12px; z-index: 6;
+    top: auto; right: auto; bottom: 12px;
+    max-width: min(240px, 56vw); text-align: left;
+    font-size: 11.5px; line-height: 1.55;
+    background: rgba(255, 255, 255, .5);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, .55);
+    border-radius: 12px; padding: 8px 11px;
+    box-shadow: 0 4px 16px rgba(18, 32, 52, .1);
+    pointer-events: none;
+  }
+  .is-mobile .camp__kind { font-size: 11px; }
+  .is-mobile .camp__name { font-size: 14px; }
+  .is-mobile .camp__intro { font-size: 11.5px; }
+  .is-mobile .camp__coords { font-size: 11px; }
+  /* 未选提示：也是左下角小卡，扫光动画保留 */
+  .is-mobile .camp__detail--hint {
+    padding: 9px 13px; font-size: 12.5px;
+    background: rgba(18, 32, 52, .42);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, .18);
+  }
+
+  /* 已选打卡点：并入右侧侧边栏上方（视觉在侧边栏顶），chip 可点 */
+  .is-mobile .camp__picked {
+    position: absolute;
+    right: 12px; bottom: calc(var(--sideH, 220px) + 12px);
+    z-index: 6;
+    left: auto; top: auto;
+    max-width: min(200px, 50vw); margin: 0; padding: 0;
+    background: none; box-shadow: none;
+    max-height: 18vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    pointer-events: none;
+  }
+  .is-mobile .camp__picked-hd {
+    font-size: 11px; text-align: right;
+    color: #1f2d3d;
+    text-shadow: 0 1px 3px rgba(255,255,255,.9), 0 0 6px rgba(255,255,255,.6);
+  }
+  .is-mobile .camp__picked-tip { display: none; }
+  .is-mobile .camp__picked.is-empty { display: none; }
+  .is-mobile .camp__chips {
+    display: flex; flex-direction: column; gap: 4px;
+    align-items: flex-end;
+    overflow-x: hidden; overflow-y: visible;
+    margin-top: 4px; padding-bottom: 0;
+  }
+  .is-mobile .camp__chip {
+    flex: 0 0 auto; font-size: 11px;
+    background: rgba(255, 255, 255, .6);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, .6);
+    pointer-events: auto;
+  }
+  .is-mobile .camp__chip--clear { background: rgba(244, 247, 252, .6); }
+
+  /* 出行方式面板：【右下角窄侧边栏】毛玻璃，宽度固定不占满底部 */
   .is-mobile .camp__cta {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
-    transform: none; width: auto; text-align: center;
-    background: #fff;
-    padding: 8px 12px calc(8px + env(safe-area-inset-bottom, 0px));
-    border-top: 1px solid #e2e9f2;
-    box-shadow: 0 -4px 14px rgba(18, 32, 52, .08);
+    position: absolute;
+    right: 12px; bottom: 12px;
+    left: auto; top: auto;
+    transform: none; width: min(200px, 52vw); text-align: left;
+    background: rgba(255, 255, 255, .55);
+    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    border: 1px solid rgba(255, 255, 255, .6);
+    border-radius: 14px; padding: 10px 11px;
+    box-shadow: 0 8px 22px rgba(18, 32, 52, .14);
     pointer-events: none;
   }
   .is-mobile .camp__plan, .is-mobile .camp__confirm { background: none; box-shadow: none; border-radius: 0; padding: 0; }
   .is-mobile .camp__plan + .camp__plan {
-    margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(0,0,0,.12);
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(0, 0, 0, .12);
   }
-  /* 标题 / 价格明细 / 提示：在白色底条上，无需描边 */
-  .is-mobile .camp__seats { flex-direction: row; gap: 5px; margin-top: 5px; }
+  /* 车型列表：窄栏里改为竖排，每个车型一行 */
+  .is-mobile .camp__seats {
+    flex-direction: column; gap: 4px; margin-top: 5px;
+  }
   .is-mobile .camp__seat {
-    flex: 1; flex-direction: column; gap: 1px;
-    padding: 5px 4px; text-align: center;
-    background: #f4f7fc;
-    border: 1.5px solid #e2e9f2;
+    flex: 0 0 auto; flex-direction: row; align-items: center;
+    padding: 6px 8px; text-align: left;
+    background: rgba(255, 255, 255, .5);
+    border: 1.5px solid rgba(255, 255, 255, .5);
     border-radius: 9px;
     pointer-events: auto;
   }
-  .is-mobile .camp__seat.on { border-color: #2f7cf6; background: #f2f7ff; }
-  .is-mobile .camp__seat .pr { margin-left: 0; }
-  /* 确定按钮：实色不透明，固定在底部条里，可点 */
+  .is-mobile .camp__seat.on {
+    border-color: #2f7cf6;
+    background: rgba(242, 247, 255, .85);
+  }
+  .is-mobile .camp__seat .pr { margin-left: auto; }
+  /* 确定按钮：实色不透明，在侧边栏里 */
   .is-mobile .camp__cta-btn {
-    width: 100%; height: 44px; margin-top: 4px; font-size: 14px;
+    width: 100%; height: 40px; margin-top: 6px; font-size: 13px;
     white-space: normal; line-height: 1.2;
     background: #2f7cf6; opacity: 1;
-    box-shadow: 0 4px 12px rgba(47, 124, 246, .28);
+    box-shadow: 0 4px 12px rgba(47, 124, 246, .3);
     pointer-events: auto;
   }
   .is-mobile .camp__cta-btn:disabled { background: #b8c4d4; box-shadow: none; }
@@ -275,97 +372,24 @@
   }
   .is-mobile .camp__cta-edit {
     margin-top: 2px; font-size: 11px;
+    background: none; padding: 0;
     pointer-events: auto;
   }
 
-  /* 顶部控件条：容器透明、不吃触摸，只让按钮可点 */
-  .is-mobile .island-top {
-    position: absolute; top: 10px; left: 10px; right: 10px; z-index: 8;
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 8px; padding: 0; background: none; box-shadow: none;
-    pointer-events: none;
-  }
-  .is-mobile .lang { gap: 4px; }
-  .is-mobile .lang-opt {
-    height: 30px; padding: 0 10px; font-size: 11.5px; border-radius: 999px;
-    background: rgba(255, 255, 255, .75);
-    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-    box-shadow: 0 2px 8px rgba(18, 32, 52, .1);
-    pointer-events: auto;
-  }
-  .is-mobile .island-back {
-    height: 30px; padding: 0 10px; font-size: 11.5px; border-radius: 999px;
-    background: rgba(255, 255, 255, .75);
-    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
-    box-shadow: 0 2px 8px rgba(18, 32, 52, .1);
-    pointer-events: auto;
-  }
-
-  /* 顶部文字区包裹层不生成盒子 */
-  .is-mobile .camp__top { display: contents; }
-  .is-mobile .camp__panel { display: contents; }
-
-  /* 点位详情 / 未选提示：纯文字浮层，背景完全透明，不吃触摸 */
-  .is-mobile .camp__detail {
-    position: absolute; top: 56px; left: 12px; z-index: 6;
-    max-width: 62vw; text-align: left;
-    top: 56px; bottom: auto; right: auto;
-    font-size: 11.5px; line-height: 1.55;
-    pointer-events: none;
-    background: none; box-shadow: none; padding: 0;
-    text-shadow: 0 1px 3px rgba(255,255,255,.9), 0 0 6px rgba(255,255,255,.6);
-  }
-  .is-mobile .camp__kind { font-size: 11px; }
-  .is-mobile .camp__name { font-size: 14px; }
-  .is-mobile .camp__intro { font-size: 11.5px; }
-  .is-mobile .camp__coords { font-size: 11px; }
-  .is-mobile .camp__detail--hint {
-    position: absolute; padding: 7px 12px; font-size: 12.5px;
-    background: rgba(18, 32, 52, .38);
-    -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
-    text-shadow: none;
-  }
-
-  /* 已选打卡点：容器透明、不吃触摸；chip 是小胶囊可点。
-     放在底部确定条之上，bottom = 条高 + 12px 间距 */
-  .is-mobile .camp__picked {
-    position: absolute; left: 12px; right: 12px; bottom: calc(var(--ctaH, 64px) + 12px); z-index: 6;
-    max-width: none; margin: 0; padding: 0;
-    background: none; box-shadow: none;
-    max-height: 12vh; overflow-y: auto; -webkit-overflow-scrolling: touch;
-    pointer-events: none;
-  }
-  .is-mobile .camp__picked-hd {
-    font-size: 11.5px;
-    text-shadow: 0 1px 3px rgba(255,255,255,.9), 0 0 6px rgba(255,255,255,.6);
-  }
-  .is-mobile .camp__picked-tip { display: none; }
-  .is-mobile .camp__picked.is-empty { display: none; }
-  .is-mobile .camp__chips {
-    flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden;
-    -webkit-overflow-scrolling: touch; padding-bottom: 2px; margin-top: 4px;
-  }
-  .is-mobile .camp__chip {
-    flex: 0 0 auto; font-size: 11px;
-    background: rgba(255, 246, 243, .85);
-    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-    pointer-events: auto;
-  }
-  .is-mobile .camp__chip--clear { background: rgba(244, 247, 252, .85); }
-
-  /* 人数弹窗：模态交互时才允许遮罩（此时用户焦点在表单上） */
+  /* 人数弹窗：模态交互时，毛玻璃弹窗居中（用户主动触发的临时聚焦） */
   .is-mobile .camp-people-mask {
     background: rgba(18, 32, 52, .28);
     -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
   }
   .is-mobile .camp-people {
-    background: rgba(255, 255, 255, .88);
-    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    background: rgba(255, 255, 255, .82);
+    -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, .6);
     padding: 18px 16px 14px;
   }
   .is-mobile .camp-people__btn { height: 44px; font-size: 13px; }
   .is-mobile .camp-people__btn--ok { background: #2f7cf6; }
-  .is-mobile .camp-people__input { height: 46px; font-size: 16px; background: rgba(255,255,255,.8); }
+  .is-mobile .camp-people__input { height: 46px; font-size: 16px; background: rgba(255, 255, 255, .8); }
 
   } /* 移动端样式块结束 */
 </style>
@@ -777,13 +801,12 @@
     syncCtaHeight();
   }
 
-  /* 移动端：底部「确定」条的高度决定地图要往上留多少空间（CSS 变量 --ctaH），
-     面板状态切换后重算一次，保证地图底部刚好贴着条顶，不被遮也不留空白 */
+  /* 移动端：右侧侧边栏高度写入 --sideH，已选 chip 区贴在侧边栏顶之上 */
   function syncCtaHeight() {
     var cta = document.querySelector('.camp__cta');
     if (!cta) return;
     var h = cta.getBoundingClientRect().height;
-    document.documentElement.style.setProperty('--ctaH', Math.round(h) + 'px');
+    document.documentElement.style.setProperty('--sideH', Math.round(h) + 'px');
   }
   window.addEventListener('resize', syncCtaHeight);
   window.addEventListener('orientationchange', function(){ setTimeout(syncCtaHeight, 250); });
