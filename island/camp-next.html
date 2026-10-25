@@ -391,6 +391,52 @@
   .is-mobile .camp-people__btn--ok { background: #2f7cf6; }
   .is-mobile .camp-people__input { height: 46px; font-size: 16px; background: rgba(255, 255, 255, .8); }
 
+  /* ==================================================================
+     移动端按钮通用约束：所有可点控件之间必须有清晰间距，不允许重叠；
+     文字过长时优先缩字号（而非撑大按钮），保证每个按钮独立可点。
+     ================================================================== */
+  .is-mobile button, .is-mobile .camp__chip, .is-mobile .camp__seat,
+  .is-mobile .lang-opt, .is-mobile .island-back, .is-mobile .camp__cta-edit {
+    max-width: 100%; box-sizing: border-box;
+    overflow: hidden;
+    white-space: nowrap; text-overflow: ellipsis;
+    flex-shrink: 0;
+    touch-action: manipulation;
+  }
+  /* 已选 chip 之间固定间距（由 .camp__chips 的 gap 提供，强制保留） */
+  .is-mobile .camp__chips { gap: 5px !important; }
+  /* 车型选项之间固定间距 */
+  .is-mobile .camp__seats { gap: 5px !important; }
+  /* 语言按钮间距 */
+  .is-mobile .lang { gap: 5px !important; }
+  /* 顶部条两端按钮不靠拢 */
+  .is-mobile .island-top { gap: 10px !important; }
+  /* 已选 chip 字号自动收缩：文字长也不会把 chip 撑大压住别人 */
+  .is-mobile .camp__chip {
+    font-size: 10.5px; padding: 3px 8px;
+    max-width: 100%;
+  }
+  .is-mobile .camp__chip i { font-size: 10.5px; }
+  /* 车型选项字号收紧，文本长了就 ellipsis 而不是扩大按钮 */
+  .is-mobile .camp__seat { font-size: 10.5px; padding: 5px 6px; }
+  .is-mobile .camp__seat b { font-size: 11px; }
+  .is-mobile .camp__seat .cap { font-size: 9px; }
+  .is-mobile .camp__seat .pr { font-size: 11px; }
+  .is-mobile .camp__seat .rec { font-size: 8.5px; padding: 0 4px; }
+  /* 语言/返回按钮字号固定小，禁止变宽 */
+  .is-mobile .lang-opt, .is-mobile .island-back { font-size: 11px; height: 30px; padding: 0 9px; }
+  /* 确定按钮字号自适应 */
+  .is-mobile .camp__cta-btn { font-size: 12.5px; height: 40px; padding: 0 8px; }
+  /* 价格/标题/提示等纯文字不挤按钮 */
+  .is-mobile .camp__plan-hd { font-size: 11.5px; line-height: 1.4; }
+  .is-mobile .camp__plan-price { font-size: 10.5px; line-height: 1.5; }
+  .is-mobile .camp__cta-hint { font-size: 9.5px; }
+  .is-mobile .camp__people-row { font-size: 11px; gap: 4px; flex-wrap: wrap; }
+  .is-mobile .camp__cta-edit { font-size: 10.5px; }
+  /* 详情卡文字收缩 */
+  .is-mobile .camp__name { font-size: 13px; }
+  .is-mobile .camp__intro { font-size: 10.5px; }
+
   } /* 移动端样式块结束 */
 </style>
 </head>
