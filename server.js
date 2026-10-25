@@ -1168,27 +1168,35 @@ function islandSummary(lang, d){
   const L = {
     zh: { title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
           tour:'出行方式', tourPrivate:'免拼', tourShared:'拼团',
+          tents:'帐篷数量', tentType:'帐篷类型', tentSingle:'单人帐篷', tentShared:'多人共用大帐篷',
           sug:function (s){ return s ? '建议 ' + s + ' 座车' : '人数较多，车型需定制'; },
           people:function (n, s){ return '出行人数: ' + n + ' 人 · ' + s + ' · 露营装备 ' + n + ' 套'; },
+          tentsLine:function (n, t){ return '帐篷: ' + n + ' 顶' + (t ? '（' + t + '）' : ''); },
           priceP:function (v, p){ return '包车价格: ' + v + ' 座车 ¥' + p; },
           priceS:function (pp, n, sum){ return '拼团价格: 单人 ¥' + pp + ' × ' + n + ' 人 = ¥' + sum; } },
     en: { title:'[Island tour check-in]', camp:'Campsite', spots:'Spots', none:'(none)', sep:', ',
           tour:'Tour type', tourPrivate:'Private Tour', tourShared:'Shared Tour',
+          tents:'Tents', tentType:'Tent type', tentSingle:'Single tent', tentShared:'Shared large tent',
           sug:function (s){ return s ? 'Suggested ' + s + '-seat vehicle' : 'Larger group — vehicle to be customized'; },
           people:function (n, s){ return 'Travelers: ' + n + ' · ' + s + ' · Camping gear ×' + n; },
+          tentsLine:function (n, t){ return 'Tents: ' + n + (t ? ' (' + t + ')' : ''); },
           priceP:function (v, p){ return 'Charter price: ' + v + '-seat car ¥' + p; },
           priceS:function (pp, n, sum){ return 'Shared price: ¥' + pp + ' × ' + n + ' travelers = ¥' + sum; } },
     ru: { title:'[Отметка на экскурсии]', camp:'Кемпинг', spots:'Места', none:'(нет)', sep:', ',
           tour:'Формат тура', tourPrivate:'Индивидуальный тур', tourShared:'Совместный тур',
+          tents:'Палатки', tentType:'Тип палатки', tentSingle:'Одноместная палатка', tentShared:'Общая большая палатка',
           sug:function (s){ return s ? 'Рекомендуется ' + s + '-местный автомобиль' : 'Большая группа — транспорт подбирается индивидуально'; },
           people:function (n, s){ return 'Человек: ' + n + ' · ' + s + ' · Снаряжение ×' + n; },
+          tentsLine:function (n, t){ return 'Палаток: ' + n + (t ? ' (' + t + ')' : ''); },
           priceP:function (v, p){ return 'Цена аренды авто: ' + v + '-местный ¥' + p; },
           priceS:function (pp, n, sum){ return 'Цена совместного тура: ¥' + pp + ' × ' + n + ' чел. = ¥' + sum; } }
   }[lang] || {
     title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
     tour:'出行方式', tourPrivate:'免拼', tourShared:'拼团',
+    tents:'帐篷数量', tentType:'帐篷类型', tentSingle:'单人帐篷', tentShared:'多人共用大帐篷',
     sug:function (s){ return s ? '建议 ' + s + ' 座车' : '人数较多，车型需定制'; },
     people:function (n, s){ return '出行人数: ' + n + ' 人 · ' + s + ' · 露营装备 ' + n + ' 套'; },
+    tentsLine:function (n, t){ return '帐篷: ' + n + ' 顶' + (t ? '（' + t + '）' : ''); },
     priceP:function (v, p){ return '包车价格: ' + v + ' 座车 ¥' + p; },
     priceS:function (pp, n, sum){ return '拼团价格: 单人 ¥' + pp + ' × ' + n + ' 人 = ¥' + sum; }
   };
@@ -1211,6 +1219,11 @@ function islandSummary(lang, d){
   if (d.tourType) lines.push(L.tour + ': ' + (d.tourType === 'private' ? L.tourPrivate : L.tourShared));
   /* 填了出行人数才追加这一行（人数 · 建议车型 · 装备套数） */
   if (d.people) lines.push(L.people(d.people, L.sug(seatsOf(d.people))));
+  /* 帐篷数量（填了才追加），帐篷类型（选了才追加括号说明） */
+  if (d.tents){
+    const tlabel = d.tentType === 'single' ? L.tentSingle : (d.tentType === 'shared' ? L.tentShared : '');
+    lines.push(L.tentsLine(d.tents, tlabel));
+  }
   /* 所选方案价格（后台已配置才附加）：免拼带所选车型整车价，拼团带 单价×人数=总价 */
   const pricing = loadData().islandPricing || {};
   if (d.tourType === 'private' && d.vehicle){
@@ -2218,6 +2231,11 @@ const server = http.createServer(async (req, res) => {
     /* 出行人数：可选项，仅接受 1-9 的整数；非法值按未填写处理（不影响提交） */
     const pp = parseInt(body.people, 10);
     const people = (pp >= 1 && pp <= 9) ? pp : 0;
+    /* 帐篷数量：可选项，0-9；0 或未填表示未指定 */
+    const tp = parseInt(body.tents, 10);
+    const tents = (!isNaN(tp) && tp >= 0 && tp <= 9) ? tp : 0;
+    /* 帐篷类型：single 单人帐篷 / shared 多人共用大帐篷，其他值按未指定 */
+    const tentType = (body.tentType === 'single' || body.tentType === 'shared') ? body.tentType : '';
     /* 出行方式：免拼 private / 拼团 shared，其它值按未选择处理 */
     const tourType = (body.tourType === 'private' || body.tourType === 'shared') ? body.tourType : '';
     /* 免拼所选车型：4/7/9 座（座位含司机，乘客上限 3/6/8）。
@@ -2244,8 +2262,8 @@ const server = http.createServer(async (req, res) => {
     sess.lang = lang;
     addMsg(sid, {
       role:'visitor',
-      text: islandSummary(lang, { campId: campId, spots: spotIds, people: people, tourType: tourType, vehicle: vehicle }),
-      island: { campId: campId, spots: spotIds, tourType: tourType || undefined, people: people || undefined, vehicle: vehicle || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 方式 + 人数 + 车型 + 打卡时间
+      text: islandSummary(lang, { campId: campId, spots: spotIds, people: people, tourType: tourType, vehicle: vehicle, tents: tents, tentType: tentType }),
+      island: { campId: campId, spots: spotIds, tourType: tourType || undefined, people: people || undefined, vehicle: vehicle || undefined, tents: tents || undefined, tentType: tentType || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 方式 + 人数 + 车型 + 帐篷 + 打卡时间
     });
     return send(res, 200, { ok:true, sid });
   }

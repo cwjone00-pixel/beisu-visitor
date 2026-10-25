@@ -1329,7 +1329,7 @@ function renderChatPanel(msgs, reset, keepScroll){
       /* 全岛游打卡提交：仅后台可见的点位 ID 行，便于排查问题（前台聊天框只展示地名） */
       if (m.island && m.island.campId){
         const ids = [m.island.campId].concat(Array.isArray(m.island.spots) ? m.island.spots : []);
-        extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0; font-family:ui-monospace,Consolas,monospace; word-break:break-all;">点位ID：${esc(ids.join('，'))}${m.island.tourType ? ' · 方式：' + (m.island.tourType === 'private' ? '免拼' : '拼团') : ''}${m.island.vehicle ? ' · 车型：' + m.island.vehicle + '座' : ''}${m.island.people ? ' · 人数：' + m.island.people : ''}${m.island.checkedAt ? ' · ' + new Date(m.island.checkedAt).toLocaleString() : ''}</div>`;
+        extra += `<div style="margin-top:5px; padding-top:5px; border-top:1px dashed rgba(25,50,95,.15); font-size:11px; color:#8b94a0; font-family:ui-monospace,Consolas,monospace; word-break:break-all;">点位ID：${esc(ids.join('，'))}${m.island.tourType ? ' · 方式：' + (m.island.tourType === 'private' ? '免拼' : '拼团') : ''}${m.island.vehicle ? ' · 车型：' + m.island.vehicle + '座' : ''}${m.island.people ? ' · 人数：' + m.island.people : ''}${m.island.tents ? ' · 帐篷：' + m.island.tents + '顶' : ''}${m.island.tentType ? '（' + (m.island.tentType === 'single' ? '单人帐篷' : '多人共用大帐篷') + '）' : ''}${m.island.checkedAt ? ' · ' + new Date(m.island.checkedAt).toLocaleString() : ''}</div>`;
       }
       /* 页面卡片消息：后台渲染同款卡片预览（标题取中文，附跳转地址，点击新标签打开） */
       if (m.card){

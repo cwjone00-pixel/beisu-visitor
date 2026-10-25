@@ -192,6 +192,15 @@
     border: 1.5px solid #dde5f0; border-radius: 10px; outline: none;
   }
   .camp-people__input:focus { border-color: #2f7cf6; }
+  .camp-people__field {
+    display: block; margin-top: 12px; font-size: 12px; font-weight: 700; color: #1f2d3d;
+  }
+  .camp-people__select {
+    margin-top: 6px; width: 100%; box-sizing: border-box;
+    height: 42px; padding: 0 12px; font: inherit; font-size: 14px;
+    border: 1.5px solid #dde5f0; border-radius: 10px; outline: none; background: #fff;
+  }
+  .camp-people__select:focus { border-color: #2f7cf6; }
   .camp-people__err { min-height: 18px; margin-top: 6px; font-size: 12px; color: #e0492f; }
   .camp-people__btns { display: flex; gap: 10px; margin-top: 4px; }
   .camp-people__btn {
@@ -511,6 +520,14 @@
       <div class="camp-people__title" id="peopleTitle"></div>
       <div class="camp-people__tip" id="peopleTip"></div>
       <input class="camp-people__input" id="peopleInput" type="number" min="1" max="9" step="1" inputmode="numeric">
+      <label class="camp-people__field" id="tentsLabel" for="tentsInput"></label>
+      <input class="camp-people__input" id="tentsInput" type="number" min="0" max="9" step="1" inputmode="numeric" placeholder="">
+      <label class="camp-people__field" id="tentTypeLabel" for="tentTypeSelect"></label>
+      <select class="camp-people__select" id="tentTypeSelect">
+        <option value="" id="tentTypeNone"></option>
+        <option value="single" id="tentTypeSingle"></option>
+        <option value="shared" id="tentTypeShared"></option>
+      </select>
       <div class="camp-people__err" id="peopleErr"></div>
       <div class="camp-people__btns">
         <button type="button" class="camp-people__btn camp-people__btn--cancel" id="peopleCancel"></button>
@@ -582,7 +599,15 @@
       peopleCancel: '取消',
       peopleErrEmpty: '请填写出行人数',
       peopleErrRange: '请输入 1-9 的整数人数',
-      peopleOver: '9 人以上请联系客服定制'
+      peopleOver: '9 人以上请联系客服定制',
+      /* 帐篷：数量可选（0-9），类型可选（单人 / 多人共用） */
+      tentsLabel: '需要帐篷数量',
+      tentsPh: '数量（可不填）',
+      tentTypeLabel: '帐篷类型',
+      tentTypeNone: '不指定',
+      tentTypeSingle: '单人帐篷',
+      tentTypeShared: '多人共用大帐篷',
+      tentsErrRange: '帐篷数量请输入 0-9 的整数'
     },
     en: {
       title: 'Sightseeing Spots',
@@ -631,7 +656,14 @@
       peopleCancel: 'Cancel',
       peopleErrEmpty: 'Please enter the number of travelers',
       peopleErrRange: 'Please enter a whole number between 1 and 9',
-      peopleOver: 'For groups over 9, please contact our agent for a custom plan'
+      peopleOver: 'For groups over 9, please contact our agent for a custom plan',
+      tentsLabel: 'Tents needed',
+      tentsPh: 'Count (optional)',
+      tentTypeLabel: 'Tent type',
+      tentTypeNone: 'Not specified',
+      tentTypeSingle: 'Single tent',
+      tentTypeShared: 'Shared large tent',
+      tentsErrRange: 'Please enter a whole number between 0 and 9 for tents'
     },
     ru: {
       title: 'Достопримечательности',
@@ -680,18 +712,29 @@
       peopleCancel: 'Отмена',
       peopleErrEmpty: 'Укажите количество человек',
       peopleErrRange: 'Введите целое число от 1 до 9',
-      peopleOver: 'Более 9 человек — свяжитесь с оператором для индивидуального плана'
+      peopleOver: 'Более 9 человек — свяжитесь с оператором для индивидуального плана',
+      tentsLabel: 'Количество палаток',
+      tentsPh: 'Кол-во (необязательно)',
+      tentTypeLabel: 'Тип палатки',
+      tentTypeNone: 'Не указано',
+      tentTypeSingle: 'Одноместная палатка',
+      tentTypeShared: 'Общая большая палатка',
+      tentsErrRange: 'Введите целое число от 0 до 9 для палаток'
     }
   };
 
   var LANG_KEY = 'beisu-lang';         /* 与游客主站共用同一个语言记忆，从地图页进来也保持一致 */
   var PEOPLE_KEY = 'beisu-people';     /* 出行人数全局缓存：第一步地图页填写，本页直接沿用 */
+  var TENTS_KEY = 'beisu-tents';        /* 帐篷数量全局缓存：0 表示未指定 */
+  var TENT_TYPE_KEY = 'beisu-tent-type';/* 帐篷类型：single / shared / 空 */
   var lang = 'zh';
   var map = null;
   var spots = [];                      /* 游玩打卡点（直接读库里「游玩打卡」分类那批点位） */
   var kind = null;                     /* 该分类在后台的配色 / 名称，与地图页保持一致 */
   var campSite = null;                 /* 上一步选中的露营点（带 ?point= 进来时才有） */
   var people = 0;                      /* 出行人数（1-9）：从第一步的全局缓存读取，本页不再重复询问 */
+  var tents = 0;                       /* 帐篷数量（0-9，0=未指定）：从第一步全局缓存读取 */
+  var tentType = '';                   /* 帐篷类型：single / shared / 空 */
   var tourType = '';                   /* 出行方式：'private' 免拼 / 'shared' 拼团（点按钮时记录） */
   var editingPeople = false;           /* true = 用户点「修改人数」，弹窗只保存不提交 */
   /* 报价方案：/api/island-config 下发，0 = 后台未配置（占位展示）。
@@ -1060,8 +1103,20 @@
     editingPeople = !!editing;
     var d = t();
     $('peopleTitle').textContent = editingPeople ? d.peopleEditTitle : d.peopleTitle;
+    $('peopleTip').textContent = d.peopleTip;
+    $('peopleInput').placeholder = d.peoplePh;
     $('peopleInput').value = people > 0 ? people : '';
     $('peopleOk').textContent = editingPeople ? d.peopleSave : d.peopleOk;
+    $('peopleCancel').textContent = d.peopleCancel;
+    /* 帐篷字段文案 + 预填 */
+    $('tentsLabel').textContent = d.tentsLabel;
+    $('tentsInput').placeholder = d.tentsPh;
+    $('tentsInput').value = (tents >= 0 && tents <= 9) ? (tents || '') : '';
+    $('tentTypeLabel').textContent = d.tentTypeLabel;
+    $('tentTypeNone').textContent = d.tentTypeNone;
+    $('tentTypeSingle').textContent = d.tentTypeSingle;
+    $('tentTypeShared').textContent = d.tentTypeShared;
+    $('tentTypeSelect').value = (tentType === 'single' || tentType === 'shared') ? tentType : '';
     $('peopleErr').textContent = '';
     peopleOpenedAt = Date.now();
     showPeopleMask(true);
@@ -1079,6 +1134,20 @@
     if (n > 9) { $('peopleErr').textContent = d.peopleOver; return; }
     people = n;
     try { localStorage.setItem(PEOPLE_KEY, String(n)); } catch (e) {}   /* 与第一步共用同一份缓存 */
+    /* 帐篷数量：留空按 0（未指定），非法值提示 */
+    var tentsRaw = $('tentsInput').value.trim();
+    var tn = 0;
+    if (tentsRaw) {
+      if (!/^\d+$/.test(tentsRaw)) { $('peopleErr').textContent = d.tentsErrRange; return; }
+      tn = parseInt(tentsRaw, 10);
+      if (tn < 0 || tn > 9) { $('peopleErr').textContent = d.tentsErrRange; return; }
+    }
+    tents = tn;
+    var tt = $('tentTypeSelect').value;
+    if (tt !== 'single' && tt !== 'shared') tt = '';
+    tentType = tt;
+    try { localStorage.setItem(TENTS_KEY, String(tents)); } catch (e) {}
+    try { localStorage.setItem(TENT_TYPE_KEY, tentType); } catch (e) {}
     closePeople();
     ensureVehicle();          /* 人数变了：已选车型坐不下时改挂推荐车型 */
     renderPlans();            /* 车型置灰态与拼团总价都随人数刷新 */
@@ -1149,7 +1218,9 @@
         spots: selIds.slice(),
         tourType: tourType,                /* 出行方式：private 免拼 / shared 拼团 */
         vehicle: tourType === 'private' ? (vehSeat || undefined) : undefined,   /* 免拼所选车型（4/7/9 座） */
-        people: people                     /* 弹窗确认的出行人数（1-9） */
+        people: people,                    /* 弹窗确认的出行人数（1-9） */
+        tents: tents || undefined,         /* 帐篷数量（0-9，未填不发送） */
+        tentType: tentType || undefined    /* 帐篷类型：single 单人 / shared 多人共用 */
       })
     })
       .then(function (r) { return r.json(); })
@@ -1178,6 +1249,15 @@
     try {
       var pn = parseInt(localStorage.getItem(PEOPLE_KEY), 10);
       if (pn >= 1 && pn <= 9) people = pn;
+    } catch (e) {}
+    /* 帐篷数量与类型：同样沿用第一步缓存 */
+    try {
+      var tn = parseInt(localStorage.getItem(TENTS_KEY), 10);
+      if (!isNaN(tn) && tn >= 0 && tn <= 9) tents = tn;
+    } catch (e) {}
+    try {
+      var tt = localStorage.getItem(TENT_TYPE_KEY) || '';
+      if (tt === 'single' || tt === 'shared') tentType = tt;
     } catch (e) {}
     ensureVehicle();                   /* 缓存人数落地后先定好推荐车型，方案卡随之高亮 */
     applyLang();
