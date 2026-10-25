@@ -40,15 +40,6 @@
 
   /* 语言切换：与主站同款的 .lang / .lang-opt 样式由 island.css 统一提供（右上角控件组内） */
 
-  /* 顶部说明：当前是哪个露营点附近的打卡点、共几个（纯文字，无容器） */
-  .camp__head {
-    position: absolute; left: 18px; top: 14px; z-index: 3;
-    max-width: 52vw; font-size: 12.5px; color: #4c5a70; line-height: 1.65;
-    pointer-events: none;
-  }
-  .camp__head b { display: block; font-size: 15px; color: #1f2d3d; margin-bottom: 3px; }
-  .camp__head em { display: block; font-style: normal; color: #8a94a6; }
-
   /* 打卡点详情：页面最右下角，纯文字右对齐 */
   .camp__detail {
     position: absolute; right: 18px; bottom: 16px; z-index: 2;
@@ -88,10 +79,6 @@
 
   /* 露营点专属印记：详情框里那条紫色类型名 */
   .camp__kind--camp { color: #7b4bc4; }
-  /* 顶部说明里追加的一行：上一步选中的是哪个露营点 */
-  .camp__origin { margin: 6px 0 0; font-size: 12px; font-weight: 700; color: #7b4bc4; }
-  /* 顶部说明里追加的一行：上一步填写的出行人数（含建议车型与装备套数） */
-  .camp__people { margin: 6px 0 0; font-size: 12px; font-weight: 700; color: #2f7cf6; }
 
   /* 左下角：已多选的游玩打卡点（可单个取消，也可一键清空） */
   .camp__picked { position: absolute; left: 18px; bottom: 16px; z-index: 3; max-width: 40vw; }
@@ -255,23 +242,14 @@
   .is-mobile .lang-opt { height: 28px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
   .is-mobile .island-back { height: 28px; padding: 0 9px; font-size: 11.5px; border-radius: 7px; }
 
-  /* 顶部文字区：移动端变成一块按行排布的浮层（说明在上、详情在下），
-     位置固定在控件组下方，内部两块是普通流布局，无论文案多长都不会互相叠加 */
+  /* 顶部文字区：移动端变成浮层，只放点位详情（顶部说明已按需求移除），
+     位置固定在控件组下方，文案再长也不会压到地图中部 */
   .is-mobile .camp__top {
     display: flex; flex-direction: column; gap: 8px;
     position: absolute; top: 52px; left: 12px; right: 12px; z-index: 3;
     pointer-events: none;                 /* 不拦截地图的点选操作 */
     max-height: 34vh; overflow: hidden;   /* 文案过长时裁切，绝不压到地图中部 */
   }
-
-  /* 顶部说明：在浮层内正常排布，横向占满可用宽度 */
-  .is-mobile .camp__head {
-    position: static; max-width: none;
-    font-size: 11.5px; line-height: 1.55;
-  }
-  .is-mobile .camp__head b { font-size: 13.5px; margin-bottom: 2px; }
-  .is-mobile .camp__head em { font-size: 11px; }
-  .is-mobile .camp__origin { margin-top: 4px; font-size: 11px; }
 
   /* 点位详情 / 未选提示：跟在说明下方，不再贴右下角，彻底让出底部按钮区 */
   .is-mobile .camp__detail {
@@ -363,14 +341,11 @@
     </div>
   </div>
 
-  <!-- 顶部文字区：说明 + 点位详情。
-       电脑端这个包裹层用 display:contents（不生成盒子），两块的绝对定位与原来完全一致；
-       移动端则由它把两块按行上下排列，天然不会互相叠加（详见移动端样式）。 -->
+  <!-- 顶部文字区：只放点位详情（顶部标题 / 数量说明已按需求移除）。
+       电脑端这个包裹层用 display:contents（不生成盒子），详情仍钉在右下角；
+       移动端则由它在控件组下方定位，避免与右上角语言切换重叠。 -->
   <div class="camp__top">
-    <!-- 顶部说明：露营点名称 + 打卡点数量 -->
-    <div class="camp__head" id="campHead"></div>
-
-    <!-- 打卡点详情：点击地图上的标记后显示（电脑端在右下角，移动端在顶部说明下方） -->
+    <!-- 打卡点详情：点击地图上的标记后显示（电脑端在右下角，移动端在顶部） -->
     <div class="camp__detail" id="campDetail"></div>
   </div>
 
@@ -437,8 +412,6 @@
       back: '返回首页',
       kindLabel: '游玩打卡点',
       hint: '点地图上的圆点图标，请选择打卡点',
-      count: function (n) { return '海南全岛游玩打卡点 · 共 ' + n + ' 个'; },
-      origin: function (name) { return '你选择的露营点：' + name; },
       campLabel: '露营点',
       selLabel: '已选打卡点',
       pickedHd: function (n) { return '已选 <b>' + n + '</b> 个游玩打卡点'; },
@@ -493,8 +466,6 @@
       back: 'Back to home',
       kindLabel: 'Sightseeing Spot',
       hint: 'Click a dot icon on the map to select spots',
-      count: function (n) { return 'Sightseeing spots across Hainan · ' + n + ' in total'; },
-      origin: function (name) { return 'Your campsite: ' + name; },
       campLabel: 'Campsite',
       selLabel: 'Selected spot',
       pickedHd: function (n) { return 'Selected <b>' + n + '</b> sightseeing spot(s)'; },
@@ -544,8 +515,6 @@
       back: 'На главную',
       kindLabel: 'Достопримечательность',
       hint: 'Нажмите на точку-значок на карте, чтобы выбрать места',
-      count: function (n) { return 'Достопримечательности по всему Хайнаню · всего ' + n; },
-      origin: function (name) { return 'Ваш кемпинг: ' + name; },
       campLabel: 'Кемпинг',
       selLabel: 'Выбранная точка',
       pickedHd: function (n) { return 'Выбрано: <b>' + n + '</b>'; },
@@ -795,17 +764,6 @@
     }
   }
 
-  /* 顶部说明：全岛游玩打卡点共几个；并标出上一步选中的露营点 */
-  function renderHead() {
-    var html = '<b>' + esc(t().title) + '</b>' +
-               '<em>' + esc(t().count(spots.length)) + '</em>';
-    if (campSite) {
-      html += '<div class="camp__origin">' +
-              esc(t().origin(pick(campSite.names, campSite.name))) + '</div>';
-    }
-    $('campHead').innerHTML = html;
-  }
-
   function findSpot(id) {
     for (var i = 0; i < spots.length; i++) if (spots[i].id === id) return spots[i];
     return null;
@@ -887,7 +845,6 @@
     });
     $('campBack').textContent = t().back;          /* 返回首页入口文字跟随语种 */
     renderForm();                                  /* 行程信息卡：标题 / 输入提示 / 按钮文字跟随语种 */
-    renderHead();
     renderDetail();
     renderPicked();
     refreshMap();
