@@ -694,9 +694,13 @@
   }
   function mapPoints() {
     return points.map(function (p) {
+      var nm = pick(p.names, p.name);
+      var raw = Object.assign({}, p);
+      raw.name = nm;
       return {
-        id: p.id, name: pick(p.names, p.name), lng: +p.lng, lat: +p.lat,
-        categories: pointCats(p)
+        id: p.id, name: nm, lng: +p.lng, lat: +p.lat,
+        categories: pointCats(p),
+        raw: raw
       };
     });
   }

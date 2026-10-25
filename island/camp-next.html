@@ -766,10 +766,21 @@
   }
   function mapPoints() {
     return spots.map(function (s) {
+      /* 多语言关键：把当前语言的名字写进 name 字段，
+         同时把 raw 的 name 也同步成当前语言，
+         确保地图组件（map.js）里标签/提示都拿到翻译后的名称 */
+      var nm = spotName(s);
       return {
-        id: s.id, name: spotName(s), lng: +s.lng, lat: +s.lat,
-        categories: [isSel(s.id) ? PLAY_SEL_KEY : playKey()]
+        id: s.id, name: nm, lng: +s.lng, lat: +s.lat,
+        categories: [isSel(s.id) ? PLAY_SEL_KEY : playKey()],
+        /* raw 保留原始数据，但把 name 覆盖成当前语言，供 map.js 标签使用 */
+        _raw: s
       };
+    }).map(function (p) {
+      /* 把当前语言的名字写进 raw.name，让 map.js 的 place = raw.name 拿到翻译后的名 */
+      var raw = Object.assign({}, p._raw);
+      raw.name = p.name;
+      return { id: p.id, name: p.name, lng: p.lng, lat: p.lat, categories: p.categories, raw: raw };
     });
   }
   /* 上一步选中的露营点：单独走「地标层」渲染 —— 该层不被密集区聚合，
