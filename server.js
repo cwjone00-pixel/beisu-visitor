@@ -113,6 +113,7 @@ function shapeData(raw){
   if (!Array.isArray(d.rules)) d.rules = [];
   if (!d.fallback || typeof d.fallback !== 'object') d.fallback = { reply:{zh:'',en:'',ru:''}, quickButtons:[], appendLink:false };
   d.link = normalizeLinkTemplate(d.link);
+  d.links = normalizeLinks(d.links, d.link);
     /* 首页引导文字（三语）；旧数据无此字段时按当前线上文案补齐基线，后台可自由修改 */
     if (!d.guide || typeof d.guide !== 'object' || !('text' in d.guide)){
       d.guide = { text: { zh:'请问你过来有什么需求？', en:'How can we help you today?', ru:'Чем мы можем вам помочь?' } };
@@ -678,6 +679,39 @@ function normalizeLinkTemplate(l){
   l = (l && typeof l === 'object') ? l : {};
   return { text: normLabel(l.text), url: String(l.url || '').trim() };
 }
+/* 底部链接支持多条、多种链接方式：url 网页 / telegram / whatsapp / tel 电话 / mailto 邮箱 */
+const LINK_TYPES = ['url', 'telegram', 'whatsapp', 'tel', 'mailto'];
+/* 按类型把后台录入的值合成最终可点击 href；非法/空值返回空串（前端不展示） */
+function composeLinkHref(type, value){
+  const v = String(value || '').trim();
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v;   // 已带协议：各类型都原样放行（如 t.me/xxx、wa.me/xxx 完整链接）
+  if (type === 'telegram') return 'https://t.me/' + v.replace(/^@/, '');
+  if (type === 'whatsapp'){
+    const num = v.replace(/[^\d]/g, '');
+    return num ? 'https://wa.me/' + num : '';
+  }
+  if (type === 'tel'){
+    const num = v.replace(/[^\d+]/g, '');
+    return num ? 'tel:' + num : '';
+  }
+  if (type === 'mailto') return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? 'mailto:' + v : '';
+  return 'https://' + v.replace(/^\/+/, '');
+}
+function normalizeLinkItem(x){
+  x = (x && typeof x === 'object') ? x : {};
+  const type = LINK_TYPES.indexOf(x.type) >= 0 ? x.type : 'url';
+  const value = String(x.value != null ? x.value : (x.url || '')).trim().slice(0, 500);
+  return { id: x.id || crypto.randomUUID(), type: type, text: normLabel(x.text), value: value };
+}
+/* links 为新结构（数组）；legacy 为旧版单链接对象 {text,url}，links 为空时自动迁移过来 */
+function normalizeLinks(list, legacy){
+  const arr = (Array.isArray(list) ? list : []).map(normalizeLinkItem).filter(x => x.value);
+  if (!arr.length && legacy && legacy.url){
+    arr.push(normalizeLinkItem({ type:'url', text: legacy.text, value: legacy.url }));
+  }
+  return arr.slice(0, 20);
+}
 function normalizeRule(r){
   const type = (r.type === 'fuzzy') ? 'fuzzy' : 'exact';
   const keywords = normKeywordMap(r.keywords);
@@ -726,11 +760,15 @@ function matchInput(input, lang){
 }
 function matchPayload(hit){
   const data = loadData();
-  // 仅当该规则/兜底开启 appendLink 且链接模板已配置时，返回链接
-  let link = null;
-  if (hit.appendLink === true && data.link && data.link.url){
-    link = { text: data.link.text, url: data.link.url };
+  // 仅当该规则/兜底开启 appendLink 时，附加全部已配置的底部链接（多条、按类型合成 href）
+  let links = [];
+  if (hit.appendLink === true && Array.isArray(data.links)){
+    links = data.links
+      .map(l => ({ text: l.text, href: composeLinkHref(l.type, l.value), type: l.type }))
+      .filter(l => l.href);
   }
+  /* 兼容旧版前端/历史消息：link 取第一条（旧结构 {text,url}） */
+  const link = links.length ? { text: links[0].text, url: links[0].href } : null;
   /* 规则绑定的页面卡片：仅当卡片存在且启用时下发；游客端按当前语种渲染标题/简介 */
   let card = null;
   if (hit.cardId){
@@ -742,6 +780,7 @@ function matchPayload(hit){
     quickButtons: hit.quickButtons || [],
     matched: !hit.isFallback,
     link,
+    links,
     card
   };
 }
@@ -2189,7 +2228,7 @@ const server = http.createServer(async (req, res) => {
       addMsg(activeSid, { role:'bot', card:payload.card });
     }
     if (activeSid && (_reply.zh || _reply.en || _reply.ru)){
-      addMsg(activeSid, { role:'bot', reply:payload.reply, quickButtons:payload.quickButtons, link:payload.link });
+      addMsg(activeSid, { role:'bot', reply:payload.reply, quickButtons:payload.quickButtons, link:payload.link, links:payload.links });
     }
     payload.sid = activeSid || undefined;
     payload.reset = reset;
@@ -2289,7 +2328,7 @@ const server = http.createServer(async (req, res) => {
       if (hit.matched){
         if (hit.card) addMsg(sid, { role:'bot', card:hit.card });
         const rep = hit.reply || {};
-        if (rep.zh || rep.en || rep.ru) addMsg(sid, { role:'bot', reply:hit.reply, quickButtons:hit.quickButtons, link:hit.link });
+        if (rep.zh || rep.en || rep.ru) addMsg(sid, { role:'bot', reply:hit.reply, quickButtons:hit.quickButtons, link:hit.link, links:hit.links });
       }
     }
     return send(res, 200, { ok:true, sid });
@@ -2806,16 +2845,16 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, d.fallback);
   }
 
-  /* ---- 底部链接模板 ---- */
+  /* ---- 底部链接模板（多条、多类型） ---- */
   if (p === '/api/link' && req.method === 'GET'){
-    return send(res, 200, loadData().link);
+    return send(res, 200, { links: loadData().links });
   }
   if (p === '/api/link' && req.method === 'PUT'){
     const body = await readBody(req);
     const d = loadData();
-    d.link = normalizeLinkTemplate(body);
+    d.links = normalizeLinks(body.links, null);
     saveData(d);
-    return send(res, 200, d.link);
+    return send(res, 200, { links: d.links });
   }
 
   /* ---- 文章独立页面（服务端直出 HTML，SEO 友好，供 Yandex 等爬虫抓取）

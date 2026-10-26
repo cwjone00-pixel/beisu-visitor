@@ -2269,10 +2269,17 @@ function renderChat(){
     // 机器人回复：徽标 + 中文原文（+ 对应语种翻译）+ 可选底部链接 + 可选快捷按钮
     let inner = `<span class="msg-tag">${escapeHtml(labelOf(roleTag.bot, lang))}</span><br>` + escapeHtml(pair.orig);
     if (pair.tr) inner += `<div class="msg-tr">${escapeHtml(pair.tr)}</div>`;
-    if (m.link && m.link.url){
-      const lt = labelOf(m.link.text, lang) || m.link.url;
-      inner += `<br><a class="msg-link" href="${escapeAttr(m.link.url)}" target="_blank" rel="noopener" onclick="return openTelegram(this.href,event)">${escapeHtml(lt)}</a>`;
-    }
+    /* 底部链接：新结构 m.links（多条、多类型）；历史消息兼容旧结构 m.link（单条）
+       tel:/mailto: 走原生跳转，不套 Telegram 深链逻辑；http(s) 链接保留 openTelegram 处理 */
+    const _links = Array.isArray(m.links) && m.links.length
+      ? m.links
+      : (m.link && m.link.url ? [{ text: m.link.text, href: m.link.url }] : []);
+    _links.forEach(lk => {
+      if (!lk || !lk.href) return;
+      const lt = labelOf(lk.text, lang) || lk.href;
+      const plain = /^(tel:|mailto:)/i.test(lk.href);
+      inner += `<br><a class="msg-link" href="${escapeAttr(lk.href)}" target="_blank" rel="noopener"${plain ? '' : ' onclick="return openTelegram(this.href,event)"'}>${escapeHtml(lt)}</a>`;
+    });
     let html = `<div class="msg-row bot"><div class="msg-bubble">${inner}</div>`;
     const btns = (m.quickButtons || []).slice(0, 4);
     if (btns.length){

@@ -450,14 +450,24 @@
   <!-- ④ 底部链接模板 -->
   <div class="card">
     <h2>底部链接模板 <span class="tag">供规则/兜底的「附加链接」开关使用</span></h2>
-    <div class="desc">统一模板：开启「是否附加底部链接」的回复，文本末尾自动追加此链接；链接文字支持三语，可随时修改。</div>
+    <div class="desc">可添加多条链接；开启「是否附加底部链接」的回复，文本末尾自动追加全部链接。支持网页链接 / Telegram / WhatsApp / 电话 / 邮箱五种方式；链接文字支持三语，可随时增删。</div>
+    <div id="lkList"></div>
+    <div class="field"><label>链接方式</label>
+      <select class="input" id="lkType" onchange="document.getElementById('lkUrl').placeholder=LINK_TYPE_PH[this.value]||''">
+        <option value="url">网页链接</option>
+        <option value="telegram">Telegram</option>
+        <option value="whatsapp">WhatsApp</option>
+        <option value="tel">电话</option>
+        <option value="mailto">邮箱</option>
+      </select>
+    </div>
     <div class="field"><label>链接文字（三语）</label>
       <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="lkZh"></div>
       <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="lkEn"></div>
       <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="lkRu"></div>
     </div>
-    <div class="field"><label>链接地址</label><input class="input" id="lkUrl" placeholder="https://..."></div>
-    <button class="btn btn-primary" onclick="saveLinkTpl()">保存链接模板</button>
+    <div class="field"><label>链接地址 / 号码 / 账号</label><input class="input" id="lkUrl" placeholder="https://..."></div>
+    <button class="btn btn-primary" onclick="addLinkTpl()">+ 添加链接</button>
   </div>
 
   <!-- ⑤ 首页引导文字 -->
@@ -2505,20 +2515,56 @@ async function saveFallback(){
   alert('兜底配置已保存');
 }
 
-/* ================= 底部链接模板 ================= */
+/* ================= 底部链接模板（多条、多类型） ================= */
+let linkTplCache = [];
+const LINK_TYPE_NAMES = { url:'网页链接', telegram:'Telegram', whatsapp:'WhatsApp', tel:'电话', mailto:'邮箱' };
+const LINK_TYPE_PH = {
+  url: 'https://...',
+  telegram: '用户名（如 mychannel）或完整 https://t.me/... 链接',
+  whatsapp: '带国家码的手机号，如 8613800138000',
+  tel: '电话号码，如 +8613800138000',
+  mailto: '邮箱地址，如 hi@example.com'
+};
 async function loadLinkTpl(){
-  const lk = await API.getLink();
-  document.getElementById('lkZh').value = (lk.text && lk.text.zh) || '';
-  document.getElementById('lkEn').value = (lk.text && lk.text.en) || '';
-  document.getElementById('lkRu').value = (lk.text && lk.text.ru) || '';
-  document.getElementById('lkUrl').value = lk.url || '';
+  const r = await API.getLink();
+  linkTplCache = (r && Array.isArray(r.links)) ? r.links : [];
+  renderLinkTpl();
 }
-async function saveLinkTpl(){
-  await API.saveLink({
+function renderLinkTpl(){
+  const box = document.getElementById('lkList');
+  if (!linkTplCache.length){
+    box.innerHTML = '<div class="desc" style="margin-bottom:10px">暂无链接</div>';
+    return;
+  }
+  box.innerHTML = linkTplCache.map(l =>
+    `<div class="field" style="display:flex;align-items:center;gap:8px;">` +
+    `<span class="tag">${esc(LINK_TYPE_NAMES[l.type] || l.type)}</span>` +
+    `<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc((l.text && (l.text.zh || l.text.en || l.text.ru)) || l.value)} <small style="color:#8b94a0;">${esc(l.value)}</small></span>` +
+    `<button class="btn btn-danger btn-sm" onclick="delLinkTpl('${l.id}')">删除</button>` +
+    `</div>`
+  ).join('');
+}
+async function addLinkTpl(){
+  const item = {
+    type: val('lkType') || 'url',
     text: { zh: val('lkZh'), en: val('lkEn'), ru: val('lkRu') },
-    url: val('lkUrl')
-  });
-  alert('链接模板已保存');
+    value: val('lkUrl')
+  };
+  if (!item.value){ alert('请填写链接地址 / 号码 / 账号'); return; }
+  linkTplCache.push(item);
+  await saveLinkTplList();
+  ['lkZh','lkEn','lkRu','lkUrl'].forEach(id => { document.getElementById(id).value = ''; });
+}
+async function delLinkTpl(id){
+  if (!confirm('删除这条链接？')) return;
+  linkTplCache = linkTplCache.filter(l => l.id !== id);
+  await saveLinkTplList();
+}
+async function saveLinkTplList(){
+  const r = await API.saveLink({ links: linkTplCache });
+  const d = await r.json();
+  linkTplCache = (d && Array.isArray(d.links)) ? d.links : [];
+  renderLinkTpl();
 }
 
 /* ================= 首页引导文字（三语） ================= */
