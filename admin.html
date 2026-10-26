@@ -578,6 +578,15 @@
     <div id="islandTextState" style="font-size:12px; color:#8b94a0; margin-top:6px;"></div>
   </div>
 
+  <!-- 页面文案（首页 / 露营点页 / 打卡点页 界面文字，按页分组，留空=页面默认文案） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>页面文案</h2>
+    </div>
+    <div class="desc">首页、露营点地图页、游玩打卡点页上的所有界面文字（按钮 / 标题 / 提示 / 错误语），按中/英/俄分别覆盖。<b>留空的语言或字段 = 继续使用页面内置默认文案</b>，只填要改的那一项即可；部分文案含 {n}/{s}/{c}/{e} 占位符，修改时请原样保留。字段较多，按页面折叠展开。</div>
+    <div id="pageTextGroups" style="margin-top:10px;"></div>
+  </div>
+
   </div><!-- /main-col -->
 
   <!-- 右列：独立用户列表（支持搜索 + 内部滚动，客户再多也不挤压左列） -->
@@ -1153,6 +1162,8 @@ async function unlockAdmin(loggedInAs){
   loadIslandPrice();
   renderIslandTextFields();
   loadIslandTexts();
+  renderPageTextGroups();
+  loadPageTexts();
   loadMapPts();
   loadUsers();
   routeByHash();     /* 支持带 #map 直接进入海南全岛地图子页 */
@@ -2086,6 +2097,175 @@ async function saveIslandTexts(){
   if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
   islandTextsCache = r.texts;
   $('islandTextState').textContent = '已保存，游客提交全岛游表单后立即生效';
+}
+
+/* ================= 页面文案（首页 / 露营点页 / 打卡点页界面文字覆盖，留空=默认） ================= */
+const PT_POPUP_CAMP = [
+  { k:'peopleTitle', n:'弹窗标题' }, { k:'peopleTip', n:'弹窗说明' }, { k:'peoplePh', n:'人数输入占位' },
+  { k:'peopleOk', n:'确认按钮' }, { k:'peopleCancel', n:'取消按钮' },
+  { k:'peopleErrEmpty', n:'人数未填错误' }, { k:'peopleErrRange', n:'人数范围错误' }, { k:'peopleOver', n:'超 9 人提示' },
+  { k:'tentsLabel', n:'帐篷数量标签' }, { k:'tentsPh', n:'帐篷数量占位' }, { k:'tentTypeLabel', n:'帐篷类型标签' },
+  { k:'tentTypeNone', n:'类型·不指定' }, { k:'tentTypeSingle', n:'类型·单人帐篷' }, { k:'tentTypeShared', n:'类型·多人共用大帐篷' },
+  { k:'tentsErrRange', n:'帐篷数量错误' }
+];
+const PAGE_TEXT_GROUPS = [
+  { page:'camp', name:'露营点地图页（全岛游 · 第一步）', subs:[
+    { name:'页面通用', fields:[
+      { k:'title', n:'页面标题' }, { k:'hint', n:'顶部操作提示' }, { k:'back', n:'返回首页按钮' },
+      { k:'coords', n:'经纬度标签' }, { k:'unnamed', n:'未命名点位名' }, { k:'kindFallback', n:'类型兜底名' },
+      { k:'noIntro', n:'暂无介绍占位' }, { k:'loadFail', n:'加载失败前缀' }, { k:'next', n:'下一步按钮' }
+    ]},
+    { name:'出行人数 / 帐篷弹窗', fields: PT_POPUP_CAMP }
+  ]},
+  { page:'spots', name:'游玩打卡点页（全岛游 · 第二步）', subs:[
+    { name:'页面通用', fields:[
+      { k:'title', n:'页面标题' }, { k:'back', n:'返回首页按钮' }, { k:'kindLabel', n:'点位类型名' },
+      { k:'hint', n:'顶部操作提示' }, { k:'campLabel', n:'露营点标签' }, { k:'selLabel', n:'已选打卡点标签' },
+      { k:'pickedTip', n:'多选操作提示' }, { k:'pickedNone', n:'未选择提示' }, { k:'clearAll', n:'清空按钮' },
+      { k:'empty', n:'无点位提示' }, { k:'coords', n:'经纬度标签' }, { k:'unnamed', n:'未命名点位名' },
+      { k:'kindFallback', n:'类型兜底名' }, { k:'noIntro', n:'暂无介绍占位' }, { k:'loadFail', n:'加载失败前缀' }
+    ]},
+    { name:'提交与价格', fields:[
+      { k:'submit', n:'提交按钮' }, { k:'submitting', n:'提交中文字' }, { k:'submitFail', n:'提交失败前缀' },
+      { k:'needCamp', n:'未选露营点提示' }, { k:'needSpot', n:'未选打卡点提示' },
+      { k:'tourPrivate', n:'「免拼」选项名' }, { k:'tourShared', n:'「拼团」选项名' },
+      { k:'planPrivateHd', n:'免拼板块标题' }, { k:'planSharedHd', n:'拼团板块标题' },
+      { k:'rec', n:'推荐角标' }, { k:'perPerson', n:'单人价标签' }, { k:'totalPending', n:'待算总价提示' },
+      { k:'priceUnset', n:'无报价占位' }, { k:'confirmGo', n:'确定按钮' }, { k:'peopleFill', n:'填写人数按钮' },
+      { k:'ctaHint', n:'价格下方小字提示' }
+    ]},
+    { name:'出行人数 / 帐篷弹窗', fields: PT_POPUP_CAMP.concat([
+      { k:'peopleEditTitle', n:'修改人数弹窗标题' }, { k:'peopleEdit', n:'修改人数按钮' }, { k:'peopleSave', n:'保存按钮' }
+    ])}
+  ]},
+  { page:'home', name:'首页（打开网站看到的第一个页面）', subs:[
+    { name:'品牌与菜单', fields:[
+      { k:'brandTitle', n:'品牌名' },
+      { k:'m0', n:'菜单·全岛游' }, { k:'m0d', n:'全岛游副标题' },
+      { k:'m1', n:'菜单·租房' }, { k:'m1d', n:'租房副标题' },
+      { k:'m2', n:'菜单·租车' }, { k:'m2d', n:'租车副标题' },
+      { k:'m3', n:'菜单·项目评价' }, { k:'m3d', n:'评价副标题' },
+      { k:'m4', n:'菜单·合作' }, { k:'m4d', n:'合作副标题' }
+    ]},
+    { name:'栏目与引导', fields:[
+      { k:'secEvents', n:'商业活动栏目名' }, { k:'secArticles', n:'文章资讯栏目名' },
+      { k:'signIn', n:'登录按钮' }, { k:'heroTitle', n:'主引导语' },
+      { k:'r1', n:'快捷问题 1' }, { k:'r2', n:'快捷问题 2' }, { k:'r3', n:'快捷问题 3' }, { k:'r4', n:'快捷问题 4' }
+    ]},
+    { name:'输入区', fields:[
+      { k:'inputPh', n:'输入框占位' }, { k:'btnPhoto', n:'拍照按钮' }, { k:'btnUpload', n:'上传图片按钮' },
+      { k:'t1', n:'标签·本地电脑' }, { k:'t2', n:'标签·项目' }, { k:'t3', n:'标签·拍照问答' },
+      { k:'t4', n:'标签·技能' }, { k:'t5', n:'标签·连接器' }, { k:'model', n:'模型名' }
+    ]},
+    { name:'通用', fields:[
+      { k:'phTitle', n:'占位卡片标题' }, { k:'phSub', n:'占位卡片副标题' }, { k:'phNote', n:'占位卡片角标' },
+      { k:'toastDemo', n:'演示提示' }, { k:'restore', n:'重开窗口提示' },
+      { k:'lbRobot', n:'机器人标签' }, { k:'lbOperator', n:'人工客服标签' },
+      { k:'langName', n:'当前语言名' }, { k:'tipDemo', n:'演示角标' },
+      { k:'vtDesktop', n:'设备·电脑' }, { k:'vtMobile', n:'设备·手机' }
+    ]},
+    { name:'登录弹窗', fields:[
+      { k:'lmTitle', n:'弹窗标题' }, { k:'lmSub', n:'弹窗副标题' }, { k:'lmTip', n:'弹窗提示' }, { k:'sWeChat', n:'微信登录按钮' }
+    ]},
+    { name:'账号 / 注册 / 重置', fields:[
+      { k:'authLoginTitle', n:'登录标题' }, { k:'authLoginSub', n:'登录副标题' },
+      { k:'authEmail', n:'邮箱标签' }, { k:'authEmailPh', n:'邮箱占位' },
+      { k:'authPwd', n:'密码标签' }, { k:'authPwdPh', n:'密码占位' }, { k:'authLoginBtn', n:'登录按钮' },
+      { k:'authForgot', n:'忘记密码链接' }, { k:'authToRegister', n:'去注册链接' }, { k:'authToLogin', n:'去登录链接' },
+      { k:'authOr', n:'「或」分隔字' },
+      { k:'authRegTitle', n:'注册标题' }, { k:'authRegSub', n:'注册副标题' },
+      { k:'authNick', n:'昵称标签' }, { k:'authNickPh', n:'昵称占位' },
+      { k:'authRegPwd', n:'设置密码标签' }, { k:'authRegPwdPh', n:'设置密码占位' },
+      { k:'authRegPwd2', n:'确认密码标签' }, { k:'authRegPwd2Ph', n:'确认密码占位' },
+      { k:'authCaptcha', n:'人机验证标签' }, { k:'authSendCode', n:'发送验证码按钮' }, { k:'authCodePh', n:'验证码占位' },
+      { k:'authRegBtn', n:'注册按钮' },
+      { k:'authResetTitle', n:'重置标题' }, { k:'authResetSub', n:'重置副标题' },
+      { k:'authNewPwd', n:'新密码标签' }, { k:'authResetBtn', n:'重置按钮' },
+      { k:'authAccountTitle', n:'我的账号标题' }, { k:'authAccountSub', n:'我的账号副标题' },
+      { k:'authNickLabel', n:'昵称字段名' }, { k:'authEmailLabel', n:'邮箱字段名' },
+      { k:'authContinue', n:'继续对话按钮' }, { k:'authLogout', n:'退出登录按钮' },
+      { k:'authBindTitle', n:'账号绑定标题' }, { k:'boundOn', n:'已绑定' }, { k:'boundOff', n:'未绑定' }, { k:'bindOk', n:'绑定成功提示' },
+      { k:'authGuestBtn', n:'游客进入按钮' }, { k:'authGuestName', n:'游客称呼' },
+      { k:'authGuestDone', n:'游客进入成功提示' }, { k:'authGuestTip', n:'游客模式说明' }
+    ]},
+    { name:'认证提示与错误（含占位符的请保留 {c}/{s}/{n}/{e}）', fields:[
+      { k:'authErrEmailFormat', n:'邮箱格式错误' }, { k:'authErrEmailDisposable', n:'临时邮箱拦截' },
+      { k:'authErrEmailTaken', n:'邮箱已注册' }, { k:'authErrEmailNotReg', n:'邮箱未注册' },
+      { k:'authErrIdEmpty', n:'邮箱为空' }, { k:'authErrIdFormat', n:'邮箱格式错误2' },
+      { k:'authErrLogin', n:'账号密码错误' }, { k:'authErrNickTaken', n:'昵称被占用' },
+      { k:'authErrNickEmpty', n:'昵称为空' }, { k:'authErrPwd', n:'密码过短' },
+      { k:'authErrPwdMismatch', n:'两次密码不一致' }, { k:'authErrCaptcha', n:'未过人机验证' },
+      { k:'authErrCode', n:'验证码错误' }, { k:'authErrNeedCode', n:'未填验证码' },
+      { k:'authCodeDemo', n:'演示验证码（{c}）' }, { k:'authResendIn', n:'重发倒计时（{s}）' },
+      { k:'authWelcome', n:'注册成功欢迎语（{n}）' }, { k:'authResetDone', n:'重置成功提示' },
+      { k:'authActivateSent', n:'激活邮件已发（{e}）' }, { k:'authActivateDone', n:'激活成功' },
+      { k:'authActivateFail', n:'激活失败' }, { k:'authErrNotActivated', n:'未激活提示' },
+      { k:'authActivatePopup', n:'激活弹窗说明' }, { k:'authPopupOk', n:'激活弹窗按钮' },
+      { k:'authRequired', n:'未登录拦截' }, { k:'authInputPh', n:'未登录输入占位' }
+    ]},
+    { name:'Telegram 登录', fields:[
+      { k:'tgLoginFail', n:'登录失败' }, { k:'tgAppOpening', n:'唤起 App 提示' }, { k:'tgUseWeb', n:'改用网页登录' }
+    ]},
+    { name:'图片上传', fields:[
+      { k:'imgUploading', n:'处理中' }, { k:'imgFail', n:'上传失败' },
+      { k:'imgTooLarge', n:'图片过大' }, { k:'imgTypeErr', n:'非图片文件' }
+    ]}
+  ]}
+];
+let pageTextsCache = { camp:{}, spots:{}, home:{} };
+function renderPageTextGroups(){
+  const box = $('pageTextGroups');
+  box.innerHTML = PAGE_TEXT_GROUPS.map(g => `
+    <details style="border:1px solid #e6e9ee;border-radius:10px;margin-bottom:10px;">
+      <summary style="cursor:pointer;padding:10px 12px;font-weight:700;font-size:13.5px;">${esc(g.name)}</summary>
+      <div style="padding:0 12px 12px;">
+        ${g.subs.map(s => `
+          <div style="font-size:12.5px;font-weight:700;color:#5b6470;margin:12px 0 4px;">${esc(s.name)}</div>
+          ${s.fields.map(f => `
+            <div class="field" style="margin-bottom:10px;">
+              <label style="font-size:12.5px;">${esc(f.n)} <code style="color:#aab2bd;font-size:11px;">${f.k}</code></label>
+              <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="pt_${g.page}_${f.k}_zh"></div>
+              <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="pt_${g.page}_${f.k}_en"></div>
+              <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="pt_${g.page}_${f.k}_ru"></div>
+            </div>`).join('')}
+        `).join('')}
+        <button class="btn btn-primary btn-sm" onclick="savePageTexts('${g.page}')">保存本页文案</button>
+        <span id="ptState_${g.page}" style="font-size:12px;color:#8b94a0;margin-left:8px;"></span>
+      </div>
+    </details>`).join('');
+}
+async function loadPageTexts(){
+  try {
+    const r = await fetch('/api/admin/page-texts', { headers: { 'X-Op-Token': opToken } }).then(r => r.json());
+    pageTextsCache = (r && r.texts) || { camp:{}, spots:{}, home:{} };
+    PAGE_TEXT_GROUPS.forEach(g => {
+      const pageTexts = pageTextsCache[g.page] || {};
+      g.subs.forEach(s => s.fields.forEach(f => {
+        const v = pageTexts[f.k] || {};
+        ['zh','en','ru'].forEach(l => {
+          const el = document.getElementById(`pt_${g.page}_${f.k}_${l}`);
+          if (el) el.value = v[l] || '';
+        });
+      }));
+    });
+  } catch(e) {}
+}
+async function savePageTexts(page){
+  const g = PAGE_TEXT_GROUPS.find(x => x.page === page);
+  if (!g) return;
+  const texts = {};
+  g.subs.forEach(s => s.fields.forEach(f => {
+    const zh = val(`pt_${page}_${f.k}_zh`), en = val(`pt_${page}_${f.k}_en`), ru = val(`pt_${page}_${f.k}_ru`);
+    if (zh || en || ru) texts[f.k] = { zh, en, ru };
+  }));
+  const r = await fetch('/api/admin/page-texts', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Op-Token': opToken },
+    body: JSON.stringify({ page, texts })
+  }).then(r => r.json());
+  if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
+  pageTextsCache[page] = r.texts || {};
+  $('ptState_' + page).textContent = '已保存，刷新对应页面后生效';
 }
 
 /* ================= 全岛游地图（露营点 / 游玩打卡点，共用同一份数据源） ================= */

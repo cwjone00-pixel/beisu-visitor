@@ -174,6 +174,8 @@ function shapeData(raw){
     d.agentChat.botEnabled = d.agentChat.botEnabled !== false;
     /* 全岛游整理文本（提交后系统拼的摘要文案，16 键 × 三语，缺省回退默认） */
     d.islandTexts = normIslandTexts(d.islandTexts);
+    /* 页面文案覆盖（首页/露营点页/打卡点页界面文字，稀疏存覆盖值） */
+    d.pageTexts = normPageTexts(d.pageTexts);
     return d;
 }
 function loadData(){
@@ -1267,6 +1269,26 @@ function fillTpl(tpl, vars){
   return String(tpl).replace(/\{(\w+)\}/g, function (m, k){ return vars[k] != null ? vars[k] : m; });
 }
 
+/* ---------------- 页面文案覆盖（首页 / 露营点页 / 打卡点页的界面文字，后台可配） ----------------
+   稀疏存储：只存后台改过的键，{ page: { key: {zh,en,ru} } }；前端拉取后覆盖内置字典，
+   留空/未配置的键继续用页面内置默认文案，因此页面代码里的字典保持原样不动。 */
+const PAGE_TEXT_PAGES = ['camp', 'spots', 'home'];
+function normPageTexts(pt){
+  pt = (pt && typeof pt === 'object') ? pt : {};
+  const out = {};
+  PAGE_TEXT_PAGES.forEach(pg => {
+    const src = (pt[pg] && typeof pt[pg] === 'object') ? pt[pg] : {};
+    const dst = {};
+    Object.keys(src).slice(0, 300).forEach(k => {
+      if (!/^[a-zA-Z][a-zA-Z0-9]{0,49}$/.test(k)) return;
+      const v = normLabel(src[k]);
+      if (v.zh || v.en || v.ru) dst[k] = v;   // 三语全空 = 不覆盖，丢弃
+    });
+    out[pg] = dst;
+  });
+  return out;
+}
+
 /* 全岛游行程提交的访客消息文案：按游客当前界面语种拼接（文案取自后台配置 d.islandTexts），后台人工可在实时对话里翻译 */
 function islandSummary(lang, d){
   const texts = loadData().islandTexts || {};
@@ -1752,6 +1774,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/config' || p === '/api/match' || p === '/api/media' ||
       (p === '/api/island/submit' && req.method === 'POST') ||
       (p === '/api/island-config' && req.method === 'GET') ||
+      (p === '/api/page-texts' && req.method === 'GET') ||
       (p === '/api/camp-points' && req.method === 'GET') ||
       (p === '/api/play-points' && req.method === 'GET') ||
       (p === '/api/articles' && req.method === 'GET') ||
@@ -2309,6 +2332,27 @@ const server = http.createServer(async (req, res) => {
     d.islandTexts = normIslandTexts(merged);
     await saveData(d);
     return send(res, 200, { ok:true, texts: d.islandTexts });
+  }
+
+  /* ---- 页面文案覆盖：游客端按页拉取（公开，已加白名单） / 后台读写 ---- */
+  if (p === '/api/page-texts' && req.method === 'GET'){
+    const page = String(url.searchParams.get('page') || '');
+    if (PAGE_TEXT_PAGES.indexOf(page) < 0) return send(res, 400, { error:'unknown page' });
+    return send(res, 200, { texts: loadData().pageTexts[page] || {} });
+  }
+  if (p === '/api/admin/page-texts' && req.method === 'GET'){
+    return send(res, 200, { texts: loadData().pageTexts });
+  }
+  if (p === '/api/admin/page-texts' && req.method === 'PUT'){
+    const body = await readBody(req);
+    const page = String((body && body.page) || '');
+    if (PAGE_TEXT_PAGES.indexOf(page) < 0) return send(res, 400, { ok:false, error:'unknown page' });
+    const d = loadData();
+    const merged = {};
+    merged[page] = (body && typeof body.texts === 'object') ? body.texts : {};
+    d.pageTexts = normPageTexts({ ...d.pageTexts, ...merged });
+    await saveData(d);
+    return send(res, 200, { ok:true, texts: d.pageTexts[page] });
   }
 
   /* ---- 全岛游打卡提交（游客子页面调用，免鉴权）----
