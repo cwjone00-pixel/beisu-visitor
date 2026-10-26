@@ -530,16 +530,9 @@
   <div class="card">
     <div class="head-row">
       <h2>页面卡片 <span class="tag" id="cardCount">0 张</span></h2>
-      <div>
-        <button class="btn btn-ghost" onclick="togglePageMgr()" id="pageMgrBtn">管理页面</button>
-        <button class="btn btn-primary" onclick="openCardEditor()">+ 新建卡片</button>
-      </div>
+      <button class="btn btn-primary" onclick="openCardEditor()">+ 新建卡片</button>
     </div>
-    <div class="desc">聊天里发送的方块富媒体卡片（标题 / 简介 / 封面图 / 跳转地址），三语分开配置。绑定到关键词规则后命中自动推送；人工聊天面板可手动选择一键发送。页面名称、跳转地址点「管理页面」可改，也可新增自定义页面。</div>
-    <div id="pageMgrBox" style="display:none;margin-bottom:12px;">
-      <div id="pageListBox" class="rule-list"></div>
-      <button class="btn btn-ghost btn-sm" onclick="openPageEditor()">+ 新增页面</button>
-    </div>
+    <div class="desc">聊天里发送的方块富媒体卡片（标题 / 简介 / 封面图 / 跳转地址），三语分开配置。绑定到关键词规则后命中自动推送；人工聊天面板可手动选择一键发送。目前仅【全岛游】是已做好的页面，其余页面（租房/租车/项目体验/合作）后续另做，可先建卡片、跳转地址待页面就绪后回填。</div>
     <div id="cardListBox" class="rule-list"></div>
   </div>
 
@@ -565,17 +558,6 @@
         <span id="priceState" style="font-size:12px; color:#8b94a0;"></span>
       </div>
     </div>
-  </div>
-
-  <!-- 全岛游整理文案（游客提交后系统拼接的摘要消息，16 个字段 × 三语，后台可改） -->
-  <div class="card">
-    <div class="head-row">
-      <h2>全岛游整理文案</h2>
-      <button class="btn btn-primary" onclick="saveIslandTexts()">保存文案</button>
-    </div>
-    <div class="desc">游客提交全岛游表单后，系统按当前界面语种拼一条摘要消息发到聊天里（如「出行方式： 拼团」「拼团价格： …」）。下面每个字段都可按中/英/俄分别修改；带占位符的字段里 <b>{n}</b>=人数、<b>{s}</b>=建议车型、<b>{v}</b>=座位数、<b>{p}</b>=整车价、<b>{pp}</b>=单人价、<b>{sum}</b>=合计、<b>{t}</b>=帐篷类型。留空的语言自动用默认文案。<b style="color:#c08a2a;">注意：若关键词规则匹配的是摘要原文（如「出行方式： 拼团」），改文案后需同步更新规则关键词。</b></div>
-    <div id="islandTextFields" style="margin-top:10px;"></div>
-    <div id="islandTextState" style="font-size:12px; color:#8b94a0; margin-top:6px;"></div>
   </div>
 
   </div><!-- /main-col -->
@@ -845,31 +827,6 @@
   </div>
 </div>
 
-<!-- 卡片页面编辑弹窗：页面标识（新建后不可改）+ 三语名称 + 跳转地址 -->
-<div class="modal-mask hidden" id="pageModal">
-  <div class="modal" style="max-width:520px;">
-    <h3 id="pageModalTitle">编辑页面</h3>
-    <div class="field" id="pgKeyRow">
-      <label>页面标识（小写英文/数字/-/_，保存后不可修改）</label>
-      <input class="input" id="pgKey" placeholder="如：diving">
-    </div>
-    <div class="field">
-      <label>页面名称（三语，显示在卡片归属与下拉选项里）</label>
-      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="pgNameZh"></div>
-      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="pgNameEn"></div>
-      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="pgNameRu"></div>
-    </div>
-    <div class="field">
-      <label>页面地址（站内路径如 /island 或 http(s) 外链；填了则该页面下所有卡片统一跳转到此地址，留空则卡片各自填写）</label>
-      <input class="input" id="pgUrl" placeholder="/xxx 或 https://...（可留空）">
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('pageModal')">取消</button>
-      <button class="btn btn-primary" onclick="savePage()">保存</button>
-    </div>
-  </div>
-</div>
-
 <!-- 全岛游地图 · 点位编辑弹窗（露营点 / 游玩打卡点共用） -->
 <div class="modal-mask hidden" id="mapModal">
   <div class="modal" style="max-width:640px;">
@@ -1064,9 +1021,6 @@ const API = {
   cardCreate: d => fetch('/api/admin/cards', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   cardUpdate: (id,d) => fetch('/api/admin/cards/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   cardDelete: id => fetch('/api/admin/cards/'+id, { method:'DELETE' }),
-  pageCreate: d => fetch('/api/admin/card-pages', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(async r=>({ ok:r.ok, ...(await r.json()) })),
-  pageUpdate: (key,d) => fetch('/api/admin/card-pages/'+encodeURIComponent(key), { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(async r=>({ ok:r.ok, ...(await r.json()) })),
-  pageDelete: key => fetch('/api/admin/card-pages/'+encodeURIComponent(key), { method:'DELETE' }).then(async r=>({ ok:r.ok, ...(await r.json()) })),
   /* 海南全岛地图 · 图层（分类）：决定标记颜色 / 图标 / 大小 */
   layerList: () => fetch('/api/admin/map-layers').then(r=>r.json()),
   layerCreate: d => fetch('/api/admin/map-layers', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
@@ -1151,8 +1105,6 @@ async function unlockAdmin(loggedInAs){
   loadEvts();
   loadCards();
   loadIslandPrice();
-  renderIslandTextFields();
-  loadIslandTexts();
   loadMapPts();
   loadUsers();
   routeByHash();     /* 支持带 #map 直接进入海南全岛地图子页 */
@@ -1862,56 +1814,6 @@ function renderCardPageOptions(){
       opts.map(c => `<option value="${c.id}">${esc(cardPageName(c.pageKey))} · ${esc(c.titles.zh || c.titles.en || c.titles.ru || '(无标题)')}</option>`).join('');
   }
 }
-/* ================= 卡片页面管理（页面名称三语 / 跳转地址可改，可新增自定义页面） ================= */
-let editingPage = null;   // null = 新建
-function togglePageMgr(){
-  const box = $('pageMgrBox');
-  box.style.display = box.style.display === 'none' ? '' : 'none';
-  if (box.style.display !== 'none') renderPageList();
-}
-function renderPageList(){
-  const box = $('pageListBox');
-  if (!cardPages.length){ box.innerHTML = '<div class="empty">暂无页面</div>'; return; }
-  box.innerHTML = cardPages.map(p => `
-    <div class="rule-item">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:700;font-size:13.5px;">${esc(p.names.zh || p.names.en || p.names.ru || p.key)} <span class="tag">${esc(p.key)}</span></div>
-        <div style="font-size:12px;color:#8b94a0;margin-top:3px;">地址：${esc(p.url || '（未设置，卡片各自填写跳转地址）')}</div>
-      </div>
-      <button class="btn btn-ghost btn-sm" onclick="openPageEditor('${escAttr(p.key)}')">编辑</button>
-      <button class="btn btn-danger btn-sm" onclick="delPage('${escAttr(p.key)}')">删除</button>
-    </div>`).join('');
-}
-function openPageEditor(key){
-  editingPage = key || null;
-  $('pageModalTitle').textContent = key ? '编辑页面' : '新增页面';
-  $('pgKeyRow').style.display = key ? 'none' : '';
-  const p = key ? cardPages.find(x => x.key === key) : null;
-  $('pgKey').value = key || '';
-  $('pgNameZh').value = p ? (p.names.zh || '') : '';
-  $('pgNameEn').value = p ? (p.names.en || '') : '';
-  $('pgNameRu').value = p ? (p.names.ru || '') : '';
-  $('pgUrl').value = p ? (p.url || '') : '';
-  show('pageModal');
-}
-async function savePage(){
-  const names = { zh: val('pgNameZh'), en: val('pgNameEn'), ru: val('pgNameRu') };
-  const url = val('pgUrl');
-  const r = editingPage
-    ? await API.pageUpdate(editingPage, { names, url })
-    : await API.pageCreate({ key: val('pgKey'), names, url });
-  if (!r.ok){ alert(r.error || '保存失败'); return; }
-  closeModal('pageModal');
-  await loadCards();   // 页面列表与卡片下拉一起刷新
-  renderPageList();
-}
-async function delPage(key){
-  if (!confirm('删除该页面？（页面下有卡片时不允许删除）')) return;
-  const r = await API.pageDelete(key);
-  if (!r.ok){ alert(r.error || '删除失败'); return; }
-  await loadCards();
-  renderPageList();
-}
 function cdPageChange(){
   const key = val('cdPageKey');
   const p = cardPages.filter(x => x.key === key)[0];
@@ -2024,68 +1926,6 @@ async function saveIslandPrice(){
   }).then(r => r.json());
   if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
   loadIslandPrice();
-}
-
-/* ================= 全岛游整理文案（提交后系统摘要消息，16 字段 × 三语） ================= */
-const ISLAND_TEXT_FIELDS = [
-  { key:'title',        label:'标题行' },
-  { key:'camp',         label:'露营点 · 行首标签' },
-  { key:'spots',        label:'打卡点 · 行首标签' },
-  { key:'none',         label:'未选择点位时的占位文字' },
-  { key:'tour',         label:'出行方式 · 行首标签' },
-  { key:'tourPrivate',  label:'出行方式 ·「免拼」选项名' },
-  { key:'tourShared',   label:'出行方式 ·「拼团」选项名' },
-  { key:'tentSingle',   label:'帐篷类型 ·「单人帐篷」选项名' },
-  { key:'tentShared',   label:'帐篷类型 ·「多人共用大帐篷」选项名' },
-  { key:'sugSeat',      label:'建议车型', hint:'{s} = 座位数，如「建议 {s} 座车」' },
-  { key:'sugCustom',    label:'人数超出 9 座时的提示' },
-  { key:'people',       label:'出行人数行', hint:'{n} = 人数，{s} = 建议车型文字' },
-  { key:'tentsLine',    label:'帐篷行（未选类型）', hint:'{n} = 帐篷数量' },
-  { key:'tentsLineType',label:'帐篷行（含类型）', hint:'{n} = 数量，{t} = 类型名' },
-  { key:'pricePrivate', label:'包车价格行', hint:'{v} = 座位数，{p} = 整车价' },
-  { key:'priceShared',  label:'拼团价格行', hint:'{v} = 座位数，{pp} = 单人价，{n} = 人数，{sum} = 合计' }
-];
-let islandTextsCache = null;
-function renderIslandTextFields(){
-  const box = $('islandTextFields');
-  box.innerHTML = ISLAND_TEXT_FIELDS.map(f => `
-    <div class="field" style="margin-bottom:12px;">
-      <label>${esc(f.label)}${f.hint ? ` <small style="color:#8b94a0;font-weight:400;">${esc(f.hint)}</small>` : ''}</label>
-      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="it_${f.key}_zh"></div>
-      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="it_${f.key}_en"></div>
-      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="it_${f.key}_ru"></div>
-    </div>`).join('');
-}
-async function loadIslandTexts(){
-  try {
-    const r = await fetch('/api/admin/island-texts', { headers: { 'X-Op-Token': opToken } }).then(r => r.json());
-    islandTextsCache = (r && r.texts) || {};
-    ISLAND_TEXT_FIELDS.forEach(f => {
-      const v = islandTextsCache[f.key] || {};
-      $('it_' + f.key + '_zh').value = v.zh || '';
-      $('it_' + f.key + '_en').value = v.en || '';
-      $('it_' + f.key + '_ru').value = v.ru || '';
-    });
-    $('islandTextState').textContent = '已加载当前文案（留空的语言保存时回退默认文案）';
-  } catch(e){ $('islandTextState').textContent = '加载失败'; }
-}
-async function saveIslandTexts(){
-  const texts = {};
-  ISLAND_TEXT_FIELDS.forEach(f => {
-    texts[f.key] = {
-      zh: val('it_' + f.key + '_zh'),
-      en: val('it_' + f.key + '_en'),
-      ru: val('it_' + f.key + '_ru')
-    };
-  });
-  const r = await fetch('/api/admin/island-texts', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'X-Op-Token': opToken },
-    body: JSON.stringify({ texts })
-  }).then(r => r.json());
-  if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
-  islandTextsCache = r.texts;
-  $('islandTextState').textContent = '已保存，游客提交全岛游表单后立即生效';
 }
 
 /* ================= 全岛游地图（露营点 / 游玩打卡点，共用同一份数据源） ================= */

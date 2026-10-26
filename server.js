@@ -145,11 +145,9 @@ function shapeData(raw){
     /* 商业活动（后台录入的图文；与文章资讯分开存储，仅用于前端左侧「商业活动」板块展示） */
     if (!Array.isArray(d.events)) d.events = [];
     d.events = d.events.map(e => normEvent(e));
-    /* 页面卡片（聊天里发送的方块富媒体卡片：标题/简介/封面图/跳转地址，三语）；
-       页面列表也入库（后台可改名/加页面），缺省用默认页面铺底 */
-    d.cardPages = normCardPages(d.cardPages);
+    /* 页面卡片（聊天里发送的方块富媒体卡片：标题/简介/封面图/跳转地址，三语） */
     if (!Array.isArray(d.cards)) d.cards = [];
-    d.cards = d.cards.map(c => normCard(c, d.cardPages));
+    d.cards = d.cards.map(normCard);
     /* 全岛游价格方案（后台配置；0 = 未配置，前端占位展示）：
        免拼 = 包下整台车，4/7/9 座（座位含司机）各自一个整车价；
        拼团 = 与其他游客拼车按人头付费，4/7/9 座各自一个单人单价 */
@@ -172,8 +170,6 @@ function shapeData(raw){
     if (!d.agentChat || typeof d.agentChat !== 'object') d.agentChat = {};
     d.agentChat.translate = d.agentChat.translate !== false;
     d.agentChat.botEnabled = d.agentChat.botEnabled !== false;
-    /* 全岛游整理文本（提交后系统拼的摘要文案，16 键 × 三语，缺省回退默认） */
-    d.islandTexts = normIslandTexts(d.islandTexts);
     return d;
 }
 function loadData(){
@@ -911,35 +907,21 @@ function articlePath(a){ return '/article/' + a.slug; }
 
 /* ---------------- 页面卡片（聊天里发送的方块富媒体卡片） ----------------
    每张卡片绑定一个页面：卡片标题 / 简介 / 封面图 / 跳转地址，三语文案分开配置。
-   页面列表存于数据 d.cardPages（后台可改名称三语 / 跳转地址、可新增自定义页面）；
-   首次迁移用 DEFAULT_CARD_PAGES 铺底。 */
-const DEFAULT_CARD_PAGES = [
+   目前只有【全岛游】是已做好的真页面（/island），其余四个页面（租房/租车/项目体验/合作）
+   后续另做，卡片 url 先留空待填；pageKey 用于关键词规则与人工发送时识别归属页面。 */
+const CARD_PAGES = [
   { key:'island',    url:'/island', names:{ zh:'全岛游',           en:'Island Tour',              ru:'Островной тур' } },
   { key:'rent',      url:'',        names:{ zh:'租房',             en:'Housing Rental',           ru:'Аренда жилья' } },
   { key:'car',       url:'',        names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
   { key:'review',    url:'',        names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
   { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } }
 ];
-function normCardPage(p){
-  p = (p && typeof p === 'object') ? p : {};
-  return {
-    key: String(p.key || '').trim().slice(0, 32),
-    url: String(p.url || '').trim().slice(0, 300),
-    names: normLabel(p.names)
-  };
-}
-/* 缺省时以默认页面铺底（仅字段缺失时；用户删到只剩 1 个后服务端会阻止继续删） */
-function normCardPages(list){
-  const arr = Array.isArray(list) ? list.map(normCardPage).filter(p => p.key) : null;
-  if (arr && arr.length) return arr;
-  return DEFAULT_CARD_PAGES.map(p => normCardPage(p));
-}
-function cardPageByKey(key, pages){ return (pages || []).filter(function (p) { return p.key === key; })[0] || null; }
-function normCard(input, pages){
+function cardPageByKey(key){ return CARD_PAGES.filter(function (p) { return p.key === key; })[0] || null; }
+function normCard(input){
   const c = (input && typeof input === 'object') ? input : {};
   const id = c.id || crypto.randomUUID();
-  const pageKey = cardPageByKey(c.pageKey, pages) ? c.pageKey : (pages[0] ? pages[0].key : 'island');
-  const page = cardPageByKey(pageKey, pages);
+  const pageKey = cardPageByKey(c.pageKey) ? c.pageKey : 'island';
+  const page = cardPageByKey(pageKey);
   /* 跳转地址：页面已有固定路由时锁定为页面地址，否则用手动填写的 url（后续新页面用） */
   const url = page.url || String(c.url || '').trim().slice(0, 300);
   return {
@@ -955,12 +937,12 @@ function normCard(input, pages){
   };
 }
 /* 校验卡片：至少一种语言标题；url 必须是站内路径或 http(s) 外链 */
-function validateCard(body, pages){
+function validateCard(body){
   const titles = normLabel(body && body.titles);
   if (!titles.zh && !titles.en && !titles.ru) return '请至少填写一种语言的卡片标题';
   const pageKey = body && body.pageKey;
-  if (!cardPageByKey(pageKey, pages)) return '未知页面：' + pageKey;
-  const page = cardPageByKey(pageKey, pages);
+  if (!cardPageByKey(pageKey)) return '未知页面：' + pageKey;
+  const page = cardPageByKey(pageKey);
   const url = page.url || String((body && body.url) || '').trim();
   if (url && !/^(\/|https?:\/\/)/.test(url)) return '跳转地址必须是站内路径或 http(s) 链接';
   return null;
@@ -1229,52 +1211,43 @@ function addMsg(sid, m){
   return m;
 }
 
-/* ---------------- 全岛游整理文本（提交后系统拼的摘要消息文案，后台可配） ----------------
-   16 个键 × 三语；模板里用占位符：{n}人数 {s}建议车型 {v}座位数 {p}整车价 {pp}单人价 {sum}合计 {t}帐篷类型。
-   后台只配了部分字段时，逐语言回退到这里的默认值。 */
-const ISLAND_TEXT_KEYS = ['title','camp','spots','none','tour','tourPrivate','tourShared',
-  'tentSingle','tentShared','sugSeat','sugCustom','people','tentsLine','tentsLineType','pricePrivate','priceShared'];
-const DEFAULT_ISLAND_TEXTS = {
-  title:       { zh:'【全岛游打卡提交】', en:'[Island tour check-in]', ru:'[Отметка на экскурсии]' },
-  camp:        { zh:'露营点', en:'Campsite', ru:'Кемпинг' },
-  spots:       { zh:'打卡点', en:'Spots', ru:'Места' },
-  none:        { zh:'（未选择）', en:'(none)', ru:'(нет)' },
-  tour:        { zh:'出行方式', en:'Tour type', ru:'Формат тура' },
-  tourPrivate: { zh:'免拼', en:'Private Tour', ru:'Индивидуальный тур' },
-  tourShared:  { zh:'拼团', en:'Shared Tour', ru:'Совместный тур' },
-  tentSingle:  { zh:'单人帐篷', en:'Single tent', ru:'Одноместная палатка' },
-  tentShared:  { zh:'多人共用大帐篷', en:'Shared large tent', ru:'Общая большая палатка' },
-  sugSeat:     { zh:'建议 {s} 座车', en:'Suggested {s}-seat vehicle', ru:'Рекомендуется {s}-местный автомобиль' },
-  sugCustom:   { zh:'人数较多，车型需定制', en:'Larger group — vehicle to be customized', ru:'Большая группа — транспорт подбирается индивидуально' },
-  people:      { zh:'出行人数: {n} 人 · {s} · 露营装备 {n} 套', en:'Travelers: {n} · {s} · Camping gear ×{n}', ru:'Человек: {n} · {s} · Снаряжение ×{n}' },
-  tentsLine:     { zh:'帐篷: {n} 顶', en:'Tents: {n}', ru:'Палаток: {n}' },
-  tentsLineType: { zh:'帐篷: {n} 顶（{t}）', en:'Tents: {n} ({t})', ru:'Палаток: {n} ({t})' },
-  pricePrivate:  { zh:'包车价格: {v} 座车 ¥{p}', en:'Charter price: {v}-seat car ¥{p}', ru:'Цена аренды авто: {v}-местный ¥{p}' },
-  priceShared:   { zh:'拼团价格: {v} 座 ¥{pp}/人 × {n} 人 = ¥{sum}', en:'Shared price: {v}-seat ¥{pp}/pax × {n} = ¥{sum}', ru:'Цена совместного тура: {v}-местный ¥{pp}/чел. × {n} = ¥{sum}' }
-};
-function normIslandTexts(t){
-  t = (t && typeof t === 'object') ? t : {};
-  const out = {};
-  ISLAND_TEXT_KEYS.forEach(k => {
-    const def = DEFAULT_ISLAND_TEXTS[k];
-    const v = normLabel(t[k]);
-    out[k] = { zh: v.zh || def.zh, en: v.en || def.en, ru: v.ru || def.ru };
-  });
-  return out;
-}
-/* 模板占位符替换：未认识的占位符原样保留，避免配置写错占位符时整行消失 */
-function fillTpl(tpl, vars){
-  return String(tpl).replace(/\{(\w+)\}/g, function (m, k){ return vars[k] != null ? vars[k] : m; });
-}
-
-/* 全岛游行程提交的访客消息文案：按游客当前界面语种拼接（文案取自后台配置 d.islandTexts），后台人工可在实时对话里翻译 */
+/* 全岛游行程提交的访客消息文案：按游客当前界面语种拼接，后台人工可在实时对话里翻译 */
 function islandSummary(lang, d){
-  const texts = loadData().islandTexts || {};
-  const T = function (k){
-    const v = texts[k] || {};
-    return v[lang] || v.zh || DEFAULT_ISLAND_TEXTS[k][lang] || DEFAULT_ISLAND_TEXTS[k].zh;
+  const L = {
+    zh: { title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
+          tour:'出行方式', tourPrivate:'免拼', tourShared:'拼团',
+          tents:'帐篷数量', tentType:'帐篷类型', tentSingle:'单人帐篷', tentShared:'多人共用大帐篷',
+          sug:function (s){ return s ? '建议 ' + s + ' 座车' : '人数较多，车型需定制'; },
+          people:function (n, s){ return '出行人数: ' + n + ' 人 · ' + s + ' · 露营装备 ' + n + ' 套'; },
+          tentsLine:function (n, t){ return '帐篷: ' + n + ' 顶' + (t ? '（' + t + '）' : ''); },
+          priceP:function (v, p){ return '包车价格: ' + v + ' 座车 ¥' + p; },
+          priceS:function (v, pp, n, sum){ return '拼团价格: ' + v + ' 座 ¥' + pp + '/人 × ' + n + ' 人 = ¥' + sum; } },
+    en: { title:'[Island tour check-in]', camp:'Campsite', spots:'Spots', none:'(none)', sep:', ',
+          tour:'Tour type', tourPrivate:'Private Tour', tourShared:'Shared Tour',
+          tents:'Tents', tentType:'Tent type', tentSingle:'Single tent', tentShared:'Shared large tent',
+          sug:function (s){ return s ? 'Suggested ' + s + '-seat vehicle' : 'Larger group — vehicle to be customized'; },
+          people:function (n, s){ return 'Travelers: ' + n + ' · ' + s + ' · Camping gear ×' + n; },
+          tentsLine:function (n, t){ return 'Tents: ' + n + (t ? ' (' + t + ')' : ''); },
+          priceP:function (v, p){ return 'Charter price: ' + v + '-seat car ¥' + p; },
+          priceS:function (v, pp, n, sum){ return 'Shared price: ' + v + '-seat ¥' + pp + '/pax × ' + n + ' = ¥' + sum; } },
+    ru: { title:'[Отметка на экскурсии]', camp:'Кемпинг', spots:'Места', none:'(нет)', sep:', ',
+          tour:'Формат тура', tourPrivate:'Индивидуальный тур', tourShared:'Совместный тур',
+          tents:'Палатки', tentType:'Тип палатки', tentSingle:'Одноместная палатка', tentShared:'Общая большая палатка',
+          sug:function (s){ return s ? 'Рекомендуется ' + s + '-местный автомобиль' : 'Большая группа — транспорт подбирается индивидуально'; },
+          people:function (n, s){ return 'Человек: ' + n + ' · ' + s + ' · Снаряжение ×' + n; },
+          tentsLine:function (n, t){ return 'Палаток: ' + n + (t ? ' (' + t + ')' : ''); },
+          priceP:function (v, p){ return 'Цена аренды авто: ' + v + '-местный ¥' + p; },
+          priceS:function (v, pp, n, sum){ return 'Цена совместного тура: ' + v + '-местный ¥' + pp + '/чел. × ' + n + ' = ¥' + sum; } }
+  }[lang] || {
+    title:'【全岛游打卡提交】', camp:'露营点', spots:'打卡点', none:'（未选择）', sep:'、',
+    tour:'出行方式', tourPrivate:'免拼', tourShared:'拼团',
+    tents:'帐篷数量', tentType:'帐篷类型', tentSingle:'单人帐篷', tentShared:'多人共用大帐篷',
+    sug:function (s){ return s ? '建议 ' + s + ' 座车' : '人数较多，车型需定制'; },
+    people:function (n, s){ return '出行人数: ' + n + ' 人 · ' + s + ' · 露营装备 ' + n + ' 套'; },
+    tentsLine:function (n, t){ return '帐篷: ' + n + ' 顶' + (t ? '（' + t + '）' : ''); },
+    priceP:function (v, p){ return '包车价格: ' + v + ' 座车 ¥' + p; },
+    priceS:function (v, pp, n, sum){ return '拼团价格: ' + v + ' 座 ¥' + pp + '/人 × ' + n + ' 人 = ¥' + sum; }
   };
-  const sep = lang === 'zh' ? '、' : ', ';
   /* 人数匹配车型（座位数含司机，乘客上限 3/6/8）：1-3 人 → 4 座，4-6 人 → 7 座，7-8 人 → 9 座，9 人需定制 */
   function seatsOf(n){ return n <= 3 ? 4 : (n <= 6 ? 7 : (n <= 8 ? 9 : 0)); }
   /* 按 ID 反查点位名称，只输出地名（不带 p_mv 编码），
@@ -1286,33 +1259,29 @@ function islandSummary(lang, d){
     return (p.names && (p.names[lang] || p.names.zh)) || p.name || id;
   }
   const lines = [
-    T('title'),
-    T('camp') + ': ' + nameOf(d.campId),
-    T('spots') + ': ' + (d.spots.length ? d.spots.map(nameOf).join(sep) : T('none'))
+    L.title,
+    L.camp + ': ' + nameOf(d.campId),
+    L.spots + ': ' + (d.spots.length ? d.spots.map(nameOf).join(L.sep) : L.none)
   ];
   /* 出行方式（免拼 / 拼团）：选择了才追加这一行 */
-  if (d.tourType) lines.push(T('tour') + ': ' + (d.tourType === 'private' ? T('tourPrivate') : T('tourShared')));
+  if (d.tourType) lines.push(L.tour + ': ' + (d.tourType === 'private' ? L.tourPrivate : L.tourShared));
   /* 填了出行人数才追加这一行（人数 · 建议车型 · 装备套数） */
-  if (d.people){
-    const seats = seatsOf(d.people);
-    const sug = seats ? fillTpl(T('sugSeat'), { s: seats }) : T('sugCustom');
-    lines.push(fillTpl(T('people'), { n: d.people, s: sug }));
-  }
-  /* 帐篷数量（填了才追加），帐篷类型（选了才走含类型模板） */
+  if (d.people) lines.push(L.people(d.people, L.sug(seatsOf(d.people))));
+  /* 帐篷数量（填了才追加），帐篷类型（选了才追加括号说明） */
   if (d.tents){
-    const tlabel = d.tentType === 'single' ? T('tentSingle') : (d.tentType === 'shared' ? T('tentShared') : '');
-    lines.push(fillTpl(T(tlabel ? 'tentsLineType' : 'tentsLine'), { n: d.tents, t: tlabel }));
+    const tlabel = d.tentType === 'single' ? L.tentSingle : (d.tentType === 'shared' ? L.tentShared : '');
+    lines.push(L.tentsLine(d.tents, tlabel));
   }
   /* 所选方案价格（后台已配置才附加）：免拼带所选车型整车价，拼团带 所选车型单价×人数=总价 */
   const pricing = loadData().islandPricing || {};
   if (d.tourType === 'private' && d.vehicle){
     const p = pricing.private && +pricing.private['seat' + d.vehicle];
-    if (p > 0) lines.push(fillTpl(T('pricePrivate'), { v: d.vehicle, p: p }));
+    if (p > 0) lines.push(L.priceP(d.vehicle, p));
   } else if (d.tourType === 'shared' && d.people){
     /* 拼团单价按所选车型取（客户端带了 vehicle 就用它，否则按人数推荐最小可坐车型） */
     const sv = d.vehicle || seatsOf(d.people);
     const pp = sv && pricing.shared ? +pricing.shared['seat' + sv] : 0;
-    if (pp > 0) lines.push(fillTpl(T('priceShared'), { v: sv, pp: pp, n: d.people, sum: pp * d.people }));
+    if (pp > 0) lines.push(L.priceS(sv, pp, d.people, pp * d.people));
   }
   return lines.join('\n');
 }
@@ -2295,22 +2264,6 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok:true, pricing: d.islandPricing });
   }
 
-  /* ---- 全岛游整理文本配置（提交后系统摘要的文案，16 键 × 三语，支持占位符） ---- */
-  if (p === '/api/admin/island-texts' && req.method === 'GET'){
-    return send(res, 200, { texts: loadData().islandTexts });
-  }
-  if (p === '/api/admin/island-texts' && req.method === 'PUT'){
-    const body = await readBody(req);
-    const d = loadData();
-    /* 部分更新：只覆盖传了的键，逐键三语校验后归一（留空的语言回退默认文案） */
-    const src = (body && typeof body.texts === 'object') ? body.texts : {};
-    const merged = {};
-    ISLAND_TEXT_KEYS.forEach(k => { merged[k] = (src[k] && typeof src[k] === 'object') ? src[k] : d.islandTexts[k]; });
-    d.islandTexts = normIslandTexts(merged);
-    await saveData(d);
-    return send(res, 200, { ok:true, texts: d.islandTexts });
-  }
-
   /* ---- 全岛游打卡提交（游客子页面调用，免鉴权）----
      游客在打卡点地图选中点位后点「免拼 / 拼团」并填写人数，这里记录：
        · 选中的点位 ID（露营点 + 打卡点）
@@ -2670,16 +2623,16 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/admin/cards' && req.method === 'GET'){
     const d = loadData();
     return send(res, 200, {
-      pages: d.cardPages.map(function (pg) { return { key:pg.key, url:pg.url, names:pg.names }; }),
+      pages: CARD_PAGES.map(function (pg) { return { key:pg.key, url:pg.url, names:pg.names }; }),
       cards: d.cards
     });
   }
   if (p === '/api/admin/cards' && req.method === 'POST'){
     const body = await readBody(req);
-    const d = loadData();
-    const err = validateCard(body, d.cardPages);
+    const err = validateCard(body);
     if (err) return send(res, 400, { error:err });
-    const card = normCard({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() }, d.cardPages);
+    const d = loadData();
+    const card = normCard({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() });
     d.cards.unshift(card);
     saveData(d);
     return send(res, 201, card);
@@ -2691,9 +2644,9 @@ const server = http.createServer(async (req, res) => {
     if (i < 0) return send(res, 404, { error:'card not found' });
     const prev = d.cards[i];
     /* 合并旧数据后再校验：允许只传部分字段（如仅切换 enabled 停用/启用） */
-    const err = validateCard({ ...prev, ...body, pageKey: body.pageKey || prev.pageKey }, d.cardPages);
+    const err = validateCard({ ...prev, ...body, pageKey: body.pageKey || prev.pageKey });
     if (err) return send(res, 400, { error:err });
-    d.cards[i] = normCard({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, updatedAt:Date.now() }, d.cardPages);
+    d.cards[i] = normCard({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, updatedAt:Date.now() });
     saveData(d);
     return send(res, 200, d.cards[i]);
   }
@@ -2702,48 +2655,6 @@ const server = http.createServer(async (req, res) => {
     d.cards = d.cards.filter(c => c.id !== m[1]);
     /* 解除所有关键词规则对这张卡片的绑定，避免留下指向已删卡片的死引用 */
     d.rules.forEach(function (r) { if (r.cardId === m[1]) r.cardId = ''; });
-    saveData(d);
-    return send(res, 200, { ok:true });
-  }
-
-  /* ---- 卡片页面管理：页面名称（三语）/ 跳转地址后台可改，可新增自定义页面 ---- */
-  if (p === '/api/admin/card-pages' && req.method === 'POST'){
-    const body = await readBody(req);
-    const key = String(body.key || '').trim();
-    if (!/^[a-z][a-z0-9_-]{1,31}$/.test(key)) return send(res, 400, { error:'页面标识需小写英文开头（字母/数字/-/_，2-32 位）' });
-    const d = loadData();
-    if (cardPageByKey(key, d.cardPages)) return send(res, 409, { error:'页面标识已存在' });
-    const names = normLabel(body.names);
-    if (!names.zh && !names.en && !names.ru) return send(res, 400, { error:'请至少填写一种语言的页面名称' });
-    const url = String(body.url || '').trim().slice(0, 300);
-    if (url && !/^(\/|https?:\/\/)/.test(url)) return send(res, 400, { error:'跳转地址必须是站内路径或 http(s) 链接' });
-    const pg = { key, url, names };
-    d.cardPages.push(pg);
-    saveData(d);
-    return send(res, 201, pg);
-  }
-  if ((m = p.match(/^\/api\/admin\/card-pages\/([^/]+)$/)) && req.method === 'PUT'){
-    const d = loadData();
-    const pg = cardPageByKey(m[1], d.cardPages);
-    if (!pg) return send(res, 404, { error:'page not found' });
-    const body = await readBody(req);
-    const names = normLabel(body.names);
-    if (!names.zh && !names.en && !names.ru) return send(res, 400, { error:'请至少填写一种语言的页面名称' });
-    const url = String(body.url != null ? body.url : pg.url).trim().slice(0, 300);
-    if (url && !/^(\/|https?:\/\/)/.test(url)) return send(res, 400, { error:'跳转地址必须是站内路径或 http(s) 链接' });
-    pg.names = names;
-    pg.url = url;
-    /* 页面固定地址变化时，同步刷新绑定该页面的所有卡片跳转地址 */
-    d.cards = d.cards.map(c => c.pageKey === pg.key ? normCard({ ...c, updatedAt:Date.now() }, d.cardPages) : c);
-    saveData(d);
-    return send(res, 200, pg);
-  }
-  if ((m = p.match(/^\/api\/admin\/card-pages\/([^/]+)$/)) && req.method === 'DELETE'){
-    const d = loadData();
-    if (!cardPageByKey(m[1], d.cardPages)) return send(res, 404, { error:'page not found' });
-    if (d.cardPages.length <= 1) return send(res, 400, { error:'至少保留一个页面' });
-    if (d.cards.some(c => c.pageKey === m[1])) return send(res, 400, { error:'该页面下还有卡片，请先删除或转移这些卡片' });
-    d.cardPages = d.cardPages.filter(pg => pg.key !== m[1]);
     saveData(d);
     return send(res, 200, { ok:true });
   }
