@@ -1949,6 +1949,7 @@ let homeButtons = [];     // 后台配置的首页快捷按钮 [{id,keyword,labe
 let composerBtns = [];    // 后台配置的输入框快捷按钮 [{id,keyword,label:{zh,en,ru}}]
 let guideText = null;     // 后台配置的首页引导文字 {zh,en,ru}；未配置时回退内置文案
 let phText = null;        // 后台配置的输入框占位提示 {bot:{zh,en,ru}, agent:{zh,en,ru}}；未配置时回退内置文案
+let menuTexts = null;     // 后台配置的左侧菜单文案 {m0..m4, m0d..m4d: {zh,en,ru}}；未配置时回退内置文案
 let chatLog = [];         // 服务端同步的对话记录 [{id,ts,role:'visitor'|'bot'|'agent', text? | reply:{zh,en,ru},quickButtons?,link?}]
 /* 会话 ID：同一标签页刷新后保持同一会话，便于后台人工介入接管 */
 let sessionId = sessionStorage.getItem('beisu_sid');
@@ -1969,11 +1970,28 @@ async function loadConfig(){
     composerBtns = Array.isArray(cfg.composerButtons) ? cfg.composerButtons : [];
     guideText = (cfg.guide && cfg.guide.text) || null;
     phText = (cfg.placeholder && typeof cfg.placeholder === 'object') ? cfg.placeholder : null;
-  } catch(e){ homeButtons = []; composerBtns = []; guideText = null; phText = null; }
+    menuTexts = (cfg.menuTexts && typeof cfg.menuTexts === 'object') ? cfg.menuTexts : null;
+  } catch(e){ homeButtons = []; composerBtns = []; guideText = null; phText = null; menuTexts = null; }
   renderHomeButtons();
   renderComposerButtons();
   applyHeroTitle();
   applyPlaceholder();
+  applyMenuTexts();
+}
+/* 左侧菜单文案：后台配置优先（三语），未配置的项保留页面内置文案 */
+function applyMenuTexts(){
+  if (!menuTexts) return;
+  ['zh','en','ru'].forEach(l => {
+    Object.keys(menuTexts).forEach(k => {
+      const v = menuTexts[k];
+      if (v && v[l]) I18N[l][k] = v[l];
+    });
+  });
+  const d = dict();
+  document.querySelectorAll('#catMenu [data-i18n]').forEach(el => {
+    const t = d[el.dataset.i18n];
+    if (t) el.textContent = t;
+  });
 }
 /* 拉取后台录入的「已发布」文章，渲染到左侧「文章资讯」栏目（点击卡片打开其独立页面） */
 async function loadArticles(){

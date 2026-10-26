@@ -139,6 +139,8 @@ function shapeData(raw){
     } else {
       d.composerButtons = d.composerButtons.map(normalizeHomeButton);
     }
+    /* 左侧菜单 5 项（名称 + 简介，三语）：只存后台改过的值，未改的项不落库 */
+    d.menuTexts = normMenuTexts(d.menuTexts);
     /* 文章资讯（后台录入的图文；draft 草稿 / published 已发布） */
     if (!Array.isArray(d.articles)) d.articles = [];
     d.articles = d.articles.map(a => normArticle(a, d.articles));
@@ -648,6 +650,17 @@ function buildMapRoutes(key, cb){
 function normLabel(l){
   l = (l && typeof l === 'object') ? l : {};
   return { zh:String(l.zh||'').trim(), en:String(l.en||'').trim(), ru:String(l.ru||'').trim() };
+}
+/* 左侧菜单 5 项文案：标题 m0-m4、简介 m0d-m4d；只保留有值的键，留空即用页面内置默认 */
+const MENU_TEXT_KEYS = ['m0','m1','m2','m3','m4','m0d','m1d','m2d','m3d','m4d'];
+function normMenuTexts(src){
+  src = (src && typeof src === 'object') ? src : {};
+  const out = {};
+  MENU_TEXT_KEYS.forEach(function (k) {
+    const v = normLabel(src[k]);
+    if (v.zh || v.en || v.ru) out[k] = v;
+  });
+  return out;
 }
 /* 关键词三语分存 {zh:[],en:[],ru:[]}；兼容旧平铺数组（按字符脚本归位，仅用于历史数据迁移） */
 function normKeywordMap(kw){
@@ -2143,7 +2156,7 @@ const server = http.createServer(async (req, res) => {
   /* ---- 全量配置（前端启动拉取） ---- */
   if (p === '/api/config' && req.method === 'GET'){
     const d = loadData();
-    return send(res, 200, { quickButtons: d.quickButtons, composerButtons: d.composerButtons || [], fallback: d.fallback, guide: d.guide, placeholder: d.placeholder });
+    return send(res, 200, { quickButtons: d.quickButtons, composerButtons: d.composerButtons || [], fallback: d.fallback, guide: d.guide, placeholder: d.placeholder, menuTexts: d.menuTexts || {} });
   }
 
   /* ---- 输入框占位提示（按在线状态区分，三语） ---- */
@@ -2168,6 +2181,18 @@ const server = http.createServer(async (req, res) => {
     d.guide = { text: normLabel(body.text) };
     saveData(d);
     return send(res, 200, { ok:true, guide: d.guide });
+  }
+
+  /* ---- 左侧菜单文案（5 项名称 + 简介，三语；稀疏存储，留空即用页面默认） ---- */
+  if (p === '/api/menu-texts' && req.method === 'GET'){
+    return send(res, 200, { texts: loadData().menuTexts || {} });
+  }
+  if (p === '/api/menu-texts' && req.method === 'PUT'){
+    const body = await readBody(req);
+    const d = loadData();
+    d.menuTexts = normMenuTexts(body && body.texts);
+    saveData(d);
+    return send(res, 200, { ok:true, texts: d.menuTexts });
   }
 
   /* ---- 图片媒体：上传（前端已压缩的 dataURL）与读取 ----

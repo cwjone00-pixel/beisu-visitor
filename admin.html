@@ -480,6 +480,14 @@
     <button class="btn btn-primary" onclick="saveGuide()">保存引导文字</button>
   </div>
 
+  <!-- ⑤-2 左侧菜单文案（5 项：名称 + 简介描述，三语） -->
+  <div class="card">
+    <h2>左侧菜单 <span class="tag">游客端 5 个菜单项</span></h2>
+    <div class="desc">修改游客首页左侧菜单每一项的名称与简介描述；留空 = 使用页面默认文案，图标保持不变。跟随访客语种自动切换展示。</div>
+    <div id="menuTextGroups"></div>
+    <button class="btn btn-primary" onclick="saveMenuTexts()">保存菜单文案</button>
+  </div>
+
   <!-- ⑥ 输入框占位提示（按在线状态区分） -->
   <div class="card">
     <h2>输入框占位提示 <span class="tag">按在线状态区分</span></h2>
@@ -995,6 +1003,9 @@ const API = {
   /* 首页引导文字（三语） */
   guideGet: () => fetch('/api/guide').then(r=>r.json()),
   guideSave: d => fetch('/api/guide', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  /* 左侧菜单文案（5 项名称 + 简介，三语） */
+  menuGet: () => fetch('/api/menu-texts').then(r=>r.json()),
+  menuSave: d => fetch('/api/menu-texts', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
   /* 输入框快捷按钮（整体保存） */
   cbGet: () => fetch('/api/composer-buttons').then(r=>r.json()),
   cbSave: arr => fetch('/api/composer-buttons', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ buttons: arr }) }),
@@ -1099,6 +1110,8 @@ async function unlockAdmin(loggedInAs){
   loadFallback();
   loadLinkTpl();
   loadGuide();
+  renderMenuTextFields();
+  loadMenuTexts();
   loadPh();
   loadCb();
   loadArts();
@@ -2582,6 +2595,64 @@ async function saveGuide(){
     text: { zh: val('gdZh'), en: val('gdEn'), ru: val('gdRu') }
   });
   alert('引导文字已保存，游客端刷新后生效');
+}
+
+/* ================= 左侧菜单文案（5 项 × 名称/简介 × 三语） ================= */
+const MENU_TEXT_ITEMS = [
+  { no:'①', t:'m0', d:'m0d',
+    th:{ zh:'全岛游', en:'Island-wide tours', ru:'Туры по всему острову' },
+    dh:{ zh:'最高性价比的旅游体验', en:'The best-value travel experience', ru:'Лучшее соотношение цены и качества' } },
+  { no:'②', t:'m1', d:'m1d',
+    th:{ zh:'租房', en:'Rent a home', ru:'Аренда жилья' },
+    dh:{ zh:'解决你的租房纠纷', en:'We help resolve rental disputes', ru:'Поможем решить споры по аренде' } },
+  { no:'③', t:'m2', d:'m2d',
+    th:{ zh:'租车', en:'Rent a car', ru:'Аренда авто' },
+    dh:{ zh:'包含司机，可以带你走遍整个海南', en:'With a driver, explore all of Hainan', ru:'С водителем, объездим весь Хайнань' } },
+  { no:'④', t:'m3', d:'m3d',
+    th:{ zh:'海南项目体验评价', en:'Hainan project reviews', ru:'Отзывы о проектах Хайнаня' },
+    dh:{ zh:'包括项目评价、体验分享和真实反馈', en:'Reviews, experience sharing & real feedback', ru:'Оценки, опыт и реальные отзывы' } },
+  { no:'⑤', t:'m4', d:'m4d',
+    th:{ zh:'加入我们合作', en:'Partner with us', ru:'Сотрудничество' },
+    dh:{ zh:'欢迎各类资源和项目合作', en:'Welcome resources & project cooperation', ru:'Приветствуем ресурсы и партнёрство' } }
+];
+const MENU_LANGS = [['zh','中文'],['en','English'],['ru','Русский']];
+function renderMenuTextFields(){
+  const box = document.getElementById('menuTextGroups');
+  if (!box) return;
+  box.innerHTML = MENU_TEXT_ITEMS.map(it => `
+    <div style="border:1px solid #e3e9f1;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <div style="font-weight:600;margin-bottom:8px;">${it.no} ${esc(it.th.zh)}</div>
+      <div class="field" style="margin-bottom:8px;"><label>名称</label>
+        ${MENU_LANGS.map(([l, n]) => `<div class="tri-row"><span class="lang-chip">${n}</span><input class="input" id="mt_${it.t}_${l}" placeholder="${escAttr(it.th[l])}"></div>`).join('')}
+      </div>
+      <div class="field" style="margin:0;"><label>简介描述</label>
+        ${MENU_LANGS.map(([l, n]) => `<div class="tri-row"><span class="lang-chip">${n}</span><input class="input" id="mt_${it.d}_${l}" placeholder="${escAttr(it.dh[l])}"></div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+async function loadMenuTexts(){
+  try {
+    const r = await API.menuGet();
+    const t = (r && r.texts) || {};
+    MENU_TEXT_ITEMS.forEach(it => {
+      [it.t, it.d].forEach(k => {
+        MENU_LANGS.forEach(([l]) => {
+          const el = document.getElementById('mt_' + k + '_' + l);
+          if (el) el.value = (t[k] && t[k][l]) || '';
+        });
+      });
+    });
+  } catch(e){}
+}
+async function saveMenuTexts(){
+  const texts = {};
+  MENU_TEXT_ITEMS.forEach(it => {
+    [it.t, it.d].forEach(k => {
+      texts[k] = { zh: val('mt_' + k + '_zh'), en: val('mt_' + k + '_en'), ru: val('mt_' + k + '_ru') };
+    });
+  });
+  await API.menuSave({ texts });
+  alert('菜单文案已保存，游客端刷新后生效');
 }
 
 /* ================= 输入框占位提示（按在线状态区分，三语） ================= */
