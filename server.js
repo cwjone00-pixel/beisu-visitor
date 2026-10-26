@@ -2276,11 +2276,22 @@ const server = http.createServer(async (req, res) => {
 
     const sess = getSession(sid);
     sess.lang = lang;
+    const summaryText = islandSummary(lang, { campId: campId, spots: spotIds, people: people, tourType: tourType, vehicle: vehicle, tents: tents, tentType: tentType });
     addMsg(sid, {
       role:'visitor',
-      text: islandSummary(lang, { campId: campId, spots: spotIds, people: people, tourType: tourType, vehicle: vehicle, tents: tents, tentType: tentType }),
+      text: summaryText,
       island: { campId: campId, spots: spotIds, tourType: tourType || undefined, people: people || undefined, vehicle: vehicle || undefined, tents: tents || undefined, tentType: tentType || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 方式 + 人数 + 车型 + 帐篷 + 打卡时间
     });
+    /* 系统整理文本同样走一遍关键词匹配：命中规则（如「出行方式: 拼团」）则自动追加机器人回复/卡片；
+       未命中保持静默（不发兜底）；人工接管中或机器人总开关关闭时不自动回复，与 /api/match 行为一致 */
+    if (sess.mode !== 'agent' && loadData().agentChat.botEnabled){
+      const hit = matchPayload(matchInput(summaryText, lang));
+      if (hit.matched){
+        if (hit.card) addMsg(sid, { role:'bot', card:hit.card });
+        const rep = hit.reply || {};
+        if (rep.zh || rep.en || rep.ru) addMsg(sid, { role:'bot', reply:hit.reply, quickButtons:hit.quickButtons, link:hit.link });
+      }
+    }
     return send(res, 200, { ok:true, sid });
   }
 
