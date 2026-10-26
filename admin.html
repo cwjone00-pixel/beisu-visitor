@@ -567,6 +567,17 @@
     </div>
   </div>
 
+  <!-- 全岛游整理文案（游客提交后系统拼接的摘要消息，16 个字段 × 三语，后台可改） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>全岛游整理文案</h2>
+      <button class="btn btn-primary" onclick="saveIslandTexts()">保存文案</button>
+    </div>
+    <div class="desc">游客提交全岛游表单后，系统按当前界面语种拼一条摘要消息发到聊天里（如「出行方式： 拼团」「拼团价格： …」）。下面每个字段都可按中/英/俄分别修改；带占位符的字段里 <b>{n}</b>=人数、<b>{s}</b>=建议车型、<b>{v}</b>=座位数、<b>{p}</b>=整车价、<b>{pp}</b>=单人价、<b>{sum}</b>=合计、<b>{t}</b>=帐篷类型。留空的语言自动用默认文案。<b style="color:#c08a2a;">注意：若关键词规则匹配的是摘要原文（如「出行方式： 拼团」），改文案后需同步更新规则关键词。</b></div>
+    <div id="islandTextFields" style="margin-top:10px;"></div>
+    <div id="islandTextState" style="font-size:12px; color:#8b94a0; margin-top:6px;"></div>
+  </div>
+
   </div><!-- /main-col -->
 
   <!-- 右列：独立用户列表（支持搜索 + 内部滚动，客户再多也不挤压左列） -->
@@ -1140,6 +1151,8 @@ async function unlockAdmin(loggedInAs){
   loadEvts();
   loadCards();
   loadIslandPrice();
+  renderIslandTextFields();
+  loadIslandTexts();
   loadMapPts();
   loadUsers();
   routeByHash();     /* 支持带 #map 直接进入海南全岛地图子页 */
@@ -2011,6 +2024,68 @@ async function saveIslandPrice(){
   }).then(r => r.json());
   if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
   loadIslandPrice();
+}
+
+/* ================= 全岛游整理文案（提交后系统摘要消息，16 字段 × 三语） ================= */
+const ISLAND_TEXT_FIELDS = [
+  { key:'title',        label:'标题行' },
+  { key:'camp',         label:'露营点 · 行首标签' },
+  { key:'spots',        label:'打卡点 · 行首标签' },
+  { key:'none',         label:'未选择点位时的占位文字' },
+  { key:'tour',         label:'出行方式 · 行首标签' },
+  { key:'tourPrivate',  label:'出行方式 ·「免拼」选项名' },
+  { key:'tourShared',   label:'出行方式 ·「拼团」选项名' },
+  { key:'tentSingle',   label:'帐篷类型 ·「单人帐篷」选项名' },
+  { key:'tentShared',   label:'帐篷类型 ·「多人共用大帐篷」选项名' },
+  { key:'sugSeat',      label:'建议车型', hint:'{s} = 座位数，如「建议 {s} 座车」' },
+  { key:'sugCustom',    label:'人数超出 9 座时的提示' },
+  { key:'people',       label:'出行人数行', hint:'{n} = 人数，{s} = 建议车型文字' },
+  { key:'tentsLine',    label:'帐篷行（未选类型）', hint:'{n} = 帐篷数量' },
+  { key:'tentsLineType',label:'帐篷行（含类型）', hint:'{n} = 数量，{t} = 类型名' },
+  { key:'pricePrivate', label:'包车价格行', hint:'{v} = 座位数，{p} = 整车价' },
+  { key:'priceShared',  label:'拼团价格行', hint:'{v} = 座位数，{pp} = 单人价，{n} = 人数，{sum} = 合计' }
+];
+let islandTextsCache = null;
+function renderIslandTextFields(){
+  const box = $('islandTextFields');
+  box.innerHTML = ISLAND_TEXT_FIELDS.map(f => `
+    <div class="field" style="margin-bottom:12px;">
+      <label>${esc(f.label)}${f.hint ? ` <small style="color:#8b94a0;font-weight:400;">${esc(f.hint)}</small>` : ''}</label>
+      <div class="tri-row"><span class="lang-chip">中文</span><input class="input" id="it_${f.key}_zh"></div>
+      <div class="tri-row"><span class="lang-chip">English</span><input class="input" id="it_${f.key}_en"></div>
+      <div class="tri-row"><span class="lang-chip">Русский</span><input class="input" id="it_${f.key}_ru"></div>
+    </div>`).join('');
+}
+async function loadIslandTexts(){
+  try {
+    const r = await fetch('/api/admin/island-texts', { headers: { 'X-Op-Token': opToken } }).then(r => r.json());
+    islandTextsCache = (r && r.texts) || {};
+    ISLAND_TEXT_FIELDS.forEach(f => {
+      const v = islandTextsCache[f.key] || {};
+      $('it_' + f.key + '_zh').value = v.zh || '';
+      $('it_' + f.key + '_en').value = v.en || '';
+      $('it_' + f.key + '_ru').value = v.ru || '';
+    });
+    $('islandTextState').textContent = '已加载当前文案（留空的语言保存时回退默认文案）';
+  } catch(e){ $('islandTextState').textContent = '加载失败'; }
+}
+async function saveIslandTexts(){
+  const texts = {};
+  ISLAND_TEXT_FIELDS.forEach(f => {
+    texts[f.key] = {
+      zh: val('it_' + f.key + '_zh'),
+      en: val('it_' + f.key + '_en'),
+      ru: val('it_' + f.key + '_ru')
+    };
+  });
+  const r = await fetch('/api/admin/island-texts', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'X-Op-Token': opToken },
+    body: JSON.stringify({ texts })
+  }).then(r => r.json());
+  if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
+  islandTextsCache = r.texts;
+  $('islandTextState').textContent = '已保存，游客提交全岛游表单后立即生效';
 }
 
 /* ================= 全岛游地图（露营点 / 游玩打卡点，共用同一份数据源） ================= */
