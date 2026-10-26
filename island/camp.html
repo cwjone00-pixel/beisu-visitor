@@ -922,20 +922,6 @@
     lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
     applyLang();                                   /* 数据到达前先把页面文字按语种渲染出来 */
 
-    /* 后台「页面文案」覆盖：拉取本页覆盖值并入内置字典（只覆盖字符串键，函数型提示不受影响），再重渲染 */
-    fetch('/api/page-texts?page=camp', { cache: 'no-store' })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        var cfg = (d && d.texts) || {};
-        Object.keys(cfg).forEach(function (k) {
-          LANGS.forEach(function (l) {
-            if (cfg[k] && cfg[k][l] && typeof T[l][k] === 'string') T[l][k] = cfg[k][l];
-          });
-        });
-        applyLang();
-      })
-      .catch(function () {});
-
     fetch('/api/camp-points', { cache: 'no-store' })
       .then(function (r) { return r.json(); })
       .then(function (d) {

@@ -2453,19 +2453,6 @@ setViewMode(detectViewMode());   // 打开时自动识别设备：手机→移�
 renderEvents();
 renderArticles();
 applyI18n();
-/* 后台「页面文案」覆盖：拉取首页覆盖值并入 I18N 后重渲染（留空的键保持内置默认） */
-fetch('/api/page-texts?page=home', { cache: 'no-store' })
-  .then(r => r.json())
-  .then(d => {
-    const cfg = (d && d.texts) || {};
-    Object.keys(cfg).forEach(k => {
-      ['zh', 'en', 'ru'].forEach(l => {
-        if (cfg[k] && cfg[k][l] && typeof I18N[l][k] === 'string') I18N[l][k] = cfg[k][l];
-      });
-    });
-    applyI18n();
-  })
-  .catch(() => {});
 handleActivateRedirect();   // 处理邮件激活回跳（?activated=1|0）提示
 handleTelegramRedirect();   // 处理 Telegram 授权回跳（?tg=1&s=...）完成登录
 loadConfig();          // 拉取后台配置的首页快捷按钮并渲染

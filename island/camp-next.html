@@ -1264,20 +1264,6 @@
     ensureVehicle();                   /* 缓存人数落地后先定好推荐车型，方案卡随之高亮 */
     applyLang();
 
-    /* 后台「页面文案」覆盖：拉取本页覆盖值并入内置字典（只覆盖字符串键），再重渲染 */
-    fetch('/api/page-texts?page=spots', { cache: 'no-store' })
-      .then(function (r) { return r.json(); })
-      .then(function (d) {
-        var cfg = (d && d.texts) || {};
-        Object.keys(cfg).forEach(function (k) {
-          LANGS.forEach(function (l) {
-            if (cfg[k] && cfg[k][l] && typeof T[l][k] === 'string') T[l][k] = cfg[k][l];
-          });
-        });
-        applyLang();
-      })
-      .catch(function () {});
-
     var pid = '';
     try { pid = new URLSearchParams(location.search).get('point') || ''; } catch (e) {}
 
