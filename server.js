@@ -145,9 +145,11 @@ function shapeData(raw){
     /* 商业活动（后台录入的图文；与文章资讯分开存储，仅用于前端左侧「商业活动」板块展示） */
     if (!Array.isArray(d.events)) d.events = [];
     d.events = d.events.map(e => normEvent(e));
-    /* 页面卡片（聊天里发送的方块富媒体卡片：标题/简介/封面图/跳转地址，三语） */
+    /* 页面卡片（聊天里发送的方块富媒体卡片：标题/简介/封面图/跳转地址，三语）；
+       页面列表也入库（后台可改名/加页面），缺省用默认页面铺底 */
+    d.cardPages = normCardPages(d.cardPages);
     if (!Array.isArray(d.cards)) d.cards = [];
-    d.cards = d.cards.map(normCard);
+    d.cards = d.cards.map(c => normCard(c, d.cardPages));
     /* 全岛游价格方案（后台配置；0 = 未配置，前端占位展示）：
        免拼 = 包下整台车，4/7/9 座（座位含司机）各自一个整车价；
        拼团 = 与其他游客拼车按人头付费，4/7/9 座各自一个单人单价 */
@@ -907,21 +909,35 @@ function articlePath(a){ return '/article/' + a.slug; }
 
 /* ---------------- 页面卡片（聊天里发送的方块富媒体卡片） ----------------
    每张卡片绑定一个页面：卡片标题 / 简介 / 封面图 / 跳转地址，三语文案分开配置。
-   目前只有【全岛游】是已做好的真页面（/island），其余四个页面（租房/租车/项目体验/合作）
-   后续另做，卡片 url 先留空待填；pageKey 用于关键词规则与人工发送时识别归属页面。 */
-const CARD_PAGES = [
+   页面列表存于数据 d.cardPages（后台可改名称三语 / 跳转地址、可新增自定义页面）；
+   首次迁移用 DEFAULT_CARD_PAGES 铺底。 */
+const DEFAULT_CARD_PAGES = [
   { key:'island',    url:'/island', names:{ zh:'全岛游',           en:'Island Tour',              ru:'Островной тур' } },
   { key:'rent',      url:'',        names:{ zh:'租房',             en:'Housing Rental',           ru:'Аренда жилья' } },
   { key:'car',       url:'',        names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
   { key:'review',    url:'',        names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
   { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } }
 ];
-function cardPageByKey(key){ return CARD_PAGES.filter(function (p) { return p.key === key; })[0] || null; }
-function normCard(input){
+function normCardPage(p){
+  p = (p && typeof p === 'object') ? p : {};
+  return {
+    key: String(p.key || '').trim().slice(0, 32),
+    url: String(p.url || '').trim().slice(0, 300),
+    names: normLabel(p.names)
+  };
+}
+/* 缺省时以默认页面铺底（仅字段缺失时；用户删到只剩 1 个后服务端会阻止继续删） */
+function normCardPages(list){
+  const arr = Array.isArray(list) ? list.map(normCardPage).filter(p => p.key) : null;
+  if (arr && arr.length) return arr;
+  return DEFAULT_CARD_PAGES.map(p => normCardPage(p));
+}
+function cardPageByKey(key, pages){ return (pages || []).filter(function (p) { return p.key === key; })[0] || null; }
+function normCard(input, pages){
   const c = (input && typeof input === 'object') ? input : {};
   const id = c.id || crypto.randomUUID();
-  const pageKey = cardPageByKey(c.pageKey) ? c.pageKey : 'island';
-  const page = cardPageByKey(pageKey);
+  const pageKey = cardPageByKey(c.pageKey, pages) ? c.pageKey : (pages[0] ? pages[0].key : 'island');
+  const page = cardPageByKey(pageKey, pages);
   /* 跳转地址：页面已有固定路由时锁定为页面地址，否则用手动填写的 url（后续新页面用） */
   const url = page.url || String(c.url || '').trim().slice(0, 300);
   return {
@@ -937,12 +953,12 @@ function normCard(input){
   };
 }
 /* 校验卡片：至少一种语言标题；url 必须是站内路径或 http(s) 外链 */
-function validateCard(body){
+function validateCard(body, pages){
   const titles = normLabel(body && body.titles);
   if (!titles.zh && !titles.en && !titles.ru) return '请至少填写一种语言的卡片标题';
   const pageKey = body && body.pageKey;
-  if (!cardPageByKey(pageKey)) return '未知页面：' + pageKey;
-  const page = cardPageByKey(pageKey);
+  if (!cardPageByKey(pageKey, pages)) return '未知页面：' + pageKey;
+  const page = cardPageByKey(pageKey, pages);
   const url = page.url || String((body && body.url) || '').trim();
   if (url && !/^(\/|https?:\/\/)/.test(url)) return '跳转地址必须是站内路径或 http(s) 链接';
   return null;
@@ -2623,16 +2639,16 @@ const server = http.createServer(async (req, res) => {
   if (p === '/api/admin/cards' && req.method === 'GET'){
     const d = loadData();
     return send(res, 200, {
-      pages: CARD_PAGES.map(function (pg) { return { key:pg.key, url:pg.url, names:pg.names }; }),
+      pages: d.cardPages.map(function (pg) { return { key:pg.key, url:pg.url, names:pg.names }; }),
       cards: d.cards
     });
   }
   if (p === '/api/admin/cards' && req.method === 'POST'){
     const body = await readBody(req);
-    const err = validateCard(body);
-    if (err) return send(res, 400, { error:err });
     const d = loadData();
-    const card = normCard({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() });
+    const err = validateCard(body, d.cardPages);
+    if (err) return send(res, 400, { error:err });
+    const card = normCard({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() }, d.cardPages);
     d.cards.unshift(card);
     saveData(d);
     return send(res, 201, card);
@@ -2644,9 +2660,9 @@ const server = http.createServer(async (req, res) => {
     if (i < 0) return send(res, 404, { error:'card not found' });
     const prev = d.cards[i];
     /* 合并旧数据后再校验：允许只传部分字段（如仅切换 enabled 停用/启用） */
-    const err = validateCard({ ...prev, ...body, pageKey: body.pageKey || prev.pageKey });
+    const err = validateCard({ ...prev, ...body, pageKey: body.pageKey || prev.pageKey }, d.cardPages);
     if (err) return send(res, 400, { error:err });
-    d.cards[i] = normCard({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, updatedAt:Date.now() });
+    d.cards[i] = normCard({ ...prev, ...body, id:m[1], createdAt:prev.createdAt, updatedAt:Date.now() }, d.cardPages);
     saveData(d);
     return send(res, 200, d.cards[i]);
   }
@@ -2655,6 +2671,48 @@ const server = http.createServer(async (req, res) => {
     d.cards = d.cards.filter(c => c.id !== m[1]);
     /* 解除所有关键词规则对这张卡片的绑定，避免留下指向已删卡片的死引用 */
     d.rules.forEach(function (r) { if (r.cardId === m[1]) r.cardId = ''; });
+    saveData(d);
+    return send(res, 200, { ok:true });
+  }
+
+  /* ---- 卡片页面管理：页面名称（三语）/ 跳转地址后台可改，可新增自定义页面 ---- */
+  if (p === '/api/admin/card-pages' && req.method === 'POST'){
+    const body = await readBody(req);
+    const key = String(body.key || '').trim();
+    if (!/^[a-z][a-z0-9_-]{1,31}$/.test(key)) return send(res, 400, { error:'页面标识需小写英文开头（字母/数字/-/_，2-32 位）' });
+    const d = loadData();
+    if (cardPageByKey(key, d.cardPages)) return send(res, 409, { error:'页面标识已存在' });
+    const names = normLabel(body.names);
+    if (!names.zh && !names.en && !names.ru) return send(res, 400, { error:'请至少填写一种语言的页面名称' });
+    const url = String(body.url || '').trim().slice(0, 300);
+    if (url && !/^(\/|https?:\/\/)/.test(url)) return send(res, 400, { error:'跳转地址必须是站内路径或 http(s) 链接' });
+    const pg = { key, url, names };
+    d.cardPages.push(pg);
+    saveData(d);
+    return send(res, 201, pg);
+  }
+  if ((m = p.match(/^\/api\/admin\/card-pages\/([^/]+)$/)) && req.method === 'PUT'){
+    const d = loadData();
+    const pg = cardPageByKey(m[1], d.cardPages);
+    if (!pg) return send(res, 404, { error:'page not found' });
+    const body = await readBody(req);
+    const names = normLabel(body.names);
+    if (!names.zh && !names.en && !names.ru) return send(res, 400, { error:'请至少填写一种语言的页面名称' });
+    const url = String(body.url != null ? body.url : pg.url).trim().slice(0, 300);
+    if (url && !/^(\/|https?:\/\/)/.test(url)) return send(res, 400, { error:'跳转地址必须是站内路径或 http(s) 链接' });
+    pg.names = names;
+    pg.url = url;
+    /* 页面固定地址变化时，同步刷新绑定该页面的所有卡片跳转地址 */
+    d.cards = d.cards.map(c => c.pageKey === pg.key ? normCard({ ...c, updatedAt:Date.now() }, d.cardPages) : c);
+    saveData(d);
+    return send(res, 200, pg);
+  }
+  if ((m = p.match(/^\/api\/admin\/card-pages\/([^/]+)$/)) && req.method === 'DELETE'){
+    const d = loadData();
+    if (!cardPageByKey(m[1], d.cardPages)) return send(res, 404, { error:'page not found' });
+    if (d.cardPages.length <= 1) return send(res, 400, { error:'至少保留一个页面' });
+    if (d.cards.some(c => c.pageKey === m[1])) return send(res, 400, { error:'该页面下还有卡片，请先删除或转移这些卡片' });
+    d.cardPages = d.cardPages.filter(pg => pg.key !== m[1]);
     saveData(d);
     return send(res, 200, { ok:true });
   }
