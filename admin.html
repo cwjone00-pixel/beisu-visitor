@@ -585,6 +585,29 @@
     <div id="expProjectsState" style="font-size:12px; color:#8b94a0;"></div>
   </div>
 
+  <!-- 预订条款（游客端预订页底部复选框 + 弹窗；三语富文本，支持换行/加粗，留空则用前端默认条款） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>预订条款</h2>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-ghost" onclick="previewTerms()">预览</button>
+        <button class="btn btn-primary" onclick="saveBookingTerms()">保存条款</button>
+      </div>
+    </div>
+    <div class="desc">游客端预订页底部「我已阅读并同意《预订条款》」点开看到的就是这里的内容。支持加粗与换行，中文 / English / Русский 分开编辑；全部留空则游客端显示内置的默认条款。保存后游客端刷新即生效，无需改代码。</div>
+    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:10px;">
+      <div id="termsTabs" style="display:flex; gap:6px;">
+        <button class="btn btn-sm btn-ghost" data-lang="zh" onclick="switchTermsLang('zh')">中文</button>
+        <button class="btn btn-sm btn-ghost" data-lang="en" onclick="switchTermsLang('en')">English</button>
+        <button class="btn btn-sm btn-ghost" data-lang="ru" onclick="switchTermsLang('ru')">Русский</button>
+      </div>
+      <button class="btn btn-sm btn-ghost" onclick="termsBold()"><b>B</b> 加粗</button>
+      <span id="termsState" style="font-size:12px; color:#8b94a0;"></span>
+    </div>
+    <div id="termsEditor" class="input" contenteditable="true" spellcheck="false"
+         style="min-height:220px; max-height:420px; overflow:auto; margin-top:10px; line-height:1.8; padding:14px 16px;"></div>
+  </div>
+
   </div><!-- /main-col -->
 
   <!-- 右列：独立用户列表（支持搜索 + 内部滚动，客户再多也不挤压左列） -->
@@ -985,6 +1008,17 @@
   </div>
 </div>
 
+<!-- 预订条款预览弹窗（后台编辑完直接看游客端显示效果） -->
+<div class="modal-mask hidden" id="termsPreviewModal">
+  <div class="modal">
+    <h3>预订条款预览 <span id="termsPreviewLang" style="font-size:12px;color:#8b94a0;"></span></h3>
+    <div id="termsPreviewBody" style="max-height:60vh; overflow:auto; line-height:1.9; font-size:14px; color:#1f2d3d;"></div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('termsPreviewModal')">关闭</button>
+    </div>
+  </div>
+</div>
+
 <script>
 /* ================= 登录鉴权：fetch 拦截器 =================
    1) 所有 /api/ 请求自动附带 X-Op-Token（登录 token）
@@ -1149,6 +1183,7 @@ async function unlockAdmin(loggedInAs){
   loadCards();
   loadIslandPrice();
   loadExpProjects();
+  loadBookingTerms();
   loadMapPts();
   loadUsers();
   routeByHash();     /* 支持带 #map 直接进入海南全岛地图子页 */
@@ -2027,6 +2062,97 @@ async function saveExpProjects(){
     renderExpProjects();
     st.textContent = '已保存 ' + new Date().toLocaleTimeString() + '（游客端刷新即生效）';
   } catch(e){ st.textContent = '保存失败：' + e.message; }
+}
+
+/* ================= 预订条款（三语富文本） =================
+   三个语言各存一段 HTML，切换语言时先把当前编辑器内容存回内存，再载入另一段；
+   保存时整体提交，服务端会再过滤一次标签（防 XSS）。清空后保存 = 游客端回退默认条款。 */
+const TERMS_LANGS = ['zh', 'en', 'ru'];
+let termsData = { zh:'', en:'', ru:'' };
+let termsLang = 'zh';
+
+async function loadBookingTerms(){
+  try {
+    const d = await fetch('/api/booking-terms').then(r => r.json());
+    termsData = Object.assign({ zh:'', en:'', ru:'' }, (d && d.terms) || {});
+  } catch(e){ termsData = { zh:'', en:'', ru:'' }; }
+  termsLang = 'zh';
+  renderTermsEditor();
+}
+function renderTermsEditor(){
+  const ed = $('termsEditor');
+  if (!ed) return;
+  ed.innerHTML = termsData[termsLang] || '';
+  document.querySelectorAll('#termsTabs button').forEach(b => {
+    b.classList.toggle('btn-primary', b.dataset.lang === termsLang);
+    b.classList.toggle('btn-ghost', b.dataset.lang !== termsLang);
+  });
+  const st = $('termsState');
+  if (st) st.textContent = termsData[termsLang] ? '' : '当前语言尚未填写（游客端将显示默认条款）';
+}
+function switchTermsLang(lang){
+  if (TERMS_LANGS.indexOf(lang) < 0) return;
+  const ed = $('termsEditor');
+  if (ed) termsData[termsLang] = ed.innerHTML;
+  termsLang = lang;
+  renderTermsEditor();
+}
+function termsBold(){
+  const ed = $('termsEditor');
+  if (!ed) return;
+  ed.focus();
+  document.execCommand('bold');
+}
+async function saveBookingTerms(){
+  const ed = $('termsEditor');
+  if (ed) termsData[termsLang] = ed.innerHTML;
+  const st = $('termsState');
+  try {
+    const r = await fetch('/api/booking-terms', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ terms: termsData })
+    }).then(r => r.json());
+    if (!r || !r.ok){ st.textContent = (r && r.error) || '保存失败'; return; }
+    termsData = Object.assign({ zh:'', en:'', ru:'' }, r.terms);
+    renderTermsEditor();
+    st.textContent = '已保存 ' + new Date().toLocaleTimeString() + '（游客端刷新即生效）';
+  } catch(e){ st.textContent = '保存失败：' + e.message; }
+}
+function previewTerms(){
+  const ed = $('termsEditor');
+  if (ed) termsData[termsLang] = ed.innerHTML;
+  const body = $('termsPreviewBody');
+  const html = sanitizeTermsClient(termsData[termsLang] || '');
+  body.innerHTML = html || '<p style="color:#8b94a0;">（当前语言尚未填写，游客端会显示默认条款）</p>';
+  $('termsPreviewLang').textContent = termsLang === 'zh' ? '中文' : (termsLang === 'en' ? 'English' : 'Русский');
+  show('termsPreviewModal');
+}
+/* 预览与保存前统一过滤：只留排版标签，去掉全部属性（含 on* 事件）与脚本，避免后台粘贴内容执行代码 */
+function sanitizeTermsClient(html){
+  const box = document.createElement('div');
+  box.innerHTML = String(html || '');
+  const allow = ['B','STRONG','I','EM','U','S','BR','P','DIV','UL','OL','LI','H3','H4'];
+  const clean = (parent) => {
+    let removed = false;
+    Array.from(parent.childNodes).forEach(k => {
+      if (k.nodeType === 8){ k.remove(); removed = true; return; }
+      if (k.nodeType !== 1) return;
+      if (allow.indexOf(k.tagName) < 0){
+        const frag = document.createDocumentFragment();
+        Array.from(k.childNodes).forEach(c => frag.appendChild(c));
+        k.replaceWith(frag);
+        removed = true;
+        return;
+      }
+      Array.from(k.attributes).forEach(a => k.removeAttribute(a.name));
+      clean(k);
+    });
+    return removed;
+  };
+  let guard = 0;
+  while (clean(box) && guard++ < 20) { /* 多层非法标签逐轮剥掉 */ }
+  return box.innerHTML;
 }
 
 /* ================= 全岛游地图（露营点 / 游玩打卡点，共用同一份数据源） ================= */

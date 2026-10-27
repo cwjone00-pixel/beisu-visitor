@@ -176,12 +176,45 @@ function shapeData(raw){
     d.replySeq = d.replySeq !== false;
     /* 海南项目体验 · 项目与价格（后台可改；按 slug 稀疏覆盖，留空沿用页面默认三语文案） */
     d.expProjects = normExpProjects(d.expProjects);
+    /* 预订条款（后台富文本编辑，三语分开存；游客端预订页弹窗展示，留空则前端用默认条款） */
+    d.bookingTerms = normTerms(d.bookingTerms);
     return d;
 }
-/* 体验站 4 个项目的可覆盖字段：名称/价格/定金/简介/时长/人数/难度/出发地。
+/* ---------------- 预订条款（三语富文本） ----------------
+   只保留安全的排版标签（加粗/斜体/下划线/换行/段落/列表），
+   其余标签连同属性一起丢弃（含 on* 事件、<script>、<style>、<iframe>），防止后台粘贴内容带脚本。 */
+const TERMS_LANGS = ['zh', 'en', 'ru'];
+const TERMS_MAX = 20000;
+const TERMS_TAGS = { b:'b', strong:'strong', i:'i', em:'em', u:'u', s:'s', br:'br', p:'p', div:'div', ul:'ul', ol:'ol', li:'li', h3:'h3', h4:'h4' };
+function sanitizeRich(html){
+  let s = String(html == null ? '' : html).slice(0, TERMS_MAX);
+  /* 整块危险元素连内容一起删掉 */
+  s = s.replace(/<\s*(script|style|iframe|object|embed|link|meta)[^>]*>[\s\S]*?<\s*\/\s*\1\s*>/gi, '');
+  s = s.replace(/<\s*(script|style|iframe|object|embed|link|meta)[^>]*\/?\s*>/gi, '');
+  s = s.replace(/<!--[\s\S]*?-->/g, '');
+  /* 逐个标签过滤：允许的归一化保留（无任何属性），其余直接去掉标签只留文本 */
+  s = s.replace(/<\s*\/?\s*([a-zA-Z0-9]+)[^>]*>/g, function (m, name) {
+    const tag = String(name || '').toLowerCase();
+    const keep = TERMS_TAGS[tag];
+    if (!keep) return '';
+    if (/^<\s*\//.test(m)) return '</' + keep + '>';
+    return '<' + keep + '>';
+  });
+  return s.replace(/^\s+|\s+$/g, '');
+}
+function normTerms(raw){
+  const out = { zh:'', en:'', ru:'' };
+  if (!raw || typeof raw !== 'object') return out;
+  TERMS_LANGS.forEach(function (lang) {
+    out[lang] = sanitizeRich(raw[lang]);
+  });
+  return out;
+}
+/* 体验站 4 个项目的可覆盖字段：名称/价格/定金/简介/时长/人数/难度/出发地/页面内容（概览段落+体验亮点）/图集。
    只存后台真正填过的值，未填的继续用前端默认文案，避免把多语言默认内容覆盖成空白。 */
 const EXP_SLUG_RE = /^[a-z0-9-]{1,40}$/;
 const EXP_TEXT_FIELDS = { name:60, intro:300, duration:30, group:30, level:30, from:30 };
+const EXP_MEDIA_RE = /^\/api\/media\/[A-Za-z0-9_-]{8,64}$/;
 function normExpProjects(raw){
   const out = {};
   if (!raw || typeof raw !== 'object') return out;
@@ -199,6 +232,20 @@ function normExpProjects(raw){
       const n = Math.round(Number(s));
       if (isFinite(n) && n >= 0) item[k] = Math.min(999999, n);
     });
+    /* 项目页面内容：概览段落 / 体验亮点（数组，逐条截断，全空不存） */
+    if (v.content && typeof v.content === 'object'){
+      const ov = Array.isArray(v.content.overview) ? v.content.overview : [];
+      const hl = Array.isArray(v.content.highlights) ? v.content.highlights : [];
+      const overview = ov.map(function (s){ return String(s == null ? '' : s).trim().slice(0, 500); }).filter(Boolean).slice(0, 20);
+      const highlights = hl.map(function (s){ return String(s == null ? '' : s).trim().slice(0, 120); }).filter(Boolean).slice(0, 20);
+      if (overview.length || highlights.length) item.content = { overview: overview, highlights: highlights };
+    }
+    /* 项目图集：只收本站媒体库引用，杜绝外部图片与路径穿越 */
+    if (Array.isArray(v.gallery)){
+      const gallery = v.gallery.map(function (s){ return String(s == null ? '' : s).trim(); })
+        .filter(function (s){ return EXP_MEDIA_RE.test(s); }).slice(0, 30);
+      if (gallery.length) item.gallery = gallery;
+    }
     if (Object.keys(item).length) out[slug] = item;
   });
   return out;
@@ -1830,6 +1877,7 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/bookings' && req.method === 'POST') ||       // 站内「海南项目体验」预订表单提交
       (p === '/api/settings' && req.method === 'GET') ||        // 站内体验页页脚联系方式（游客只读）
       (p === '/api/exp/projects' && req.method === 'GET') ||    // 站内体验页项目与价格（游客只读）
+      (p === '/api/booking-terms' && req.method === 'GET') ||   // 预订条款（游客端弹窗只读）
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
     if (!open && !sessionUser(req.headers['x-op-token'] || url.searchParams.get('token') || '')){
       return send(res, 401, { ok:false, error:'未登录或登录态已失效，请重新登录' });
@@ -2515,6 +2563,19 @@ const server = http.createServer(async (req, res) => {
     d.expProjects = normExpProjects(body && body.projects);
     await saveData(d);
     return send(res, 200, { ok:true, projects: d.expProjects });
+  }
+
+  /* ---- 预订条款：游客端只读读取；后台保存（需登录） ---- */
+  if (p === '/api/booking-terms' && req.method === 'GET'){
+    const d = loadData();
+    return send(res, 200, { ok:true, terms: d.bookingTerms || { zh:'', en:'', ru:'' } });
+  }
+  if (p === '/api/booking-terms' && req.method === 'PUT'){
+    const body = await readBody(req);
+    const d = loadData();
+    d.bookingTerms = normTerms(body && body.terms);
+    await saveData(d);
+    return send(res, 200, { ok:true, terms: d.bookingTerms });
   }
 
   /* ---- 人工介入聊天接口 ---- */
