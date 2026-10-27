@@ -1,0 +1,728 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="ISLA HAINAN — 运营后台" />
+    <title>ISLA HAINAN — 运营后台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Inter:wght@300;400;500&display=swap"
+      rel="stylesheet"
+    />
+    <!-- 原体验站前台 /admin 页面 1:1 迁移：样式表为原站 global.css 原样拷贝，结构/文案与原 React 版一致 -->
+    <link rel="stylesheet" href="/exp-admin.css" />
+    <style>
+      /* 登录门（沿用原站设计语言，覆盖整页，登录成功后才显示后台） */
+      .gate { position: fixed; inset: 0; z-index: 99; display: flex; align-items: center; justify-content: center; background: rgba(15, 23, 32, .45); backdrop-filter: blur(6px); }
+      .gate__card { width: 320px; background: #fff; border-radius: 16px; padding: 28px; box-shadow: 0 24px 60px rgba(15, 23, 32, .25); display: flex; flex-direction: column; gap: 12px; }
+      .gate__brand { font-family: 'Cormorant Garamond', serif; font-size: 22px; letter-spacing: .12em; margin: 0; }
+      .gate__brand span { display: block; font-family: Inter, sans-serif; font-size: 12px; letter-spacing: .3em; color: #8b94a0; margin-top: 2px; }
+      .gate__sub { font-size: 12px; color: #8b94a0; margin: 0; }
+      .gate__err { font-size: 12px; color: #c0392b; min-height: 14px; margin: 0; }
+    </style>
+  </head>
+  <body>
+    <!-- 登录鉴权门：与 admin.html 共用 beisu_op_token，未登录时覆盖全部内容 -->
+    <div class="gate" id="gate" style="display:none;">
+      <form class="gate__card" onsubmit="return gateLogin(event)">
+        <p class="gate__brand">ISLA HAINAN<span>运营后台</span></p>
+        <p class="gate__sub">请使用人工客服账号登录后操作</p>
+        <input class="input" id="gateUser" type="text" placeholder="账号" autocomplete="username" />
+        <input class="input" id="gatePass" type="password" placeholder="密码" autocomplete="current-password" />
+        <button class="btn btn--solid btn--block" type="submit">登录</button>
+        <p class="gate__err" id="gateErr"></p>
+      </form>
+    </div>
+
+    <div class="admin" id="app" style="display:none;">
+      <header class="admin__bar">
+        <a href="/experience/" class="admin__brand">
+          ISLA HAINAN
+          <span class="admin__brand-sub">运营后台</span>
+        </a>
+        <div class="admin__bar-actions">
+          <span class="admin__demo">数据来自本地接口 · 前端提交后实时同步</span>
+          <a href="/experience/" class="btn btn--ghost btn--sm">返回官网</a>
+        </div>
+      </header>
+
+      <div class="admin__layout">
+        <aside class="admin__side">
+          <p class="admin__side-title">后台骨架</p>
+          <button type="button" class="admin__tab is-active" data-tab="customers" onclick="switchTab('customers')">客户记录</button>
+          <button type="button" class="admin__tab" data-tab="prices" onclick="switchTab('prices')">项目价格设置</button>
+          <button type="button" class="admin__tab" data-tab="content" onclick="switchTab('content')">项目页面内容</button>
+          <button type="button" class="admin__tab" data-tab="site" onclick="switchTab('site')">联系方式</button>
+        </aside>
+
+        <main class="admin__main">
+          <!-- ============ 客户记录 ============ -->
+          <div class="panel" id="panel-customers">
+            <div class="panel__head">
+              <div>
+                <h1 class="panel__title">客户记录</h1>
+                <p class="panel__note">数据来自本地接口 · 前端提交后实时同步</p>
+              </div>
+              <div class="panel__actions">
+                <button type="button" class="btn btn--ghost btn--sm" disabled>新增客户（占位）</button>
+                <button type="button" class="btn btn--ghost btn--sm" disabled>导出（占位）</button>
+              </div>
+            </div>
+
+            <div class="toolbar">
+              <input class="input input--sm" type="search" id="custQuery" placeholder="搜索姓名 / 联系方式" aria-label="搜索姓名 / 联系方式" oninput="renderCustomers()" />
+              <select class="select select--sm" id="custStatus" aria-label="全部状态" onchange="renderCustomers()">
+                <option value="all">全部状态</option>
+                <option value="new">新询价</option>
+                <option value="pending">待跟进</option>
+                <option value="confirmed">已确认</option>
+                <option value="done">已完成</option>
+              </select>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>客户</th>
+                    <th>联系方式</th>
+                    <th>项目</th>
+                    <th>出行日期</th>
+                    <th>人数</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="custRows"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- ============ 项目价格设置 ============ -->
+          <div class="panel" id="panel-prices" style="display:none;">
+            <div class="panel__head">
+              <div>
+                <h1 class="panel__title">项目价格设置</h1>
+                <p class="panel__note">可直接修改项目名称与价格，点击保存后前端同步生效（本地存储占位）。</p>
+              </div>
+              <div class="panel__actions">
+                <button type="button" class="btn btn--ghost btn--sm" onclick="priceAdd()">新增项目</button>
+              </div>
+            </div>
+
+            <div class="table-wrap">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th>项目名称</th>
+                    <th>基础价格（¥）</th>
+                    <th>定金（¥）</th>
+                  </tr>
+                </thead>
+                <tbody id="priceRows"></tbody>
+              </table>
+            </div>
+
+            <div class="panel__foot">
+              <div class="panel__actions">
+                <button type="button" class="btn btn--solid btn--sm" onclick="priceSave()">保存设置</button>
+                <button type="button" class="btn btn--ghost btn--sm" onclick="priceReset()">恢复默认</button>
+                <span class="panel__saved" id="priceSaved" style="display:none;">已保存</span>
+              </div>
+              <p class="panel__note">价格用于前端展示，后续可接入后台接口。</p>
+            </div>
+          </div>
+
+          <!-- ============ 项目页面内容 ============ -->
+          <div class="panel" id="panel-content" style="display:none;">
+            <div class="panel__head">
+              <div>
+                <h1 class="panel__title">项目页面内容</h1>
+                <p class="panel__note">这里填写的内容会显示在对应项目的详情页，保存后立即生效。</p>
+              </div>
+              <div class="panel__actions">
+                <select class="input select--project" id="ctSlug" onchange="ctSwitch()"></select>
+                <button type="button" class="btn btn--solid btn--sm" onclick="ctSave()">保存设置</button>
+                <span class="panel__saved" id="ctSaved" style="display:none;">已保存</span>
+              </div>
+            </div>
+
+            <section class="content-block">
+              <div class="content-block__head">
+                <h2 class="content-block__title">项目概览</h2>
+                <button type="button" class="btn btn--ghost btn--sm" onclick="ctAddText('overview')">新增段落</button>
+              </div>
+              <p class="content-block__empty" id="ctOvEmpty" style="display:none;">暂无内容</p>
+              <div id="ctOvRows"></div>
+            </section>
+
+            <section class="content-block">
+              <div class="content-block__head">
+                <h2 class="content-block__title">体验亮点</h2>
+                <button type="button" class="btn btn--ghost btn--sm" onclick="ctAddText('highlights')">新增亮点</button>
+              </div>
+              <p class="content-block__empty" id="ctHlEmpty" style="display:none;">暂无内容</p>
+              <div id="ctHlRows"></div>
+            </section>
+
+            <section class="content-block">
+              <div class="content-block__head">
+                <h2 class="content-block__title">右侧信息</h2>
+              </div>
+              <div class="meta-block">
+                <label class="meta-block__field">
+                  <span class="meta-block__label">介绍文案（卡片与详情页共用）</span>
+                  <textarea class="input content-row__area" rows="2" id="ctIntro" oninput="ctDraft.meta.intro=this.value;ctDirty()"></textarea>
+                </label>
+              </div>
+              <div class="meta-grid">
+                <label class="meta-field">
+                  <span class="meta-field__label">参考价格</span>
+                  <input class="input" type="number" min="0" id="ctPrice" oninput="ctDraft.price=this.value;ctDirty()" />
+                </label>
+                <label class="meta-field">
+                  <span class="meta-field__label">时长</span>
+                  <input class="input" type="text" id="ctDuration" oninput="ctDraft.meta.duration=this.value;ctDirty()" />
+                </label>
+                <label class="meta-field">
+                  <span class="meta-field__label">成团人数</span>
+                  <input class="input" type="text" id="ctGroup" oninput="ctDraft.meta.group=this.value;ctDirty()" />
+                </label>
+                <label class="meta-field">
+                  <span class="meta-field__label">强度</span>
+                  <input class="input" type="text" id="ctLevel" oninput="ctDraft.meta.level=this.value;ctDirty()" />
+                </label>
+                <label class="meta-field">
+                  <span class="meta-field__label">出发地</span>
+                  <input class="input" type="text" id="ctFrom" oninput="ctDraft.meta.from=this.value;ctDirty()" />
+                </label>
+              </div>
+              <p class="content-block__empty">留空则沿用默认文案；价格与“项目价格设置”里的是同一个数值。</p>
+            </section>
+
+            <section class="content-block">
+              <div class="content-block__head">
+                <h2 class="content-block__title">项目图集</h2>
+                <label class="btn btn--ghost btn--sm upload-btn">
+                  <span id="ctUploadLabel">上传图片</span>
+                  <input type="file" accept="image/*" multiple id="ctUpload" onchange="ctUploadFiles(this)" />
+                </label>
+              </div>
+              <p class="panel__error" id="ctUploadErr" style="display:none;">上传失败，请确认服务已启动</p>
+              <p class="content-block__empty" id="ctGalEmpty">还没有图片，点右上角上传。</p>
+              <div class="gallery-grid" id="ctGallery"></div>
+              <p class="content-block__empty">首页横幅暂不变，这里上传的图片显示在项目详情页底部图集。</p>
+            </section>
+          </div>
+
+          <!-- ============ 联系方式 ============ -->
+          <div class="panel" id="panel-site" style="display:none;">
+            <div class="panel__head">
+              <div>
+                <h1 class="panel__title">联系方式与社交链接</h1>
+                <p class="panel__note">这里填写的内容会直接显示在网站页脚，保存后立即生效。</p>
+              </div>
+              <div class="panel__actions">
+                <button type="button" class="btn btn--solid btn--sm" onclick="siteSave()">保存设置</button>
+                <span class="panel__saved" id="siteSaved" style="display:none;">已保存</span>
+                <span class="panel__error" id="siteFailed" style="display:none;">保存失败，请检查服务是否启动</span>
+              </div>
+            </div>
+
+            <div class="site-form">
+              <label class="site-form__row site-form__row--intro">
+                <span class="site-form__label">品牌介绍</span>
+                <textarea class="input site-form__textarea" rows="4" id="siteIntro" placeholder="留空则首页不显示，填写后显示在首页大标题下方" oninput="siteDirty()"></textarea>
+              </label>
+              <label class="site-form__row">
+                <span class="site-form__label">联系邮箱</span>
+                <input class="input" type="text" id="siteEmail" placeholder="hello@example.com" oninput="siteDirty()" />
+              </label>
+              <label class="site-form__row">
+                <span class="site-form__label">联系电话</span>
+                <input class="input" type="text" id="sitePhone" placeholder="+86 138 0000 0000" oninput="siteDirty()" />
+              </label>
+              <label class="site-form__row">
+                <span class="site-form__label">Telegram</span>
+                <input class="input" type="text" id="siteTelegram" placeholder="https://t.me/…" oninput="siteDirty()" />
+              </label>
+              <label class="site-form__row">
+                <span class="site-form__label">Instagram</span>
+                <input class="input" type="text" id="siteInstagram" placeholder="https://instagram.com/…" oninput="siteDirty()" />
+              </label>
+              <label class="site-form__row">
+                <span class="site-form__label">Facebook</span>
+                <input class="input" type="text" id="siteFacebook" placeholder="https://facebook.com/…" oninput="siteDirty()" />
+              </label>
+            </div>
+          </div>
+        </main>
+      </div>
+    </div>
+
+    <script>
+    /* ================= 基础 ================= */
+    const $ = (id) => document.getElementById(id);
+    let opToken = localStorage.getItem('beisu_op_token') || '';
+
+    function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escAttr(s){ return esc(s).replace(/"/g,'&quot;'); }
+
+    /* 统一请求：自动附带登录 token；401 时弹回登录门 */
+    async function req(path, opts){
+      opts = opts || {};
+      opts.headers = Object.assign({}, opts.headers, { 'X-Op-Token': opToken });
+      const r = await fetch(path, opts);
+      if (r.status === 401){ showGate('登录态已失效，请重新登录'); throw new Error('401'); }
+      return r;
+    }
+
+    /* ================= 登录门 ================= */
+    function showGate(msg){
+      $('app').style.display = 'none';
+      $('gate').style.display = 'flex';
+      $('gateErr').textContent = msg || '';
+    }
+    async function gateLogin(ev){
+      ev.preventDefault();
+      const err = $('gateErr');
+      err.textContent = '';
+      const u = $('gateUser').value.trim();
+      const pwd = $('gatePass').value;
+      if (!u || !pwd){ err.textContent = '请输入账号和密码'; return false; }
+      try {
+        const r = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: u, password: pwd })
+        });
+        const d = await r.json();
+        if (!r.ok || !d.ok){ err.textContent = d.error || '账号或密码错误'; return false; }
+        opToken = d.token;
+        localStorage.setItem('beisu_op_token', opToken);
+        $('gatePass').value = '';
+        enter();
+      } catch(e){ err.textContent = '网络错误，请重试'; }
+      return false;
+    }
+    async function enter(){
+      $('gate').style.display = 'none';
+      $('app').style.display = '';
+      await Promise.all([loadProjects(), loadCustomers(), siteLoad()]);
+      buildCtOptions();
+    }
+    /* 页面打开：本地 token 有效直接进入，无效弹登录门 */
+    (async function(){
+      if (opToken){
+        try {
+          const d = await fetch('/api/auth/status?token=' + encodeURIComponent(opToken)).then(r => r.json());
+          if (d && d.loggedInAs){ enter(); return; }
+        } catch(e){}
+        opToken = '';
+        try { localStorage.removeItem('beisu_op_token'); } catch(e){}
+      }
+      showGate('');
+    })();
+
+    /* ================= 标签页切换 ================= */
+    let curTab = 'customers';
+    function switchTab(name){
+      curTab = name;
+      document.querySelectorAll('.admin__tab').forEach(function (b){
+        b.classList.toggle('is-active', b.dataset.tab === name);
+      });
+      ['customers', 'prices', 'content', 'site'].forEach(function (n){
+        $('panel-' + n).style.display = n === name ? '' : 'none';
+      });
+      if (name === 'prices' && !priceDraft) priceInit();
+      if (name === 'content' && !ctDraft) ctSwitch();
+    }
+
+    /* ================= 项目数据（base + 服务端覆盖） ================= */
+    const BASE_PROJECTS = [
+      { slug: 'sanya-surf',       key: 'surf',    price: 6800,  deposit: 2000, tone: 'a' },
+      { slug: 'wanning-dive',     key: 'dive',    price: 9200,  deposit: 2800, tone: 'b' },
+      { slug: 'haikou-culture',   key: 'culture', price: 3800,  deposit: 1200, tone: 'c' },
+      { slug: 'lingshui-retreat', key: 'retreat', price: 12800, deposit: 3800, tone: 'd' },
+    ];
+    const ZH_COPY = {
+      surf:    { name: '日月湾冲浪计划', lead: '以浪点为线索的五日海岸生活。',       duration: '5 天 4 晚', group: '2–8 人',  level: '轻中等', from: '三亚' },
+      dive:    { name: '万宁自由潜入门', lead: '潟湖与珊瑚礁之间的四日潜水课程。',   duration: '4 天 3 晚', group: '2–6 人',  level: '中等',   from: '万宁' },
+      culture: { name: '海口骑楼与市集', lead: '从老城骑楼到海边市集的在地三日。',   duration: '3 天 2 晚', group: '2–6 人',  level: '轻',     from: '海口' },
+      retreat: { name: '陵水离岛静修',   lead: '离岛之上的四日慢节奏静修。',         duration: '4 天 3 晚', group: '4–10 人', level: '轻',     from: '三亚' },
+    };
+    const CUSTOM_COPY = { name: '新项目', lead: '自定义项目，详情内容待补充。', duration: '待定', group: '待定', level: '待定', from: '待定' };
+    const DEFAULT_OVERVIEW = [
+      '此处为项目概览占位段落。用于介绍项目的整体气质、适合人群与核心体验。',
+      '第二段占位文案，可用于补充行程节奏、住宿标准或服务说明。',
+    ];
+    const DEFAULT_HIGHLIGHTS = ['私人向导与专属路线', '临海精品住宿', '本地餐饮与市集体验', '全程影像记录（占位）'];
+    const TONES = ['a', 'b', 'c', 'd'];
+    const STATUS_LABEL = { new: '新询价', pending: '待跟进', confirmed: '已确认', done: '已完成' };
+
+    let overrides = {};
+    let projects = [];
+
+    function copyOf(p){ return (p && p.key && ZH_COPY[p.key]) ? ZH_COPY[p.key] : CUSTOM_COPY; }
+    function projectName(p){ const n = p && p.name && p.name.trim(); return n || copyOf(p).name; }
+
+    function applyOverrides(){
+      projects = BASE_PROJECTS.map(function (base){
+        const o = overrides[base.slug] || {};
+        const p = Object.assign({}, base, { name: '' });
+        if (typeof o.price === 'number') p.price = o.price;
+        if (typeof o.deposit === 'number') p.deposit = o.deposit;
+        if (o.name) p.name = o.name;
+        p.meta = {};
+        ['intro', 'duration', 'group', 'level', 'from'].forEach(function (k){ if (o[k]) p.meta[k] = o[k]; });
+        if (o.content && typeof o.content === 'object'){
+          p.content = {
+            overview: Array.isArray(o.content.overview) ? o.content.overview.slice() : [],
+            highlights: Array.isArray(o.content.highlights) ? o.content.highlights.slice() : [],
+          };
+        }
+        if (Array.isArray(o.gallery)) p.gallery = o.gallery.slice();
+        return p;
+      });
+    }
+
+    async function loadProjects(){
+      try {
+        const d = await req('/api/exp/projects').then(r => r.json());
+        overrides = (d && d.projects) || {};
+      } catch(e){ overrides = {}; }
+      applyOverrides();
+    }
+
+    /* 只提交后台填过的值；清空的字段不进覆盖，游客端回退默认文案（服务端整体替换式保存） */
+    function buildOverrides(list){
+      const out = {};
+      list.forEach(function (p){
+        const item = {};
+        if (typeof p.price === 'number') item.price = p.price;
+        if (typeof p.deposit === 'number') item.deposit = p.deposit;
+        if (p.name && p.name.trim()) item.name = p.name.trim();
+        ['intro', 'duration', 'group', 'level', 'from'].forEach(function (k){
+          const v = p.meta && p.meta[k];
+          if (v && String(v).trim()) item[k] = String(v).trim();
+        });
+        if (p.content && typeof p.content === 'object'){
+          const ov = p.content.overview.map(function (s){ return String(s || '').trim(); }).filter(Boolean);
+          const hl = p.content.highlights.map(function (s){ return String(s || '').trim(); }).filter(Boolean);
+          if (ov.length || hl.length) item.content = { overview: ov, highlights: hl };
+        }
+        if (Array.isArray(p.gallery) && p.gallery.length) item.gallery = p.gallery.slice();
+        if (Object.keys(item).length) out[p.slug] = item;
+      });
+      return out;
+    }
+
+    async function pushOverrides(list){
+      const r = await req('/api/exp/projects', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projects: buildOverrides(list) }),
+      }).then(r => r.json());
+      if (!r || !r.ok) return false;
+      overrides = r.projects || {};
+      applyOverrides();
+      /* 另一标签页的草稿已过期，下次切换时重建 */
+      priceDraft = null;
+      ctDraft = null;
+      buildCtOptions();
+      return true;
+    }
+
+    /* ================= 客户记录 ================= */
+    let customers = [];
+    function newestFirst(list){
+      return list.slice().sort(function (a, b){
+        const byTime = String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+        return byTime !== 0 ? byTime : String(b.id).localeCompare(String(a.id));
+      });
+    }
+    async function loadCustomers(){
+      try {
+        const d = await req('/api/bookings').then(r => r.json());
+        customers = Array.isArray(d) ? newestFirst(d) : [];
+      } catch(e){ customers = []; }
+      renderCustomers();
+    }
+    function renderCustomers(){
+      const q = $('custQuery').value.trim().toLowerCase();
+      const st = $('custStatus').value;
+      const rows = customers.filter(function (c){
+        if (st !== 'all' && (c.status || 'new') !== st) return false;
+        if (!q) return true;
+        return String(c.name || '').toLowerCase().indexOf(q) >= 0
+            || String(c.contact || '').toLowerCase().indexOf(q) >= 0;
+      });
+      $('custRows').innerHTML = rows.length ? rows.map(function (c){
+        const p = projects.find(function (x){ return x.slug === c.slug; });
+        const proj = p ? projectName(p) : (c.projectName || c.slug || '');
+        const status = c.status || 'new';
+        const opts = Object.keys(STATUS_LABEL).map(function (k){
+          return '<option value="' + k + '"' + (status === k ? ' selected' : '') + '>' + STATUS_LABEL[k] + '</option>';
+        }).join('');
+        return '<tr>'
+          + '<td><span class="table__name">' + esc(c.name) + '</span><span class="table__id">' + esc(c.id) + '</span></td>'
+          + '<td>' + esc(c.contact) + '</td>'
+          + '<td>' + esc(proj) + '</td>'
+          + '<td>' + esc(c.date) + '</td>'
+          + '<td>' + esc(c.pax) + '</td>'
+          + '<td><select class="select select--sm select--status is-' + status + '" aria-label="状态" onchange="custStatus(\'' + escAttr(c.id) + '\', this.value)">' + opts + '</select></td>'
+          + '<td><button type="button" class="table__link table__link--danger" onclick="custRemove(\'' + escAttr(c.id) + '\')">删除</button></td>'
+          + '</tr>';
+      }).join('') : '<tr><td colspan="7" class="table__empty">没有匹配的记录</td></tr>';
+    }
+    async function custStatus(id, status){
+      const c = customers.find(function (x){ return String(x.id) === String(id); });
+      if (c) c.status = status;
+      renderCustomers();
+      try {
+        const r = await req('/api/bookings/' + encodeURIComponent(id), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: status }),
+        });
+        if (!r.ok) throw new Error('status ' + r.status);
+      } catch(e){ await loadCustomers(); }
+    }
+    async function custRemove(id){
+      if (!window.confirm('确定删除这条客户记录吗？删除后不可恢复。')) return;
+      customers = customers.filter(function (x){ return String(x.id) !== String(id); });
+      renderCustomers();
+      try {
+        const r = await req('/api/bookings/' + encodeURIComponent(id), { method: 'DELETE' });
+        if (!r.ok) throw new Error('status ' + r.status);
+      } catch(e){ await loadCustomers(); }
+    }
+
+    /* ================= 项目价格设置 ================= */
+    let priceDraft = null;
+    function priceInit(){
+      priceDraft = projects.map(function (p){
+        return { slug: p.slug, key: p.key, name: p.name || '', price: p.price, deposit: p.deposit, tone: p.tone };
+      });
+      renderPrices();
+    }
+    function renderPrices(){
+      $('priceRows').innerHTML = priceDraft.map(function (p){
+        const placeholder = copyOf(p).name;
+        return '<tr>'
+          + '<td><input class="input input--sm price-name" type="text" value="' + escAttr(p.name) + '" placeholder="' + escAttr(placeholder) + '" aria-label="项目名称" oninput="priceUpdate(\'' + escAttr(p.slug) + '\', \'name\', this.value)" />'
+          + '<span class="table__id">' + esc(p.slug) + '</span></td>'
+          + '<td><div class="price-input"><span>¥</span><input class="input input--sm" type="number" min="0" step="100" value="' + (p.price || 0) + '" aria-label="' + escAttr(placeholder) + ' 基础价格（¥）" oninput="priceUpdate(\'' + escAttr(p.slug) + '\', \'price\', Number(this.value))" /></div></td>'
+          + '<td><div class="price-input"><span>¥</span><input class="input input--sm" type="number" min="0" step="100" value="' + (p.deposit || 0) + '" aria-label="' + escAttr(placeholder) + ' 定金（¥）" oninput="priceUpdate(\'' + escAttr(p.slug) + '\', \'deposit\', Number(this.value))" /></div></td>'
+          + '</tr>';
+      }).join('');
+    }
+    function priceUpdate(slug, field, value){
+      const r = priceDraft.find(function (x){ return x.slug === slug; });
+      if (r) r[field] = value;
+      $('priceSaved').style.display = 'none';
+    }
+    function priceAdd(){
+      const used = {};
+      priceDraft.forEach(function (p){ used[p.slug] = true; });
+      let i = 1;
+      while (used['custom-' + i]) i += 1;
+      priceDraft.push({ slug: 'custom-' + i, key: null, name: '', price: 0, deposit: 0, tone: TONES[priceDraft.length % TONES.length] });
+      $('priceSaved').style.display = 'none';
+      renderPrices();
+    }
+    async function priceSave(){
+      const bySlug = {};
+      priceDraft.forEach(function (r){ bySlug[r.slug] = r; });
+      /* 价格草稿只含名称/价格/定金，合并回完整项目对象，避免清掉内容/图集等其他覆盖 */
+      const list = projects.map(function (p){
+        const r = bySlug[p.slug];
+        return r ? Object.assign({}, p, { name: r.name, price: Number(r.price) || 0, deposit: Number(r.deposit) || 0 }) : p;
+      }).concat(priceDraft.filter(function (r){
+        return !projects.some(function (p){ return p.slug === r.slug; });
+      }).map(function (r){
+        return { slug: r.slug, key: null, name: r.name, price: Number(r.price) || 0, deposit: Number(r.deposit) || 0, tone: r.tone, meta: {} };
+      }));
+      const ok = await pushOverrides(list);
+      if (ok){ $('priceSaved').style.display = ''; }
+    }
+    function priceReset(){
+      priceDraft = BASE_PROJECTS.map(function (p){ return Object.assign({}, p, { name: '' }); });
+      $('priceSaved').style.display = 'none';
+      renderPrices();
+    }
+
+    /* ================= 项目页面内容 ================= */
+    let ctDraft = null;
+    function buildCtOptions(){
+      const sel = $('ctSlug');
+      const cur = sel.value || (projects[0] && projects[0].slug) || '';
+      sel.innerHTML = projects.map(function (p){
+        return '<option value="' + escAttr(p.slug) + '"' + (p.slug === cur ? ' selected' : '') + '>' + esc(projectName(p)) + '</option>';
+      }).join('');
+    }
+    function ctSwitch(){
+      const slug = $('ctSlug').value;
+      const p = projects.find(function (x){ return x.slug === slug; }) || projects[0];
+      if (!p) return;
+      const copy = copyOf(p);
+      ctDraft = {
+        slug: p.slug,
+        overview: p.content ? p.content.overview.slice() : DEFAULT_OVERVIEW.slice(),
+        highlights: p.content ? p.content.highlights.slice() : DEFAULT_HIGHLIGHTS.slice(),
+        price: p.price,
+        meta: {
+          intro: p.meta.intro || '',
+          duration: p.meta.duration || '',
+          group: p.meta.group || '',
+          level: p.meta.level || '',
+          from: p.meta.from || '',
+        },
+        gallery: p.gallery ? p.gallery.slice() : [],
+      };
+      /* 占位符显示默认文案，留空即回退默认 */
+      $('ctIntro').placeholder = copy.lead;
+      $('ctDuration').placeholder = copy.duration;
+      $('ctGroup').placeholder = copy.group;
+      $('ctLevel').placeholder = copy.level;
+      $('ctFrom').placeholder = copy.from;
+      $('ctSaved').style.display = 'none';
+      $('ctUploadErr').style.display = 'none';
+      renderContent();
+    }
+    function ctDirty(){ $('ctSaved').style.display = 'none'; }
+    function renderContent(){
+      if (!ctDraft) return;
+      $('ctOvEmpty').style.display = ctDraft.overview.length ? 'none' : '';
+      $('ctOvRows').innerHTML = ctDraft.overview.map(function (t, i){
+        return '<div class="content-row">'
+          + '<textarea class="input content-row__area" rows="3" oninput="ctDraft.overview[' + i + ']=this.value;ctDirty()">' + esc(t) + '</textarea>'
+          + '<button type="button" class="table__link table__link--danger" onclick="ctDelText(\'overview\', ' + i + ')">删除</button>'
+          + '</div>';
+      }).join('');
+      $('ctHlEmpty').style.display = ctDraft.highlights.length ? 'none' : '';
+      $('ctHlRows').innerHTML = ctDraft.highlights.map(function (t, i){
+        return '<div class="content-row">'
+          + '<input class="input" type="text" value="' + escAttr(t) + '" oninput="ctDraft.highlights[' + i + ']=this.value;ctDirty()" />'
+          + '<button type="button" class="table__link table__link--danger" onclick="ctDelText(\'highlights\', ' + i + ')">删除</button>'
+          + '</div>';
+      }).join('');
+      $('ctIntro').value = ctDraft.meta.intro;
+      $('ctPrice').value = ctDraft.price;
+      $('ctDuration').value = ctDraft.meta.duration;
+      $('ctGroup').value = ctDraft.meta.group;
+      $('ctLevel').value = ctDraft.meta.level;
+      $('ctFrom').value = ctDraft.meta.from;
+      renderGallery();
+    }
+    function renderGallery(){
+      $('ctGalEmpty').style.display = ctDraft.gallery.length ? 'none' : '';
+      $('ctGallery').innerHTML = ctDraft.gallery.map(function (url, i){
+        return '<figure class="gallery-item">'
+          + '<img src="' + escAttr(url) + '" alt="" />'
+          + '<button type="button" class="gallery-item__remove" aria-label="删除" onclick="ctDelImage(' + i + ')">×</button>'
+          + '</figure>';
+      }).join('');
+    }
+    function ctAddText(key){ ctDraft[key].push(''); ctDirty(); renderContent(); }
+    function ctDelText(key, i){ ctDraft[key].splice(i, 1); ctDirty(); renderContent(); }
+    function ctDelImage(i){ ctDraft.gallery.splice(i, 1); ctDirty(); renderGallery(); }
+    async function ctUploadFiles(input){
+      const files = Array.prototype.slice.call(input.files || []);
+      input.value = '';
+      if (!files.length) return;
+      const label = $('ctUploadLabel');
+      label.textContent = '上传中…';
+      $('ctUploadErr').style.display = 'none';
+      let failed = false;
+      for (const f of files){
+        if (!/^image\//.test(f.type)) continue;
+        try {
+          const dataUrl = await new Promise(function (res, rej){
+            const r = new FileReader();
+            r.onload = function(){ res(r.result); };
+            r.onerror = rej;
+            r.readAsDataURL(f);
+          });
+          const d = await req('/api/media', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dataUrl: dataUrl }),
+          }).then(r => r.json());
+          if (d && d.ok && d.url) ctDraft.gallery.push(d.url);
+          else failed = true;
+        } catch(e){ failed = true; }
+      }
+      label.textContent = '上传图片';
+      if (failed) $('ctUploadErr').style.display = '';
+      ctDirty();
+      renderGallery();
+    }
+    async function ctSave(){
+      const list = projects.map(function (p){
+        if (p.slug !== ctDraft.slug) return p;
+        return Object.assign({}, p, {
+          price: Number(ctDraft.price) || 0,
+          meta: {
+            intro: (ctDraft.meta.intro || '').trim(),
+            duration: (ctDraft.meta.duration || '').trim(),
+            group: (ctDraft.meta.group || '').trim(),
+            level: (ctDraft.meta.level || '').trim(),
+            from: (ctDraft.meta.from || '').trim(),
+          },
+          content: { overview: ctDraft.overview.slice(), highlights: ctDraft.highlights.slice() },
+          gallery: ctDraft.gallery.slice(),
+        });
+      });
+      const ok = await pushOverrides(list);
+      if (ok){
+        ctSwitch();
+        $('ctSaved').style.display = '';
+      }
+    }
+
+    /* ================= 联系方式 ================= */
+    function siteDirty(){
+      $('siteSaved').style.display = 'none';
+      $('siteFailed').style.display = 'none';
+    }
+    async function siteLoad(){
+      try {
+        const d = await req('/api/settings').then(r => r.json());
+        if (!d || typeof d !== 'object') return;
+        $('siteIntro').value = d.brandIntro || '';
+        $('siteEmail').value = d.email || '';
+        $('sitePhone').value = d.phone || '';
+        $('siteTelegram').value = d.telegram || '';
+        $('siteInstagram').value = d.instagram || '';
+        $('siteFacebook').value = d.facebook || '';
+      } catch(e){}
+    }
+    async function siteSave(){
+      const body = {
+        brandIntro: $('siteIntro').value,
+        email: $('siteEmail').value,
+        phone: $('sitePhone').value,
+        telegram: $('siteTelegram').value,
+        instagram: $('siteInstagram').value,
+        facebook: $('siteFacebook').value,
+      };
+      try {
+        const r = await req('/api/settings', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error('status ' + r.status);
+        $('siteSaved').style.display = '';
+        $('siteFailed').style.display = 'none';
+      } catch(e){
+        $('siteSaved').style.display = 'none';
+        $('siteFailed').style.display = '';
+      }
+    }
+    </script>
+  </body>
+</html>
