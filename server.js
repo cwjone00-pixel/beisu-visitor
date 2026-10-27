@@ -920,13 +920,13 @@ function articlePath(a){ return '/article/' + a.slug; }
 
 /* ---------------- 页面卡片（聊天里发送的方块富媒体卡片） ----------------
    每张卡片绑定一个页面：卡片标题 / 简介 / 封面图 / 跳转地址，三语文案分开配置。
-   目前只有【全岛游】是已做好的真页面（/island），其余四个页面（租房/租车/项目体验/合作）
-   后续另做，卡片 url 先留空待填；pageKey 用于关键词规则与人工发送时识别归属页面。 */
+   目前【全岛游】(/island) 与【海南项目体验】(/experience) 是站内真页面（整条链路在同一站内），
+   其余三个页面（租房/租车/合作）后续另做，卡片 url 先留空待填；pageKey 用于关键词规则与人工发送时识别归属页面。 */
 const CARD_PAGES = [
   { key:'island',    url:'/island', names:{ zh:'全岛游',           en:'Island Tour',              ru:'Островной тур' } },
   { key:'rent',      url:'',        names:{ zh:'租房',             en:'Housing Rental',           ru:'Аренда жилья' } },
   { key:'car',       url:'',        names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
-  { key:'review',    url:'',        names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
+  { key:'review',    url:'/experience', names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
   { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } }
 ];
 function cardPageByKey(key){ return CARD_PAGES.filter(function (p) { return p.key === key; })[0] || null; }
@@ -1092,6 +1092,14 @@ function serveStatic(req, res){
   /* 全岛游地图子页面：站内路径，不对外暴露地图自己的独立网址（/island → 露营点地图，/island/spots → 打卡点页） */
   if (urlPath === '/island' || urlPath === '/island/') urlPath = '/island/camp.html';
   if (urlPath === '/island/spots' || urlPath === '/island/spots/') urlPath = '/island/camp-next.html';
+  /* 海南项目体验（站内整条链路：项目列表 → 项目详情 → 预订 → 预订成功）。
+     /experience 及其子路径都交给同一份前端入口，由前端路由接管；
+     真实存在的静态文件（assets 等）照常直出，找不到才回退到 index.html。 */
+  if (urlPath === '/experience' || urlPath === '/experience/') {
+    urlPath = '/experience/index.html';
+  } else if (urlPath.startsWith('/experience/') && path.extname(urlPath) === '') {
+    urlPath = '/experience/index.html';
+  }
   /* 安全：禁止通过静态资源访问 data 目录（users/auth/secrets 等敏感数据），杜绝密钥泄露 */
   if (/^\/data(\/|$)/i.test(urlPath)) return send(res, 404, 'Not Found');
   const filePath = path.normalize(path.join(ROOT, urlPath));
@@ -1748,6 +1756,8 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/media/') && req.method === 'GET') ||
       (p === '/api/booking/note' && req.method === 'POST') ||   // 官网预订成功页跨域写入清单，无本站登录态
+      (p === '/api/bookings' && req.method === 'POST') ||       // 站内「海南项目体验」预订表单提交
+      (p === '/api/settings' && req.method === 'GET') ||        // 站内体验页页脚联系方式（游客只读）
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
     if (!open && !sessionUser(req.headers['x-op-token'] || url.searchParams.get('token') || '')){
       return send(res, 401, { ok:false, error:'未登录或登录态已失效，请重新登录' });
@@ -2367,13 +2377,14 @@ const server = http.createServer(async (req, res) => {
     if (!text) return send(res, 400, { ok:false, error:'text required' });
     const db = loadChats();
     /* 会话归属（优先级从高到低）：
-       1) sessionId —— 官网带着从本站菜单跳转时传入的会话 ID（只认已存在的会话，避免伪造注入他人会话）
-       2) visitorKey —— 官网自己持久化的访客标识，映射为固定的 bk-<key> 会话，
+       1) sessionId —— 站内体验页从本站菜单跳转时带着本标签页的会话 ID（sessionStorage beisu_sid）。
+          该会话可能还没落库（访客没发过消息），这里直接按此 ID 建会话，保证清单回到访客自己的聊天框
+       2) visitorKey —— 官网独立域名访问时自己持久化的访客标识，映射为固定的 bk-<key> 会话，
           这样直接访问官网的访客每次预订都会落到同一个会话里，坐席不会看散
        3) 都没有时退回「最近活跃会话」，再没有就新建一个 */
     let sid = '';
     const wantSid = String((body && body.sessionId) || '').trim();
-    if (/^[A-Za-z0-9_-]{1,64}$/.test(wantSid) && db.sessions && db.sessions[wantSid]) sid = wantSid;
+    if (/^[A-Za-z0-9_-]{1,64}$/.test(wantSid)) sid = wantSid;
     if (!sid){
       const vkey = String((body && body.visitorKey) || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
       if (vkey) sid = 'bk-' + vkey;
@@ -2390,6 +2401,44 @@ const server = http.createServer(async (req, res) => {
     if (!sid) sid = getSession('booking').id;   // 还没有任何会话时新建一个，供坐席查看
     const msg = addMsg(sid, { role:'visitor', text, bookingId:String((body && body.bookingId) || '').slice(0, 40) });
     return send(res, 201, { ok:true, sessionId:sid, id:msg.id });
+  }
+
+  /* ---- 站内「海南项目体验」预订表单：保存预订记录并返回预订编号 ---- */
+  if (p === '/api/bookings' && req.method === 'POST'){
+    const body = await readBody(req);
+    const name = String((body && body.name) || '').trim().slice(0, 60);
+    const contact = String((body && body.contact) || '').trim().slice(0, 80);
+    if (!name || !contact) return send(res, 400, { ok:false, error:'请填写姓名与联系方式' });
+    const d = loadData();
+    if (!Array.isArray(d.bookings)) d.bookings = [];
+    const record = {
+      id: 'HA-' + (2600 + d.bookings.length + 1),
+      name,
+      contact,
+      date: String((body && body.date) || '').slice(0, 30),
+      pax: Math.max(0, Math.min(99, Number((body && body.pax) || 0)) | 0),
+      slug: String((body && body.slug) || '').slice(0, 60),
+      projectName: String((body && body.projectName) || '').slice(0, 120),
+      fromCity: String((body && body.fromCity) || '').slice(0, 60),
+      flightNo: String((body && body.flightNo) || '').slice(0, 40),
+      arriveTime: String((body && body.arriveTime) || '').slice(0, 20),
+      screenshot: String((body && body.screenshot) || '').slice(0, 300),
+      remark: String((body && body.remark) || '').slice(0, 800),
+      lang: ['zh','en','ru'].indexOf(body && body.lang) >= 0 ? body.lang : 'zh',
+      createdAt: Date.now()
+    };
+    d.bookings.unshift(record);
+    if (d.bookings.length > 500) d.bookings.length = 500;
+    await saveData(d);
+    return send(res, 200, record);
+  }
+
+  /* ---- 站内「海南项目体验」页脚联系方式（只读）：与官网 /api/settings 保持同一份字段 ---- */
+  if (p === '/api/settings' && req.method === 'GET'){
+    const d = loadData();
+    const base = { brandIntro:'', email:'hello@example.com', phone:'+86 000 0000 0000', telegram:'', instagram:'', facebook:'' };
+    const own = (d.siteSettings && typeof d.siteSettings === 'object') ? d.siteSettings : {};
+    return send(res, 200, Object.assign(base, own));
   }
 
   /* ---- 人工介入聊天接口 ---- */

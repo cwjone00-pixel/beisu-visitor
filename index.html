@@ -697,7 +697,7 @@
             <span class="menu-sub" data-i18n="m2d">包含司机，可以带你走遍整个海南</span>
           </div>
         </div>
-        <div class="menu-item" data-entry="ext" data-url="https://hainan-island-site.onrender.com/projects">
+        <div class="menu-item" data-entry="path" data-url="/experience">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20l8-4.5V8L12 3.5 4 8v7.5L12 20z"/><path d="M12 3.5V20M4 8l8 4.5L20 8"/></svg>
           <div class="menu-text">
             <span class="menu-title" data-i18n="m3">海南项目体验评价</span>
@@ -1343,19 +1343,12 @@ $('catMenu').addEventListener('click', e => {
   document.querySelectorAll('#catMenu .menu-item').forEach(i => i.classList.remove('active'));
   item.classList.add('active');
   syncDrawer(false);   // 手机版：选中菜单项后自动收回抽屉
-  /* 【全岛游】：在同一个标签页内跳转到站内的露营地图子页面（/island），
-     不新开浏览器窗口、不对外暴露地图自己的独立网址。
-     【海南项目体验】：跳转到官网的项目体验页（新标签页打开，本站会话保持不动）。
+  /* 【全岛游】：在同一个标签页内跳转到站内的露营地图子页面（/island）。
+     【海南项目体验】：同样走站内整条链路（/experience：项目列表 → 项目详情 → 预订 → 成功），
+     不新开窗口、不跳外站，会话保持在同一标签页。
      其余菜单项保持原有行为。 */
   if (item.dataset.entry === 'island') location.href = '/island';
-  if (item.dataset.entry === 'ext') {
-    let u = item.dataset.url || '';
-    /* 带上本站会话 ID：官网预订成功页点【确定】时据此把清单写回同一个客服会话 */
-    if (/^https?:\/\//.test(u) && sessionId) {
-      u += (u.indexOf('?') < 0 ? '?' : '&') + 'bsid=' + encodeURIComponent(sessionId);
-    }
-    if (/^https?:\/\//.test(u)) window.open(u, '_blank', 'noopener');
-  }
+  if (item.dataset.entry === 'path' && item.dataset.url) location.href = item.dataset.url;
 });
 $('searchBtn').addEventListener('click', () => toast(dict().toastDemo));
 
