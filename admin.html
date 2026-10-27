@@ -424,6 +424,12 @@
       <button class="btn btn-primary" onclick="openRuleEditor()">+ 新建规则</button>
     </div>
     <div class="desc">精准匹配优先于模糊匹配；回复文案支持中/英/俄三语；可配置 0~4 个配套快捷按钮（三语），留空则不展示。</div>
+    <div class="field" style="margin-top:10px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <div class="switch" id="rsSwitch" onclick="toggleReplySeq()"></div>
+        顺序延时发送（开启：文字立即 → 卡片按设定秒数稍后 → 追加消息依次出现；关闭：一次性全部发出）
+      </label>
+    </div>
     <div id="ruleList" class="rule-list"></div>
   </div>
 
@@ -940,6 +946,15 @@
       <label>绑定页面卡片（命中关键词后自动推送该卡片；不绑定则只发文本回复）</label>
       <select class="input" id="rmCardId"></select>
     </div>
+    <div class="field">
+      <label>卡片发送延时（秒）：文字立即发出，卡片等这个时间再发（0 = 与文字同时，默认 1.5）</label>
+      <input class="input" id="rmCardDelay" type="number" min="0" max="60" step="0.5" placeholder="1.5" style="max-width:160px;">
+    </div>
+    <div class="field">
+      <label>追加消息（主回复之后按顺序逐条发送；每条可单独设延时秒数，最多 8 条）</label>
+      <div id="rmExtra"></div>
+      <button class="btn btn-ghost btn-sm" onclick="rmExtra.push({text:{zh:'',en:'',ru:''},delay:2});renderRmExtra()">+ 添加消息</button>
+    </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('ruleModal')">取消</button>
       <button class="btn btn-primary" onclick="saveRule()">保存</button>
@@ -994,6 +1009,9 @@ const API = {
   update: (id,d) => fetch('/api/rules/'+id, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
   del: id => fetch('/api/rules/'+id, { method:'DELETE' }),
   toggle: id => fetch('/api/rules/'+id+'/toggle', { method:'PATCH' }),
+  /* 关键词回复顺序延时发送总开关 */
+  seqGet: () => fetch('/api/reply-seq').then(r=>r.json()),
+  seqSave: enabled => fetch('/api/reply-seq', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ enabled }) }),
   /* 兜底 */
   getFb: () => fetch('/api/fallback').then(r=>r.json()),
   saveFb: d => fetch('/api/fallback', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
@@ -1062,7 +1080,7 @@ const API = {
 
 let homeBtns = [], rules = [];
 let editingHome = null, editingRule = null;
-let fbBtns = [], rmBtns = [];
+let fbBtns = [], rmBtns = [], rmExtra = [];
 
 /* ================= 人工客服登录 / 账号管理 ================= */
 const $ = id => document.getElementById(id);
@@ -1107,6 +1125,7 @@ async function unlockAdmin(loggedInAs){
   loadBotSwitch();
   loadHome();
   loadRules();
+  loadReplySeq();
   loadFallback();
   loadLinkTpl();
   loadGuide();
@@ -2459,6 +2478,10 @@ function openRuleEditor(id){
   /* 绑定卡片下拉：先填充选项，再回显当前规则绑定的卡片 */
   renderCardPageOptions();
   document.getElementById('rmCardId').value = r.cardId || '';
+  /* 卡片发送延时 + 追加消息：旧规则无这些字段时给默认值 */
+  document.getElementById('rmCardDelay').value = (typeof r.cardDelay === 'number') ? r.cardDelay : 1.5;
+  rmExtra = (r.extra || []).map(m => ({ text: { zh:(m.text||{}).zh||'', en:(m.text||{}).en||'', ru:(m.text||{}).ru||'' }, delay: m.delay || 0 }));
+  renderRmExtra();
   show('ruleModal');
 }
 async function saveRule(){
@@ -2476,13 +2499,49 @@ async function saveRule(){
       .filter(b => b.label.zh || b.label.en || b.label.ru),
     enabled: true,
     appendLink: document.getElementById('rmAppendLink').checked,
-    cardId: document.getElementById('rmCardId').value || ''
+    cardId: document.getElementById('rmCardId').value || '',
+    cardDelay: Number(document.getElementById('rmCardDelay').value) || 0,
+    extra: rmExtra.map(m => ({
+      text: { zh:(m.text.zh||'').trim(), en:(m.text.en||'').trim(), ru:(m.text.ru||'').trim() },
+      delay: Number(m.delay) || 0
+    })).filter(m => m.text.zh || m.text.en || m.text.ru)
   };
   if (editingRule) await API.update(editingRule, d); else await API.create(d);
   closeModal('ruleModal'); loadRules();
 }
 async function toggleRule(id){ await API.toggle(id); loadRules(); }
 async function deleteRule(id){ if (confirm('确定删除该规则？')) { await API.del(id); loadRules(); } }
+
+/* ===== 顺序延时发送总开关 ===== */
+async function loadReplySeq(){
+  try {
+    const d = await API.seqGet();
+    const el = document.getElementById('rsSwitch');
+    if (el) el.classList.toggle('on', d.enabled !== false);
+  } catch(e){}
+}
+async function toggleReplySeq(){
+  const el = document.getElementById('rsSwitch');
+  const next = !(el && el.classList.contains('on'));
+  try {
+    const d = await API.seqSave(next).then(r=>r.json());
+    if (el) el.classList.toggle('on', d.enabled !== false);
+  } catch(e){}
+}
+/* 追加消息编辑区：每条 = 三语文案 + 相对上一条的延时秒数 */
+function renderRmExtra(){
+  document.getElementById('rmExtra').innerHTML = rmExtra.map((m,i)=>`
+    <div class="btn-block-row">
+      <div style="flex:1">
+        <div class="tri-row"><span class="lang-chip">中文</span><input class="input" value="${escAttr((m.text||{}).zh||'')}" onchange="rmExtra[${i}].text.zh=this.value"></div>
+        <div class="tri-row"><span class="lang-chip">EN</span><input class="input" value="${escAttr((m.text||{}).en||'')}" onchange="rmExtra[${i}].text.en=this.value"></div>
+        <div class="tri-row"><span class="lang-chip">RU</span><input class="input" value="${escAttr((m.text||{}).ru||'')}" onchange="rmExtra[${i}].text.ru=this.value"></div>
+        <div class="tri-row"><span class="lang-chip">延时</span><input class="input" type="number" min="0" max="60" step="0.5" style="max-width:120px" value="${escAttr(String(m.delay==null?2:m.delay))}" onchange="rmExtra[${i}].delay=Number(this.value)||0"> 秒</div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="rmExtra.splice(${i},1);renderRmExtra()">×</button>
+    </div>
+  `).join('');
+}
 function renderRmBtns(){
   document.getElementById('rmBtns').innerHTML = rmBtns.map((b,i)=>`
     <div class="btn-block-row">

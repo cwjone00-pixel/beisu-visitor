@@ -172,6 +172,8 @@ function shapeData(raw){
     if (!d.agentChat || typeof d.agentChat !== 'object') d.agentChat = {};
     d.agentChat.translate = d.agentChat.translate !== false;
     d.agentChat.botEnabled = d.agentChat.botEnabled !== false;
+    /* 关键词回复顺序延时发送总开关（缺省开启；关闭则所有追加消息瞬时发出，保持旧行为） */
+    d.replySeq = d.replySeq !== false;
     return d;
 }
 function loadData(){
@@ -725,6 +727,17 @@ function normalizeLinks(list, legacy){
   }
   return arr.slice(0, 20);
 }
+/* 规则「追加消息」：主回复之后按顺序逐条发送的补充消息。
+   每条 = 三语文案 + 延时（秒，相对上一条消息的等待时间，0~60）；z 空则丢弃；最多 8 条 */
+function normExtraMsgs(list){
+  return (Array.isArray(list) ? list : []).slice(0, 8).map(function (x) {
+    x = (x && typeof x === 'object') ? x : {};
+    const text = normLabel(x.text);
+    const n = Number(x.delay);
+    const delay = (isFinite(n) && n > 0) ? Math.min(60, Math.round(n * 10) / 10) : 0;
+    return { text: text, delay: delay };
+  }).filter(function (x) { return x.text.zh || x.text.en || x.text.ru; });
+}
 function normalizeRule(r){
   const type = (r.type === 'fuzzy') ? 'fuzzy' : 'exact';
   const keywords = normKeywordMap(r.keywords);
@@ -733,7 +746,11 @@ function normalizeRule(r){
   const enabled = r.enabled === false ? false : true;
   const appendLink = r.appendLink === true;   // 是否附加底部链接，默认关闭
   const cardId = String(r.cardId || '').trim().slice(0, 64);   // 绑定的页面卡片 ID（空=不绑定）
-  return { id: r.id || crypto.randomUUID(), type, keywords, reply, quickButtons, enabled, appendLink, cardId };
+  const cn = Number(r.cardDelay);
+  // 卡片发送延时：关键词命中后等多少秒才发卡片（默认 1.5，0~60；0 = 与文字回复同时）
+  const cardDelay = (isFinite(cn) && cn >= 0) ? Math.min(60, Math.round(cn * 10) / 10) : 1.5;
+  const extra = normExtraMsgs(r.extra);                        // 主回复之后按顺序逐条追加的消息（每条自带延时）
+  return { id: r.id || crypto.randomUUID(), type, keywords, reply, quickButtons, enabled, appendLink, cardId, cardDelay, extra };
 }
 function normalizeFallback(fb){
   fb = fb || {};
@@ -794,8 +811,34 @@ function matchPayload(hit){
     matched: !hit.isFallback,
     link,
     links,
-    card
+    card,
+    cardDelay: (typeof hit.cardDelay === 'number' && hit.cardDelay >= 0) ? hit.cardDelay : 1.5,  // 卡片发送延时（秒）
+    extra: Array.isArray(hit.extra) ? hit.extra : []   // 主回复之后按顺序逐条追加的消息
   };
+}
+/* 关键词回复写入会话流：按顺序逐条写入，每条附带「相对上一条」的延时 delayMs。
+   顺序：主回复（立即）→ 页面卡片（等「卡片发送延时」后发出，卡片慢一点发）→ 追加消息依次累加。
+   无卡片时主回复仍是第 1 条（立即），追加消息紧随其后，节奏不变。
+   游客端按 delayMs 依次展示（上一条显示完再显示下一条）；总开关关闭时全部为 0，即瞬时发出（旧行为）。 */
+function pushRuleMsgs(sid, payload, seqEnabled){
+  let acc = 0;
+  const hasCard = !!payload.card;
+  // 卡片发送延时（秒）：关键词命中后等多少秒才发卡片；旧规则无此字段时兜底 1.5，0 表示与主回复同时
+  const cd = (typeof payload.cardDelay === 'number' && payload.cardDelay >= 0) ? payload.cardDelay : 1.5;
+  const rep = payload.reply || {};
+  if (rep.zh || rep.en || rep.ru){
+    addMsg(sid, { role:'bot', reply:payload.reply, quickButtons:payload.quickButtons, link:payload.link, links:payload.links, delayMs: 0 });
+  }
+  if (hasCard){
+    acc = seqEnabled ? acc + Math.round(cd * 1000) : 0;
+    addMsg(sid, { role:'bot', card:payload.card, delayMs: acc });
+  }
+  (payload.extra || []).forEach(function (e) {
+    const t = e.text || {};
+    if (!(t.zh || t.en || t.ru)) return;
+    acc = seqEnabled ? acc + (+e.delay || 0) * 1000 : 0;
+    addMsg(sid, { role:'bot', reply:{ zh:t.zh || '', en:t.en || '', ru:t.ru || '' }, delayMs: acc });
+  });
 }
 
 /* ---------------- HTTP 工具 ---------------- */
@@ -1754,6 +1797,7 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/tg-webhook' && req.method === 'POST') ||   // Telegram 服务器回调，无本站登录态
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
+      (p === '/api/reply-seq' && req.method === 'GET') ||
       (p.startsWith('/api/media/') && req.method === 'GET') ||
       (p === '/api/booking/note' && req.method === 'POST') ||   // 官网预订成功页跨域写入清单，无本站登录态
       (p === '/api/bookings' && req.method === 'POST') ||       // 站内「海南项目体验」预订表单提交
@@ -2258,14 +2302,8 @@ const server = http.createServer(async (req, res) => {
     }
     const payload = matchPayload(matchInput(body.text, body.lang));
     // 命中规则或兜底回复（任一语种有内容）均入会话流，游客端轮询同步可见
-    const _reply = payload.reply || {};
-    /* 命中规则且绑定了卡片 → 追加一条卡片消息；有文本回复时也照常写入，二者互不影响 */
-    if (activeSid && payload.card){
-      addMsg(activeSid, { role:'bot', card:payload.card });
-    }
-    if (activeSid && (_reply.zh || _reply.en || _reply.ru)){
-      addMsg(activeSid, { role:'bot', reply:payload.reply, quickButtons:payload.quickButtons, link:payload.link, links:payload.links });
-    }
+    // 多条消息（卡片 + 主回复 + 追加消息）按配置顺序逐条写入，各自带延时字段
+    if (activeSid) pushRuleMsgs(activeSid, payload, loadData().replySeq !== false);
     payload.sid = activeSid || undefined;
     payload.reset = reset;
     return send(res, 200, payload);
@@ -2361,11 +2399,7 @@ const server = http.createServer(async (req, res) => {
        未命中保持静默（不发兜底）；人工接管中或机器人总开关关闭时不自动回复，与 /api/match 行为一致 */
     if (sess.mode !== 'agent' && loadData().agentChat.botEnabled){
       const hit = matchPayload(matchInput(summaryText, lang));
-      if (hit.matched){
-        if (hit.card) addMsg(sid, { role:'bot', card:hit.card });
-        const rep = hit.reply || {};
-        if (rep.zh || rep.en || rep.ru) addMsg(sid, { role:'bot', reply:hit.reply, quickButtons:hit.quickButtons, link:hit.link, links:hit.links });
-      }
+      if (hit.matched) pushRuleMsgs(sid, hit, loadData().replySeq !== false);
     }
     return send(res, 200, { ok:true, sid });
   }
@@ -2537,6 +2571,17 @@ const server = http.createServer(async (req, res) => {
     saveData(d);
     broadcastState(true);
     return send(res, 200, { ok:true, enabled: d.agentChat.botEnabled });
+  }
+  /* ---- 关键词回复「顺序延时发送」总开关（缺省开启；关闭则追加消息瞬时全部发出） ---- */
+  if (p === '/api/reply-seq' && req.method === 'GET'){
+    return send(res, 200, { enabled: loadData().replySeq !== false });
+  }
+  if (p === '/api/reply-seq' && req.method === 'PUT'){
+    const body = await readBody(req);
+    const d = loadData();
+    d.replySeq = body.enabled === true;
+    saveData(d);
+    return send(res, 200, { ok:true, enabled: d.replySeq });
   }
   if (p.startsWith('/api/chat/') && p.endsWith('/mode') && req.method === 'POST'){
     const sid = decodeURIComponent(p.slice('/api/chat/'.length, -'/mode'.length));

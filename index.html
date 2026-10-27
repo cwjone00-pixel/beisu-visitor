@@ -2349,15 +2349,27 @@ async function sendMessage(text, imageId){
   await syncMessages();
 }
 /* 增量拉取会话消息（后台人工发送的消息由此轮询到达） */
+/* 首次同步是加载历史记录：直接全部显示，不重放后台配置的发送延时；
+   之后的增量消息按 delayMs（相对上一条的等待毫秒）依次出现，卡片/追加消息就有了节奏 */
+let seqFirstSync = true;
 async function syncMessages(){
   try {
     const res = await fetch('/api/chat/' + encodeURIComponent(sessionId) + '/messages?since=' + lastMsgId);
     const d = await res.json();
     let changed = false;
+    const useDelay = !seqFirstSync;
     (d.messages || []).forEach(m => {
-      if (m.id > lastMsgId){ chatLog.push(m); lastMsgId = m.id; changed = true; }
+      if (m.id <= lastMsgId) return;
+      lastMsgId = m.id;
+      const wait = useDelay ? Math.max(0, Number(m.delayMs) || 0) : 0;
+      if (wait > 0){
+        setTimeout(() => { chatLog.push(m); renderChat(); }, wait);
+      } else {
+        chatLog.push(m); changed = true;
+      }
     });
     if (changed) renderChat();
+    seqFirstSync = false;
   } catch(e){ /* 网络异常时静默，下轮轮询重试 */ }
 }
 setInterval(syncMessages, 3000);
