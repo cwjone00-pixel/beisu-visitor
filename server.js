@@ -2479,6 +2479,7 @@ const server = http.createServer(async (req, res) => {
       contact,
       date: String((body && body.date) || '').slice(0, 30),
       pax: Math.max(0, Math.min(99, Number((body && body.pax) || 0)) | 0),
+      serviceType: (body && body.serviceType) === 'private' ? 'private' : 'group',   // 基础服务购买方式：拼团 / 免拼
       slug: String((body && body.slug) || '').slice(0, 60),
       projectName: String((body && body.projectName) || '').slice(0, 120),
       fromCity: String((body && body.fromCity) || '').slice(0, 60),
