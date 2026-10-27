@@ -2366,8 +2366,18 @@ const server = http.createServer(async (req, res) => {
     const text = String((body && body.text) || '').trim().slice(0, 4000);
     if (!text) return send(res, 400, { ok:false, error:'text required' });
     const db = loadChats();
-    // 官网与客服站不同域，拿不到浏览器里的会话标识：未传 sessionId 时写入最近活跃的会话
-    let sid = String((body && body.sessionId) || '').trim();
+    /* 会话归属（优先级从高到低）：
+       1) sessionId —— 官网带着从本站菜单跳转时传入的会话 ID（只认已存在的会话，避免伪造注入他人会话）
+       2) visitorKey —— 官网自己持久化的访客标识，映射为固定的 bk-<key> 会话，
+          这样直接访问官网的访客每次预订都会落到同一个会话里，坐席不会看散
+       3) 都没有时退回「最近活跃会话」，再没有就新建一个 */
+    let sid = '';
+    const wantSid = String((body && body.sessionId) || '').trim();
+    if (/^[A-Za-z0-9_-]{1,64}$/.test(wantSid) && db.sessions && db.sessions[wantSid]) sid = wantSid;
+    if (!sid){
+      const vkey = String((body && body.visitorKey) || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
+      if (vkey) sid = 'bk-' + vkey;
+    }
     if (!sid){
       let latestTs = -1;
       Object.keys(db.sessions || {}).forEach(k => {

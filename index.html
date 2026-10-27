@@ -1349,7 +1349,11 @@ $('catMenu').addEventListener('click', e => {
      其余菜单项保持原有行为。 */
   if (item.dataset.entry === 'island') location.href = '/island';
   if (item.dataset.entry === 'ext') {
-    const u = item.dataset.url || '';
+    let u = item.dataset.url || '';
+    /* 带上本站会话 ID：官网预订成功页点【确定】时据此把清单写回同一个客服会话 */
+    if (/^https?:\/\//.test(u) && sessionId) {
+      u += (u.indexOf('?') < 0 ? '?' : '&') + 'bsid=' + encodeURIComponent(sessionId);
+    }
     if (/^https?:\/\//.test(u)) window.open(u, '_blank', 'noopener');
   }
 });
