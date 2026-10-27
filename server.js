@@ -174,7 +174,34 @@ function shapeData(raw){
     d.agentChat.botEnabled = d.agentChat.botEnabled !== false;
     /* 关键词回复顺序延时发送总开关（缺省开启；关闭则所有追加消息瞬时发出，保持旧行为） */
     d.replySeq = d.replySeq !== false;
+    /* 海南项目体验 · 项目与价格（后台可改；按 slug 稀疏覆盖，留空沿用页面默认三语文案） */
+    d.expProjects = normExpProjects(d.expProjects);
     return d;
+}
+/* 体验站 4 个项目的可覆盖字段：名称/价格/定金/简介/时长/人数/难度/出发地。
+   只存后台真正填过的值，未填的继续用前端默认文案，避免把多语言默认内容覆盖成空白。 */
+const EXP_SLUG_RE = /^[a-z0-9-]{1,40}$/;
+const EXP_TEXT_FIELDS = { name:60, intro:300, duration:30, group:30, level:30, from:30 };
+function normExpProjects(raw){
+  const out = {};
+  if (!raw || typeof raw !== 'object') return out;
+  Object.keys(raw).forEach(function (slug) {
+    if (!EXP_SLUG_RE.test(slug)) return;
+    const v = (raw[slug] && typeof raw[slug] === 'object') ? raw[slug] : {};
+    const item = {};
+    Object.keys(EXP_TEXT_FIELDS).forEach(function (k) {
+      const s = String(v[k] == null ? '' : v[k]).trim().slice(0, EXP_TEXT_FIELDS[k]);
+      if (s) item[k] = s;
+    });
+    ['price', 'deposit'].forEach(function (k) {
+      const s = String(v[k] == null ? '' : v[k]).trim();
+      if (!s) return;
+      const n = Math.round(Number(s));
+      if (isFinite(n) && n >= 0) item[k] = Math.min(999999, n);
+    });
+    if (Object.keys(item).length) out[slug] = item;
+  });
+  return out;
 }
 function loadData(){
   if (cloud.enabled){
@@ -1802,6 +1829,7 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/booking/note' && req.method === 'POST') ||   // 官网预订成功页跨域写入清单，无本站登录态
       (p === '/api/bookings' && req.method === 'POST') ||       // 站内「海南项目体验」预订表单提交
       (p === '/api/settings' && req.method === 'GET') ||        // 站内体验页页脚联系方式（游客只读）
+      (p === '/api/exp/projects' && req.method === 'GET') ||    // 站内体验页项目与价格（游客只读）
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
     if (!open && !sessionUser(req.headers['x-op-token'] || url.searchParams.get('token') || '')){
       return send(res, 401, { ok:false, error:'未登录或登录态已失效，请重新登录' });
@@ -2473,6 +2501,19 @@ const server = http.createServer(async (req, res) => {
     const base = { brandIntro:'', email:'hello@example.com', phone:'+86 000 0000 0000', telegram:'', instagram:'', facebook:'' };
     const own = (d.siteSettings && typeof d.siteSettings === 'object') ? d.siteSettings : {};
     return send(res, 200, Object.assign(base, own));
+  }
+
+  /* ---- 海南项目体验 · 项目与价格：游客端读取（只读），后台保存（需登录） ---- */
+  if (p === '/api/exp/projects' && req.method === 'GET'){
+    const d = loadData();
+    return send(res, 200, { ok:true, projects: d.expProjects || {} });
+  }
+  if (p === '/api/exp/projects' && req.method === 'PUT'){
+    const body = await readBody(req);
+    const d = loadData();
+    d.expProjects = normExpProjects(body && body.projects);
+    await saveData(d);
+    return send(res, 200, { ok:true, projects: d.expProjects });
   }
 
   /* ---- 人工介入聊天接口 ---- */

@@ -574,6 +574,17 @@
     </div>
   </div>
 
+  <!-- 海南项目体验（站内 /experience 的 4 个项目：名称/价格/定金/简介等，留空沿用页面默认三语文案） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>海南项目体验 · 项目与价格</h2>
+      <button class="btn btn-primary" onclick="saveExpProjects()">保存项目</button>
+    </div>
+    <div class="desc">对应游客端左侧「海南项目体验」进去看到的 4 个项目。价格 / 定金填数字（元）；名称、简介、时长、人数、难度、出发地留空则沿用页面默认三语文案。保存后游客端刷新即生效。</div>
+    <div id="expProjectsBox" style="margin-top:10px;"></div>
+    <div id="expProjectsState" style="font-size:12px; color:#8b94a0;"></div>
+  </div>
+
   </div><!-- /main-col -->
 
   <!-- 右列：独立用户列表（支持搜索 + 内部滚动，客户再多也不挤压左列） -->
@@ -1137,6 +1148,7 @@ async function unlockAdmin(loggedInAs){
   loadEvts();
   loadCards();
   loadIslandPrice();
+  loadExpProjects();
   loadMapPts();
   loadUsers();
   routeByHash();     /* 支持带 #map 直接进入海南全岛地图子页 */
@@ -1958,6 +1970,63 @@ async function saveIslandPrice(){
   }).then(r => r.json());
   if (!r || !r.ok){ alert(r && r.error || '保存失败'); return; }
   loadIslandPrice();
+}
+
+/* ================= 海南项目体验 · 项目与价格 =================
+   与站内 /experience 的 4 个项目一一对应（slug 固定）；只上传填了值的字段，
+   留空的字段服务端不落库，游客端继续用页面默认的三语文案。 */
+const EXP_PROJECTS = [
+  { slug:'sanya-surf',       label:'三亚冲浪', price:6800,  deposit:2000 },
+  { slug:'wanning-dive',     label:'万宁潜水', price:9200,  deposit:2800 },
+  { slug:'haikou-culture',   label:'海口人文', price:3800,  deposit:1200 },
+  { slug:'lingshui-retreat', label:'陵水疗愈', price:12800, deposit:3800 }
+];
+let expProjects = {};
+async function loadExpProjects(){
+  try {
+    const d = await _rawFetch('/api/exp/projects').then(r => r.json());
+    expProjects = (d && d.projects) || {};
+  } catch(e){ expProjects = {}; }
+  renderExpProjects();
+}
+function renderExpProjects(){
+  const box = $('expProjectsBox');
+  if (!box) return;
+  box.innerHTML = EXP_PROJECTS.map(p => {
+    const o = expProjects[p.slug] || {};
+    const txt = (k, ph, w) => `<input class="input" data-slug="${p.slug}" data-k="${k}" placeholder="${ph}" value="${escAttr(o[k] || '')}" style="width:${w};margin:4px 6px 4px 0;">`;
+    const num = (k, ph) => `<input class="input" data-slug="${p.slug}" data-k="${k}" type="number" min="0" max="999999" placeholder="${ph}" value="${o[k] != null ? o[k] : ''}" style="width:150px;margin:4px 6px 4px 0;">`;
+    return `<div style="border:1px solid #e6eaf0;border-radius:10px;padding:10px;margin-bottom:10px;">
+      <div style="font-weight:700;color:#1f2d3d;">${esc(p.label)} <span style="font-size:12px;color:#8b94a0;font-weight:400;">${p.slug}</span></div>
+      <div style="margin-top:6px;">${txt('name','自定义名称（留空用默认）',220)}${num('price','价格（默认 ' + p.price + '）')}${num('deposit','定金（默认 ' + p.deposit + '）')}</div>
+      <div style="margin-top:6px;">${txt('duration','时长',150)}${txt('group','人数',150)}${txt('level','难度',150)}${txt('from','出发地',150)}</div>
+      <div style="margin-top:6px;">${txt('intro','简介（留空用默认文案）','100%')}</div>
+    </div>`;
+  }).join('');
+}
+async function saveExpProjects(){
+  const ov = {};
+  document.querySelectorAll('#expProjectsBox input[data-slug]').forEach(el => {
+    const slug = el.dataset.slug, k = el.dataset.k, v = String(el.value || '').trim();
+    ov[slug] = ov[slug] || {};
+    if (k === 'price' || k === 'deposit'){
+      if (v !== '') ov[slug][k] = Number(v) || 0;
+    } else if (v){
+      ov[slug][k] = v;
+    }
+  });
+  const st = $('expProjectsState');
+  try {
+    const r = await fetch('/api/exp/projects', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', 'X-Op-Token': opToken },
+      body: JSON.stringify({ projects: ov })
+    }).then(r => r.json());
+    if (!r || !r.ok){ st.textContent = (r && r.error) || '保存失败'; return; }
+    expProjects = r.projects || {};
+    renderExpProjects();
+    st.textContent = '已保存 ' + new Date().toLocaleTimeString() + '（游客端刷新即生效）';
+  } catch(e){ st.textContent = '保存失败：' + e.message; }
 }
 
 /* ================= 全岛游地图（露营点 / 游玩打卡点，共用同一份数据源） ================= */
