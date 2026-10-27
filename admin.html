@@ -574,15 +574,58 @@
     </div>
   </div>
 
-  <!-- 海南项目体验（站内 /experience 的 4 个项目：名称/价格/定金/简介等，留空沿用页面默认三语文案） -->
+  <!-- 海南项目体验 · 客户记录（自原体验站前台右下角后台入口迁入：站内预订表单提交的记录，可搜索/筛选/改状态/删除） -->
   <div class="card">
     <div class="head-row">
-      <h2>海南项目体验 · 项目与价格</h2>
-      <button class="btn btn-primary" onclick="saveExpProjects()">保存项目</button>
+      <h2>海南项目体验 · 客户记录 <span class="tag" id="expBkCount">0 条</span></h2>
+      <button class="btn btn-ghost" onclick="loadExpBookings()">刷新</button>
     </div>
-    <div class="desc">对应游客端左侧「海南项目体验」进去看到的 4 个项目。价格 / 定金填数字（元）；名称、简介、时长、人数、难度、出发地留空则沿用页面默认三语文案。保存后游客端刷新即生效。</div>
-    <div id="expProjectsBox" style="margin-top:10px;"></div>
-    <div id="expProjectsState" style="font-size:12px; color:#8b94a0;"></div>
+    <div class="desc">对应游客端「海南项目体验」预订页提交的记录。可按姓名 / 联系方式搜索、按状态筛选，直接在列表里改跟进状态或删除。</div>
+    <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+      <input class="input" id="expBkQuery" placeholder="搜索姓名 / 联系方式" style="width:220px;" oninput="renderExpBookings()">
+      <select class="input" id="expBkStatus" style="width:140px;" onchange="renderExpBookings()">
+        <option value="all">全部状态</option>
+        <option value="new">新询价</option>
+        <option value="pending">待跟进</option>
+        <option value="confirmed">已确认</option>
+        <option value="done">已完成</option>
+      </select>
+    </div>
+    <div id="expBkBox" style="margin-top:10px;"></div>
+  </div>
+
+  <!-- 海南项目体验 · 项目页面内容（自原体验站前台右下角后台入口迁入：概览段落/体验亮点/右侧信息/项目图集） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>海南项目体验 · 项目页面内容</h2>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <select class="input" id="expCtSlug" style="width:190px;" onchange="switchExpContent()"></select>
+        <button class="btn btn-primary" onclick="saveExpContent()">保存内容</button>
+      </div>
+    </div>
+    <div class="desc">这里填写的内容会显示在对应项目的详情页，保存后立即生效；留空则沿用页面默认三语文案。</div>
+    <div id="expCtBox" style="margin-top:10px;"></div>
+    <div id="expCtState" style="font-size:12px; color:#8b94a0;"></div>
+  </div>
+
+  <!-- 海南项目体验 · 联系方式（自原体验站前台右下角后台入口迁入：页脚邮箱/电话/社交链接 + 首页品牌介绍） -->
+  <div class="card">
+    <div class="head-row">
+      <h2>海南项目体验 · 联系方式</h2>
+      <button class="btn btn-primary" onclick="saveExpSite()">保存设置</button>
+    </div>
+    <div class="desc">这里填写的内容会直接显示在体验站页脚，品牌介绍显示在首页大标题下方。保存后游客端刷新即生效。</div>
+    <div style="margin-top:10px;">
+      <textarea class="input" id="expSiteIntro" rows="3" placeholder="品牌介绍（留空则首页不显示）" style="width:100%;"></textarea>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+        <input class="input" id="expSiteEmail" placeholder="联系邮箱" style="width:220px;">
+        <input class="input" id="expSitePhone" placeholder="联系电话" style="width:180px;">
+        <input class="input" id="expSiteTg" placeholder="Telegram 链接（https://t.me/…）" style="width:220px;">
+        <input class="input" id="expSiteIg" placeholder="Instagram 链接" style="width:220px;">
+        <input class="input" id="expSiteFb" placeholder="Facebook 链接" style="width:220px;">
+      </div>
+      <span id="expSiteState" style="font-size:12px; color:#8b94a0;"></span>
+    </div>
   </div>
 
   <!-- 预订条款（游客端预订页底部复选框 + 弹窗；三语富文本，支持换行/加粗，留空则用前端默认条款） -->
@@ -1182,7 +1225,9 @@ async function unlockAdmin(loggedInAs){
   loadEvts();
   loadCards();
   loadIslandPrice();
-  loadExpProjects();
+  loadExpBookings();
+  loadExpContent();
+  loadExpSite();
   loadBookingTerms();
   loadMapPts();
   loadUsers();
@@ -2007,59 +2052,244 @@ async function saveIslandPrice(){
   loadIslandPrice();
 }
 
-/* ================= 海南项目体验 · 项目与价格 =================
-   与站内 /experience 的 4 个项目一一对应（slug 固定）；只上传填了值的字段，
-   留空的字段服务端不落库，游客端继续用页面默认的三语文案。 */
-const EXP_PROJECTS = [
-  { slug:'sanya-surf',       label:'三亚冲浪', price:6800,  deposit:2000 },
-  { slug:'wanning-dive',     label:'万宁潜水', price:9200,  deposit:2800 },
-  { slug:'haikou-culture',   label:'海口人文', price:3800,  deposit:1200 },
-  { slug:'lingshui-retreat', label:'陵水疗愈', price:12800, deposit:3800 }
-];
-let expProjects = {};
-async function loadExpProjects(){
+/* ================= 海南项目体验 · 客户记录 / 项目页面内容 / 联系方式 =================
+   自原体验站前台右下角后台入口（/experience/admin）整体迁入，前台入口与页面已移除；
+   数据与服务端同源：预订记录 d.bookings、项目内容覆盖 d.expProjects、联系方式 d.siteSettings。 */
+
+/* ---- 客户记录：预订表单提交的记录，可搜索/筛选/改状态/删除 ---- */
+const EXP_BK_STATUS = { new:'新询价', pending:'待跟进', confirmed:'已确认', done:'已完成' };
+let expBookings = [];
+async function loadExpBookings(){
   try {
-    const d = await _rawFetch('/api/exp/projects').then(r => r.json());
-    expProjects = (d && d.projects) || {};
-  } catch(e){ expProjects = {}; }
-  renderExpProjects();
+    const d = await fetch('/api/bookings', { headers:{ 'X-Op-Token':opToken } }).then(r => r.json());
+    expBookings = Array.isArray(d) ? d : [];
+  } catch(e){ expBookings = []; }
+  renderExpBookings();
 }
-function renderExpProjects(){
-  const box = $('expProjectsBox');
+function renderExpBookings(){
+  const box = $('expBkBox');
   if (!box) return;
-  box.innerHTML = EXP_PROJECTS.map(p => {
-    const o = expProjects[p.slug] || {};
-    const txt = (k, ph, w) => `<input class="input" data-slug="${p.slug}" data-k="${k}" placeholder="${ph}" value="${escAttr(o[k] || '')}" style="width:${w};margin:4px 6px 4px 0;">`;
-    const num = (k, ph) => `<input class="input" data-slug="${p.slug}" data-k="${k}" type="number" min="0" max="999999" placeholder="${ph}" value="${o[k] != null ? o[k] : ''}" style="width:150px;margin:4px 6px 4px 0;">`;
-    return `<div style="border:1px solid #e6eaf0;border-radius:10px;padding:10px;margin-bottom:10px;">
-      <div style="font-weight:700;color:#1f2d3d;">${esc(p.label)} <span style="font-size:12px;color:#8b94a0;font-weight:400;">${p.slug}</span></div>
-      <div style="margin-top:6px;">${txt('name','自定义名称（留空用默认）',220)}${num('price','价格（默认 ' + p.price + '）')}${num('deposit','定金（默认 ' + p.deposit + '）')}</div>
-      <div style="margin-top:6px;">${txt('duration','时长',150)}${txt('group','人数',150)}${txt('level','难度',150)}${txt('from','出发地',150)}</div>
-      <div style="margin-top:6px;">${txt('intro','简介（留空用默认文案）','100%')}</div>
-    </div>`;
+  const q = String(($('expBkQuery') || {}).value || '').trim().toLowerCase();
+  const st = String(($('expBkStatus') || {}).value || 'all');
+  const rows = expBookings.filter(function (b){
+    if (st !== 'all' && (b.status || 'new') !== st) return false;
+    if (!q) return true;
+    return String(b.name || '').toLowerCase().indexOf(q) >= 0
+        || String(b.contact || '').toLowerCase().indexOf(q) >= 0;
+  });
+  $('expBkCount').textContent = rows.length + ' 条';
+  if (!rows.length){ box.innerHTML = '<div class="empty">没有匹配的记录</div>'; return; }
+  box.innerHTML = rows.map(function (b){
+    const opts = Object.keys(EXP_BK_STATUS).map(function (k){
+      return '<option value="' + k + '"' + ((b.status || 'new') === k ? ' selected' : '') + '>' + EXP_BK_STATUS[k] + '</option>';
+    }).join('');
+    const sub = [b.projectName || b.slug, b.date, b.pax ? (b.pax + ' 人') : ''].filter(Boolean).join(' · ');
+    return '<div class="rule-item">'
+      + '<div class="rule-head">'
+      +   '<span class="rule-title">' + esc(b.name || '(未填写)') + '</span>'
+      +   '<span class="chip">' + esc(b.id || '') + '</span>'
+      +   '<select class="input" style="width:110px;" onchange="setExpBookingStatus(\'' + escAttr(b.id) + '\', this.value)">' + opts + '</select>'
+      +   '<button class="btn btn-ghost btn-sm" onclick="delExpBooking(\'' + escAttr(b.id) + '\')">删除</button>'
+      + '</div>'
+      + '<div style="font-size:12px; color:#8b94a0; margin-top:4px;">' + esc(b.contact || '') + (sub ? ' · ' + esc(sub) : '') + '</div>'
+      + '</div>';
   }).join('');
 }
-async function saveExpProjects(){
-  const ov = {};
-  document.querySelectorAll('#expProjectsBox input[data-slug]').forEach(el => {
-    const slug = el.dataset.slug, k = el.dataset.k, v = String(el.value || '').trim();
-    ov[slug] = ov[slug] || {};
-    if (k === 'price' || k === 'deposit'){
-      if (v !== '') ov[slug][k] = Number(v) || 0;
-    } else if (v){
-      ov[slug][k] = v;
-    }
+async function setExpBookingStatus(id, status){
+  const r = await fetch('/api/bookings/' + encodeURIComponent(id), {
+    method:'PATCH', headers:{ 'Content-Type':'application/json', 'X-Op-Token':opToken },
+    body: JSON.stringify({ status:status })
+  }).then(r => r.json());
+  if (!r || !r.ok){ alert((r && r.error) || '保存失败'); loadExpBookings(); return; }
+  const b = expBookings.find(function (x){ return String(x.id) === String(id); });
+  if (b) b.status = status;
+}
+async function delExpBooking(id){
+  if (!confirm('确定删除这条客户记录吗？删除后不可恢复。')) return;
+  const r = await fetch('/api/bookings/' + encodeURIComponent(id), {
+    method:'DELETE', headers:{ 'X-Op-Token':opToken }
+  }).then(r => r.json());
+  if (!r || !r.ok){ alert((r && r.error) || '删除失败'); return; }
+  loadExpBookings();
+}
+
+/* ---- 项目页面内容：概览段落 / 体验亮点 / 右侧信息 / 项目图集（与站内 /experience 的 4 个项目一一对应） ---- */
+const EXP_CT_PROJECTS = [
+  { slug:'sanya-surf',       label:'三亚冲浪' },
+  { slug:'wanning-dive',     label:'万宁潜水' },
+  { slug:'haikou-culture',   label:'海口人文' },
+  { slug:'lingshui-retreat', label:'陵水疗愈' }
+];
+let expCtSaved = {};   /* 服务端已保存的全部覆盖（含名称/价格等历史字段，保存时整体回传避免误删） */
+let expCtDraft = null; /* 当前项目草稿 */
+async function loadExpContent(){
+  try {
+    const d = await _rawFetch('/api/exp/projects').then(r => r.json());
+    expCtSaved = (d && d.projects) || {};
+  } catch(e){ expCtSaved = {}; }
+  const sel = $('expCtSlug');
+  if (sel && !sel.options.length){
+    sel.innerHTML = EXP_CT_PROJECTS.map(function (p){
+      return '<option value="' + p.slug + '">' + esc(p.label) + '</option>';
+    }).join('');
+  }
+  switchExpContent();
+}
+function switchExpContent(){
+  const slug = ($('expCtSlug') || {}).value || EXP_CT_PROJECTS[0].slug;
+  const o = expCtSaved[slug] || {};
+  expCtDraft = {
+    slug: slug,
+    overview: (o.content && Array.isArray(o.content.overview)) ? o.content.overview.slice() : [],
+    highlights: (o.content && Array.isArray(o.content.highlights)) ? o.content.highlights.slice() : [],
+    intro: o.intro || '', duration: o.duration || '', group: o.group || '',
+    level: o.level || '', from: o.from || '',
+    gallery: Array.isArray(o.gallery) ? o.gallery.slice() : []
+  };
+  renderExpContent();
+}
+/* 重渲染前把当前 DOM 里的编辑值收进草稿，避免增删行时丢失未保存输入 */
+function collectExpContent(){
+  if (!expCtDraft) return;
+  const box = $('expCtBox');
+  if (!box) return;
+  expCtDraft.overview = Array.prototype.map.call(box.querySelectorAll('textarea[data-ov]'), function (el){ return el.value; });
+  expCtDraft.highlights = Array.prototype.map.call(box.querySelectorAll('input[data-hl]'), function (el){ return el.value; });
+  ['intro', 'duration', 'group', 'level', 'from'].forEach(function (k){
+    const el = box.querySelector('[data-meta="' + k + '"]');
+    if (el) expCtDraft[k] = el.value;
   });
-  const st = $('expProjectsState');
+}
+function renderExpContent(){
+  const box = $('expCtBox');
+  if (!box || !expCtDraft) return;
+  const d = expCtDraft;
+  const ovRows = d.overview.map(function (t, i){
+    return '<div style="display:flex; gap:8px; margin-top:6px; align-items:flex-start;">'
+      + '<textarea class="input" data-ov="' + i + '" rows="3" style="flex:1;">' + esc(t) + '</textarea>'
+      + '<button class="btn btn-ghost btn-sm" onclick="expCtDelText(\'overview\', ' + i + ')">删除</button></div>';
+  }).join('');
+  const hlRows = d.highlights.map(function (t, i){
+    return '<div style="display:flex; gap:8px; margin-top:6px; align-items:center;">'
+      + '<input class="input" data-hl="' + i + '" value="' + escAttr(t) + '" style="flex:1;">'
+      + '<button class="btn btn-ghost btn-sm" onclick="expCtDelText(\'highlights\', ' + i + ')">删除</button></div>';
+  }).join('');
+  const gal = d.gallery.map(function (u, i){
+    return '<div style="position:relative; width:96px; height:96px;">'
+      + '<img src="' + escAttr(u) + '" style="width:96px; height:96px; object-fit:cover; border-radius:8px; border:1px solid #e6eaf0;">'
+      + '<button onclick="expCtDelImage(' + i + ')" title="移除" style="position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%; border:none; background:#e0483e; color:#fff; cursor:pointer;">×</button></div>';
+  }).join('');
+  box.innerHTML =
+      '<div style="font-size:13px; font-weight:700; color:#1f2d3d; margin-top:4px;">项目概览'
+    +   '<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="expCtAddText(\'overview\')">新增段落</button></div>'
+    + (ovRows || '<div class="empty" style="padding:12px;">暂无内容</div>')
+    + '<div style="font-size:13px; font-weight:700; color:#1f2d3d; margin-top:14px;">体验亮点'
+    +   '<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="expCtAddText(\'highlights\')">新增亮点</button></div>'
+    + (hlRows || '<div class="empty" style="padding:12px;">暂无内容</div>')
+    + '<div style="font-size:13px; font-weight:700; color:#1f2d3d; margin-top:14px;">右侧信息</div>'
+    + '<textarea class="input" data-meta="intro" rows="2" placeholder="介绍文案（卡片与详情页共用，留空用默认文案）" style="width:100%; margin-top:6px;">' + esc(d.intro) + '</textarea>'
+    + '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;">'
+    +   '<input class="input" data-meta="duration" placeholder="时长" value="' + escAttr(d.duration) + '" style="width:130px;">'
+    +   '<input class="input" data-meta="group" placeholder="人数" value="' + escAttr(d.group) + '" style="width:130px;">'
+    +   '<input class="input" data-meta="level" placeholder="难度" value="' + escAttr(d.level) + '" style="width:130px;">'
+    +   '<input class="input" data-meta="from" placeholder="出发地" value="' + escAttr(d.from) + '" style="width:130px;">'
+    + '</div>'
+    + '<div style="font-size:13px; font-weight:700; color:#1f2d3d; margin-top:14px;">项目图集'
+    +   '<label class="btn btn-ghost btn-sm" style="margin-left:8px; cursor:pointer;">上传图片'
+    +     '<input type="file" accept="image/*" multiple style="display:none;" onchange="expCtUpload(this)"></label></div>'
+    + '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;">'
+    + (gal || '<div class="empty" style="padding:12px;">还没有图片，点上方上传。图片显示在项目详情页底部图集。</div>')
+    + '</div>';
+}
+function expCtAddText(key){ collectExpContent(); expCtDraft[key].push(''); renderExpContent(); }
+function expCtDelText(key, i){ collectExpContent(); expCtDraft[key].splice(i, 1); renderExpContent(); }
+function expCtDelImage(i){ collectExpContent(); expCtDraft.gallery.splice(i, 1); renderExpContent(); }
+async function expCtUpload(input){
+  const files = Array.prototype.slice.call(input.files || []);
+  input.value = '';
+  if (!files.length) return;
+  collectExpContent();
+  const st = $('expCtState');
+  for (const f of files){
+    if (!/^image\//.test(f.type)) continue;
+    try {
+      const dataUrl = await new Promise(function (res, rej){
+        const r = new FileReader();
+        r.onload = function(){ res(r.result); };
+        r.onerror = rej;
+        r.readAsDataURL(f);
+      });
+      const r = await fetch('/api/media', {
+        method:'POST', headers:{ 'Content-Type':'application/json', 'X-Op-Token':opToken },
+        body: JSON.stringify({ dataUrl: dataUrl })
+      }).then(r => r.json());
+      if (r && r.ok && r.url) expCtDraft.gallery.push(r.url);
+      else if (st) st.textContent = (r && r.error) || '上传失败';
+    } catch(e){ if (st) st.textContent = '上传失败：' + e.message; }
+  }
+  renderExpContent();
+}
+async function saveExpContent(){
+  collectExpContent();
+  const d = expCtDraft;
+  const st = $('expCtState');
+  const item = {};
+  ['intro', 'duration', 'group', 'level', 'from'].forEach(function (k){
+    const v = String(d[k] || '').trim();
+    if (v) item[k] = v;
+  });
+  const overview = d.overview.map(function (s){ return String(s || '').trim(); }).filter(Boolean);
+  const highlights = d.highlights.map(function (s){ return String(s || '').trim(); }).filter(Boolean);
+  if (overview.length || highlights.length) item.content = { overview: overview, highlights: highlights };
+  if (d.gallery.length) item.gallery = d.gallery.slice();
+  /* 以服务端最新值为 base 合并：名称/价格等历史覆盖字段原样保留；
+     本模块里清空的字段要从覆盖中真正删掉，游客端才能回退到默认文案 */
+  const projects = Object.assign({}, expCtSaved);
+  const merged = Object.assign({}, projects[d.slug] || {}, item);
+  ['intro', 'duration', 'group', 'level', 'from', 'content', 'gallery'].forEach(function (k){
+    if (!(k in item)) delete merged[k];
+  });
+  if (Object.keys(merged).length) projects[d.slug] = merged; else delete projects[d.slug];
   try {
     const r = await fetch('/api/exp/projects', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'X-Op-Token': opToken },
-      body: JSON.stringify({ projects: ov })
+      method:'PUT', headers:{ 'Content-Type':'application/json', 'X-Op-Token':opToken },
+      body: JSON.stringify({ projects: projects })
     }).then(r => r.json());
     if (!r || !r.ok){ st.textContent = (r && r.error) || '保存失败'; return; }
-    expProjects = r.projects || {};
-    renderExpProjects();
+    expCtSaved = r.projects || {};
+    st.textContent = '已保存 ' + new Date().toLocaleTimeString() + '（游客端刷新即生效）';
+  } catch(e){ st.textContent = '保存失败：' + e.message; }
+}
+
+/* ---- 联系方式：页脚邮箱/电话/社交链接 + 首页品牌介绍 ---- */
+async function loadExpSite(){
+  try {
+    const d = await _rawFetch('/api/settings').then(r => r.json());
+    if (!d || typeof d !== 'object') return;
+    $('expSiteIntro').value = d.brandIntro || '';
+    $('expSiteEmail').value = d.email || '';
+    $('expSitePhone').value = d.phone || '';
+    $('expSiteTg').value = d.telegram || '';
+    $('expSiteIg').value = d.instagram || '';
+    $('expSiteFb').value = d.facebook || '';
+  } catch(e){}
+}
+async function saveExpSite(){
+  const st = $('expSiteState');
+  const body = {
+    brandIntro: $('expSiteIntro').value,
+    email: $('expSiteEmail').value,
+    phone: $('expSitePhone').value,
+    telegram: $('expSiteTg').value,
+    instagram: $('expSiteIg').value,
+    facebook: $('expSiteFb').value
+  };
+  try {
+    const r = await fetch('/api/settings', {
+      method:'PUT', headers:{ 'Content-Type':'application/json', 'X-Op-Token':opToken },
+      body: JSON.stringify(body)
+    }).then(r => r.json());
+    if (!r || !r.ok){ st.textContent = (r && r.error) || '保存失败，请检查登录状态'; return; }
     st.textContent = '已保存 ' + new Date().toLocaleTimeString() + '（游客端刷新即生效）';
   } catch(e){ st.textContent = '保存失败：' + e.message; }
 }

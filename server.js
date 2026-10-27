@@ -2544,12 +2544,52 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, record);
   }
 
+  /* ---- 站内「海南项目体验」预订记录的后台管理（列表 / 改状态 / 删除）----
+     不在游客白名单内，必须携带后台登录 token；游客端只有上方的提交口 */
+  if (p === '/api/bookings' && req.method === 'GET'){
+    const d = loadData();
+    const list = (Array.isArray(d.bookings) ? d.bookings : [])
+      .map(function (b){ return Object.assign({ status:'new' }, b); });
+    return send(res, 200, list);
+  }
+  if (p.startsWith('/api/bookings/') && (req.method === 'PATCH' || req.method === 'DELETE')){
+    const id = decodeURIComponent(p.slice('/api/bookings/'.length));
+    const d = loadData();
+    if (!Array.isArray(d.bookings)) d.bookings = [];
+    const idx = d.bookings.findIndex(function (b){ return String(b.id) === id; });
+    if (idx < 0) return send(res, 404, { ok:false, error:'记录不存在' });
+    if (req.method === 'DELETE'){
+      d.bookings.splice(idx, 1);
+      await saveData(d);
+      return send(res, 200, { ok:true });
+    }
+    const body = await readBody(req);
+    const st = String((body && body.status) || '');
+    if (['new', 'pending', 'confirmed', 'done'].indexOf(st) < 0) return send(res, 400, { ok:false, error:'状态无效' });
+    d.bookings[idx].status = st;
+    await saveData(d);
+    return send(res, 200, { ok:true });
+  }
+
   /* ---- 站内「海南项目体验」页脚联系方式（只读）：与官网 /api/settings 保持同一份字段 ---- */
   if (p === '/api/settings' && req.method === 'GET'){
     const d = loadData();
     const base = { brandIntro:'', email:'hello@example.com', phone:'+86 000 0000 0000', telegram:'', instagram:'', facebook:'' };
     const own = (d.siteSettings && typeof d.siteSettings === 'object') ? d.siteSettings : {};
     return send(res, 200, Object.assign(base, own));
+  }
+  /* 联系方式保存（后台「海南项目体验 · 联系方式」；需登录，不在游客白名单内） */
+  if (p === '/api/settings' && req.method === 'PUT'){
+    const body = await readBody(req);
+    const src = (body && typeof body === 'object') ? body : {};
+    const d = loadData();
+    const out = {};
+    ['brandIntro', 'email', 'phone', 'telegram', 'instagram', 'facebook'].forEach(function (k){
+      out[k] = String(src[k] == null ? '' : src[k]).trim().slice(0, k === 'brandIntro' ? 500 : 200);
+    });
+    d.siteSettings = out;
+    await saveData(d);
+    return send(res, 200, Object.assign({ ok:true }, out));
   }
 
   /* ---- 海南项目体验 · 项目与价格：游客端读取（只读），后台保存（需登录） ---- */
