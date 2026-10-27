@@ -1747,6 +1747,7 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/auth/config' && req.method === 'GET') ||
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p.startsWith('/api/media/') && req.method === 'GET') ||
+      (p === '/api/booking/note' && req.method === 'POST') ||   // 官网预订成功页跨域写入清单，无本站登录态
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
     if (!open && !sessionUser(req.headers['x-op-token'] || url.searchParams.get('token') || '')){
       return send(res, 401, { ok:false, error:'未登录或登录态已失效，请重新登录' });
@@ -2357,6 +2358,28 @@ const server = http.createServer(async (req, res) => {
       }
     }
     return send(res, 200, { ok:true, sid });
+  }
+
+  /* ---- 官网预订成功页【确定】：把所选项目写入客服会话（跨域调用，直接成为一条访客消息） ---- */
+  if (p === '/api/booking/note' && req.method === 'POST'){
+    const body = await readBody(req);
+    const text = String((body && body.text) || '').trim().slice(0, 4000);
+    if (!text) return send(res, 400, { ok:false, error:'text required' });
+    const db = loadChats();
+    // 官网与客服站不同域，拿不到浏览器里的会话标识：未传 sessionId 时写入最近活跃的会话
+    let sid = String((body && body.sessionId) || '').trim();
+    if (!sid){
+      let latestTs = -1;
+      Object.keys(db.sessions || {}).forEach(k => {
+        const s = db.sessions && db.sessions[k];
+        if (!s || !Array.isArray(s.messages) || !s.messages.length) return;
+        const ts = s.messages[s.messages.length - 1].ts || 0;
+        if (ts > latestTs){ latestTs = ts; sid = k; }
+      });
+    }
+    if (!sid) sid = getSession('booking').id;   // 还没有任何会话时新建一个，供坐席查看
+    const msg = addMsg(sid, { role:'visitor', text, bookingId:String((body && body.bookingId) || '').slice(0, 40) });
+    return send(res, 201, { ok:true, sessionId:sid, id:msg.id });
   }
 
   /* ---- 人工介入聊天接口 ---- */
