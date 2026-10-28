@@ -308,10 +308,11 @@
     <h1>beisuas · 配置管理后台</h1>
     <div class="sub">首页快捷按钮 / 关键词回复规则 / 兜底回复 —— 全部内容由后端输出，前端零硬编码</div>
   </div>
-  <!-- 菜单：两个视图同页切换（哈希路由，不开新标签、不暴露独立网址） -->
+  <!-- 菜单：三个入口并排；前两个同页哈希切换，第三个一步直达体验站运营后台（新标签打开） -->
   <nav class="topbar-nav">
     <button class="topbar-nav__btn active" data-nav="config" onclick="goView('config')">后台配置</button>
     <button class="topbar-nav__btn" data-nav="map" onclick="goView('map')">海南全岛地图</button>
+    <a class="topbar-nav__btn" href="/exp-admin.html" target="_blank" rel="noopener" title="一步直达海南项目体验运营后台">海南项目体验 · 运营后台</a>
   </nav>
 </div>
 
