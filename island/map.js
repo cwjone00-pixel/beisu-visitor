@@ -38,6 +38,44 @@ window.HainanMap = (function () {
   var GROUP_TOL  = 0.002;           /* 兜底容差（度）：比例尺未算出时的同位置判定 */
   var FALLBACK_SIZE = 14;           /* 分类未配置 symbolSize 时的标记直径(px) */
 
+  /* 行政区（市县）名称多语对照：GeoJSON 里只有中文名，鼠标悬浮到市县时
+     提示框与本页高亮地名按当前语种输出（缺译的语种回落到中文）。 */
+  var REGION_I18N = {
+    '海口市':                 { en:'Haikou',                ru:'Хайкоу' },
+    '三亚市':                 { en:'Sanya',                 ru:'Санья' },
+    '儋州市':                 { en:'Danzhou',               ru:'Даньчжоу' },
+    '琼海市':                 { en:'Qionghai',              ru:'Цюнхай' },
+    '文昌市':                 { en:'Wenchang',              ru:'Вэньчан' },
+    '万宁市':                 { en:'Wanning',               ru:'Ваньнин' },
+    '东方市':                 { en:'Dongfang',              ru:'Дунфан' },
+    '五指山市':               { en:'Wuzhishan',             ru:'Учжишань' },
+    '定安县':                 { en:"Ding'an",               ru:'Динань' },
+    '屯昌县':                 { en:'Tunchang',              ru:'Туньчан' },
+    '澄迈县':                 { en:'Chengmai',              ru:'Чэнмай' },
+    '临高县':                 { en:'Lingao',                ru:'Линьгао' },
+    '白沙黎族自治县':         { en:'Baisha Li Autonomous County',       ru:'Байша-Лиский автономный уезд' },
+    '昌江黎族自治县':         { en:'Changjiang Li Autonomous County',   ru:'Чанцзян-Лиский автономный уезд' },
+    '乐东黎族自治县':         { en:'Ledong Li Autonomous County',       ru:'Лэдун-Лиский автономный уезд' },
+    '陵水黎族自治县':         { en:'Lingshui Li Autonomous County',     ru:'Линшуй-Лиский автономный уезд' },
+    '保亭黎族苗族自治县':     { en:'Baoting Li and Miao Autonomous County',   ru:'Баотин-Ли-Мяоский автономный уезд' },
+    '琼中黎族苗族自治县':     { en:'Qiongzhong Li and Miao Autonomous County', ru:'Цюнчжун-Ли-Мяоский автономный уезд' }
+  };
+  /* 悬浮提示里「行政区」后缀的三语写法（与游客地图页原有文案一致） */
+  var REGION_SUFFIX = { zh:' · 行政区', en:' · District', ru:' · Район' };
+
+  /* 市县名按语种输出：查对照表；已是译文（或未收录的地名）原样返回 */
+  function regionName(raw, lg) {
+    var n = String(raw == null ? '' : raw);
+    var t = REGION_I18N[n];
+    if (t) return (lg === 'en' || lg === 'ru') ? (t[lg] || n) : n;
+    return n;
+  }
+
+  /* 行政区悬浮提示整句：地名 + 语种后缀（页面自己的提示也复用这一份） */
+  function areaTip(raw, lg) {
+    return regionName(raw, lg) + (REGION_SUFFIX[lg] || REGION_SUFFIX.zh);
+  }
+
   var COARSE_PX  = 40;              /* 密集聚合半径(px)：比它近的点位合并成气泡 */
   var COARSE_TOL = 0.02;            /* 比例尺未算出时的兜底聚合容差（度） */
   var COARSE_MAX = 0.08;            /* 聚合的「真实距离」上限（度，约 8.8km）：
@@ -69,6 +107,24 @@ window.HainanMap = (function () {
     window.__hainanMapRegistered = true;
   }
 
+  /* 取当前语种对应的地图名：中文用原始地图，英/俄在首次使用时注册一份译名副本 */
+  var translatedMaps = {};
+  function mapForLang(lg) {
+    if (lg !== 'en' && lg !== 'ru') return 'hainan';
+    var name = 'hainan-' + lg;
+    if (translatedMaps[name]) return name;
+    if (!window.HAINAN_GEO) return 'hainan';
+    var copy = JSON.parse(JSON.stringify(window.HAINAN_GEO));
+    (copy.features || []).forEach(function (f) {
+      var raw = f && f.properties && f.properties.name;
+      var tr = REGION_I18N[raw];
+      if (tr && tr[lg]) f.properties.name = tr[lg];
+    });
+    echarts.registerMap(name, copy);
+    translatedMaps[name] = true;
+    return name;
+  }
+
   /* 距离 / 时长的展示格式（路线标签与提示共用） */
   function fmtKm(m) {
     m = +m || 0;
@@ -87,6 +143,8 @@ window.HainanMap = (function () {
 
     var categories   = cfg.categories || [];
     var points       = cfg.points || [];
+    /* 当前界面语种：只影响市县名等提示文案，点位名称由外部按语种传入 */
+    var lang         = (cfg.lang === 'en' || cfg.lang === 'ru') ? cfg.lang : 'zh';
     var hidden       = {};              /* 图层显隐状态（按分类 key） */
     var legendOn     = cfg.legend !== false;
     /* 标签里是否带上「类型名」那一行。默认带（内容管理页需要）；
@@ -1161,9 +1219,7 @@ window.HainanMap = (function () {
               return '<b>同一位置 · ' + d.count + ' 条点位</b>' +
                      '<br>由内向外：' + (d.labels || d.kinds || []).join(' → ');
             }
-            if (p.componentType === 'geo') {
-              return p.name.replace(/(黎族苗族自治县|黎族自治县|市|县)$/, '') + ' · 行政区';
-            }
+            if (p.componentType === 'geo') return areaTip(p.name, lang);
             var r = d.raw || {};
             var place = d.place || '';
             return (place ? '<b>' + place + '</b><br>' : '') +
@@ -1180,7 +1236,8 @@ window.HainanMap = (function () {
           data: categories.map(function (c) { return c.name; })
         } : { show: false },
         geo: {
-          map: 'hainan',
+          /* 市县名跟随语种：中文用原始地图，英/俄换用译名地图 */
+          map: mapForLang(lang),
           roam: !!cfg.roam,
           zoom: 1.12,
           center: [109.83, 19.15],
@@ -1188,7 +1245,11 @@ window.HainanMap = (function () {
           itemStyle: { areaColor: '#e9f1fb', borderColor: '#9cb8dd', borderWidth: 1 },
           emphasis: {
             itemStyle: { areaColor: '#d6e6fb' },
-            label: { show: true, color: '#1f2d3d', fontSize: 12 }
+            /* 悬浮时区域内浮现的地名同样跟随语种 */
+            label: {
+              show: true, color: '#1f2d3d', fontSize: 12,
+              formatter: function (p) { return regionName(p.name, lang); }
+            }
           },
           select: { disabled: true }
         },
@@ -1253,6 +1314,8 @@ window.HainanMap = (function () {
           }
           /* 地标层随语种切换一起重传（名称要跟着语言变） */
           if (Array.isArray(next.landmarks)) landmarks = next.landmarks;
+          /* 语种切换：市县悬浮提示 / 高亮地名跟着换语言 */
+          if (next.lang) lang = (next.lang === 'en' || next.lang === 'ru') ? next.lang : 'zh';
           /* 选中态：只传 id 即可（传 null / '' 取消选中）。单独传时不会重传点位数据，
              因此不会把用户已展开的聚合气泡又收起来。 */
           if (next.selected !== undefined) selectedId = next.selected || null;
@@ -1313,5 +1376,5 @@ window.HainanMap = (function () {
     };
   }
 
-  return { create: create };
+  return { create: create, regionName: regionName, areaTip: areaTip };
 })();

@@ -869,7 +869,7 @@
 
   function refreshMap() {
     if (!map) return;
-    map.update({ categories: mapCategories(), points: mapPoints(), landmarks: campLandmarks() });
+    map.update({ categories: mapCategories(), points: mapPoints(), landmarks: campLandmarks(), lang: lang });
     applyTooltip();
   }
   /* 多选状态变了：重画地图 + 刷新左下角已选清单 + 同步提交按钮可用态 */
@@ -1304,6 +1304,7 @@
           categories: mapCategories(),
           points: mapPoints(),
           landmarks: campLandmarks(),
+          lang: lang,               /* 市县悬浮提示跟随当前语种 */
           roam: true,
           legend: false,
           labelMode: 'always',        /* 打卡点数量不多，名称直接常显 */
