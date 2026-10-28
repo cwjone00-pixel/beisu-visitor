@@ -249,7 +249,8 @@
       return { id: s.id, name: spotName(s), lng: +s.lng, lat: +s.lat, categories: [playKey()] };
     });
     rental.forEach(function (r) {
-      out.push({ id: rentalId(r), name: rentalName(r), lng: +r.lng, lat: +r.lat, categories: [RENTAL_KEY] });
+      /* 地图标签只显示市县名（地名），不显示车行名；车行名留在详情卡/详情页 */
+      out.push({ id: rentalId(r), name: areaText(r.area), lng: +r.lng, lat: +r.lat, categories: [RENTAL_KEY] });
     });
     return out;
   }
