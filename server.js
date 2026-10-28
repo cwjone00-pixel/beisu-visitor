@@ -2940,6 +2940,16 @@ const server = http.createServer(async (req, res) => {
     }
     if (!sid) sid = getSession('booking').id;   // 还没有任何会话时新建一个，供坐席查看
     const msg = addMsg(sid, { role:'visitor', text, bookingId:String((body && body.bookingId) || '').slice(0, 40) });
+    /* 预订摘要同样跑一遍关键词匹配：命中规则则自动追加机器人回复/卡片；
+       未命中保持静默（不发兜底）；人工接管中或机器人总开关关闭时不自动回复
+       —— 行为与 /api/island/submit 完全一致。 */
+    const noteLang = ['zh', 'en', 'ru'].indexOf(body && body.lang) >= 0 ? body.lang : 'zh';
+    const sess2 = getSession(sid);
+    sess2.lang = noteLang;
+    if (sess2.mode !== 'agent' && loadData().agentChat.botEnabled){
+      const hit = matchPayload(matchInput(text, noteLang));
+      if (hit.matched) pushRuleMsgs(sid, hit, loadData().replySeq !== false);
+    }
     return send(res, 201, { ok:true, sessionId:sid, id:msg.id });
   }
 
