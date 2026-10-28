@@ -296,7 +296,6 @@
       $('pmapVlabel').textContent = t().agency + ' · ' + areaText(r.area);
       if (r.rating) rows.push(t().rating + '  ' + (+r.rating).toFixed(1));
       if (r.address) rows.push(t().addr + '  ' + r.address);
-      if (r.tel) rows.push(t().tel + '  ' + r.tel);
       if (r.hours) rows.push(t().hours + '  ' + r.hours);
       $('pmapVempty').textContent = rows.length ? '' : t().noInfo;
     }
