@@ -1229,6 +1229,8 @@
       .then(function (d) {
         if (!d || !d.ok) throw new Error((d && d.error) || '');
         if (d.sid) { try { sessionStorage.setItem('beisu_sid', d.sid); } catch (e) {} }
+        /* 标记：回到主站首屏时，把这条打卡之后的机器人卡片/追加消息按后台设定的节奏逐条显示 */
+        try { sessionStorage.setItem('beisu_pace', '1'); } catch (e) {}
         location.href = '/';                     /* 回到主站，右侧聊天框同步显示这条行程 */
       })
       .catch(function (e) {

@@ -2350,17 +2350,32 @@ async function sendMessage(text, imageId){
 }
 /* 增量拉取会话消息（后台人工发送的消息由此轮询到达） */
 /* 首次同步是加载历史记录：直接全部显示，不重放后台配置的发送延时；
-   之后的增量消息按 delayMs（相对上一条的等待毫秒）依次出现，卡片/追加消息就有了节奏 */
+   之后的增量消息按 delayMs（相对上一条的等待毫秒）依次出现，卡片/追加消息就有了节奏。
+   例外：填完「全岛游」地图表格后是整页跳回首页，首屏若不重放延时，卡片和追加消息会一哄而上。
+   提交页跳转前写 beisu_pace 标记，这里读到后只对「最后一条访客消息之后」的机器人消息重放延时，
+   历史消息仍瞬时显示。 */
 let seqFirstSync = true;
+let paceAfterSubmit = false;
+try { paceAfterSubmit = sessionStorage.getItem('beisu_pace') === '1'; } catch (e) {}
 async function syncMessages(){
   try {
     const res = await fetch('/api/chat/' + encodeURIComponent(sessionId) + '/messages?since=' + lastMsgId);
     const d = await res.json();
     let changed = false;
-    const useDelay = !seqFirstSync;
+    /* 打卡提交后的首屏：定位最后一条访客消息，其后的回复按 delayMs 逐条出现 */
+    let paceFromId = 0;
+    if (seqFirstSync && paceAfterSubmit){
+      const list = d.messages || [];
+      for (let i = list.length - 1; i >= 0; i--){
+        if (list[i].role === 'visitor'){ paceFromId = list[i].id; break; }
+      }
+      paceAfterSubmit = false;
+      try { sessionStorage.removeItem('beisu_pace'); } catch (e) {}
+    }
     (d.messages || []).forEach(m => {
       if (m.id <= lastMsgId) return;
       lastMsgId = m.id;
+      const useDelay = !seqFirstSync || (paceFromId > 0 && m.id > paceFromId);
       const wait = useDelay ? Math.max(0, Number(m.delayMs) || 0) : 0;
       if (wait > 0){
         setTimeout(() => { chatLog.push(m); renderChat(); }, wait);
