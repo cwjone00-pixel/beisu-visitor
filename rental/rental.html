@@ -1027,18 +1027,23 @@
     var week = +car.week;
     var total = $('ddlgTotal');
     var weekref = $('ddlgWeekref');
-    var byWeek = (ddlg.days % 7 === 0) && isFinite(week) && week > 0;   /* 命中周租优惠的条件 */
+    /* 满 7 天即按「周租 × 周数 + 日租 × 余天数」混合计价，未满 7 天按日租 */
+    var byWeek = ddlg.days >= 7 && isFinite(week) && week > 0;
     if (byWeek) {
-      var wcount = ddlg.days / 7;
+      var wcount = Math.floor(ddlg.days / 7);
+      var extra = ddlg.days - wcount * 7;
+      var dayOk = isFinite(day) && day > 0;
       total.style.display = '';
       total.textContent = t().daysEst + '：';
       var b = document.createElement('b');
-      b.textContent = '¥' + (week * wcount);
+      b.textContent = '¥' + (week * wcount + (extra > 0 && dayOk ? day * extra : 0));
       total.appendChild(b);
       var calc = document.createElement('span');
-      calc.textContent = '（' + money(car.week) + ' × ' + wcount + ' ' + t().week + '）';
+      calc.textContent = '（' + money(car.week) + ' × ' + wcount + ' ' + t().week
+        + (extra > 0 && dayOk ? ' + ' + money(car.day) + ' × ' + extra + ' ' + t().daysUnit : '')
+        + '）';
       total.appendChild(calc);
-      /* 既然是 7 的倍数，周租本身就是主展示，隐藏「周租参考」那一行 */
+      /* 周租已并入总价，隐藏「周租参考」那一行 */
       weekref.hidden = true;
       weekref.textContent = '';
     } else if (isFinite(day) && day > 0) {
@@ -1081,12 +1086,17 @@
       t().inqAgency + C + (data && data.item ? I18N.agencyName(data.item, lang) : '—'),
       t().inqModel + C + (pick(car.names, '') || '—') + open + metaBits.join(' · ') + close
     ];
-    /* 总价：7 的倍数 + 有周租 → 按周算；否则按日算 */
-    var byWeek = (ddlg.days % 7 === 0) && isFinite(week) && week > 0;
+    /* 总价：满 7 天按「周租 × 周数 + 日租 × 余天数」混合计价，未满 7 天按日租 */
+    var byWeek = ddlg.days >= 7 && isFinite(week) && week > 0;
     if (byWeek) {
-      var wcount = ddlg.days / 7;
+      var wcount = Math.floor(ddlg.days / 7);
+      var extra = ddlg.days - wcount * 7;
+      var dayOk = isFinite(day) && day > 0;
+      var sum = week * wcount + (extra > 0 && dayOk ? day * extra : 0);
       parts.push(t().week + C + money(car.week));
-      parts.push(t().inqTotal + C + '¥' + (week * wcount) + '（' + wcount + ' ' + t().week + '）');
+      if (extra > 0 && dayOk) parts.push(t().day + C + money(car.day));
+      parts.push(t().inqTotal + C + '¥' + sum + '（' + wcount + ' ' + t().week
+        + (extra > 0 && dayOk ? ' + ' + extra + ' ' + t().daysUnit : '') + '）');
     } else {
       if (isFinite(day) && day > 0) {
         parts.push(t().day + C + money(car.day));
