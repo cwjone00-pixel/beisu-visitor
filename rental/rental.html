@@ -1022,38 +1022,45 @@
     $('ddlgMinus').disabled = ddlg.days <= DAYS_MIN;
     $('ddlgPlus').disabled = ddlg.days >= DAYS_MAX;
 
-    /* 预估租金 = 日租 × 天数（无日租价的车辆只显示天数） */
+    /* 预估租金：7 的倍数天 + 有周租 → 自动按周算；否则按日算 */
     var day = +car.day;
     var week = +car.week;
     var total = $('ddlgTotal');
     var weekref = $('ddlgWeekref');
-    if (isFinite(day) && day > 0) {
+    var byWeek = (ddlg.days % 7 === 0) && isFinite(week) && week > 0;   /* 命中周租优惠的条件 */
+    if (byWeek) {
+      var wcount = ddlg.days / 7;
       total.style.display = '';
       total.textContent = t().daysEst + '：';
       var b = document.createElement('b');
-      b.textContent = '¥' + (day * ddlg.days);
+      b.textContent = '¥' + (week * wcount);
       total.appendChild(b);
       var calc = document.createElement('span');
-      calc.textContent = '（' + money(car.day) + ' × ' + ddlg.days + ' ' + t().daysUnit + '）';
+      calc.textContent = '（' + money(car.week) + ' / ' + t().week + ' × ' + wcount + ' ' + t().week + '）';
       total.appendChild(calc);
+      /* 既然是 7 的倍数，周租本身就是主展示，隐藏「周租参考」那一行 */
+      weekref.hidden = true;
+      weekref.textContent = '';
+    } else if (isFinite(day) && day > 0) {
+      total.style.display = '';
+      total.textContent = t().daysEst + '：';
+      var b2 = document.createElement('b');
+      b2.textContent = '¥' + (day * ddlg.days);
+      total.appendChild(b2);
+      var calc2 = document.createElement('span');
+      calc2.textContent = '（' + money(car.day) + ' × ' + ddlg.days + ' ' + t().daysUnit + '）';
+      total.appendChild(calc2);
+      /* 非 7 倍数 + 有周租 → 显示一行小字参考价 */
+      if (isFinite(week) && week > 0) {
+        weekref.hidden = false;
+        weekref.textContent = t().daysWeekref + '：' + money(car.week) + ' / ' + t().week;
+      } else {
+        weekref.hidden = true;
+        weekref.textContent = '';
+      }
     } else {
       total.style.display = 'none';
       total.textContent = '';
-    }
-    /* 周租参考：车辆有 week 字段时显示一行小字参考价，租期≥7天可选用周租更划算 */
-    if (isFinite(week) && week > 0) {
-      weekref.hidden = false;
-      weekref.textContent = t().daysWeekref + '：' + money(car.week) + ' / ' + t().week;
-      /* 如果天数是 7 的整数倍，额外提示按周算的总价 */
-      if (ddlg.days >= 7) {
-        var weeks = Math.floor(ddlg.days / 7);
-        var extra = ddlg.days - weeks * 7;
-        var hint = '（' + t().week + ' ' + weeks + ' × ' + money(car.week);
-        if (extra > 0 && isFinite(day) && day > 0) hint += ' + ' + money(car.day) + ' × ' + extra + ' ' + t().daysUnit;
-        hint += ' = ¥' + (weeks * week + (extra > 0 && isFinite(day) ? extra * day : 0)) + '）';
-        weekref.textContent += ' ' + hint;
-      }
-    } else {
       weekref.hidden = true;
       weekref.textContent = '';
     }
@@ -1074,12 +1081,20 @@
       t().inqAgency + C + (data && data.item ? I18N.agencyName(data.item, lang) : '—'),
       t().inqModel + C + (pick(car.names, '') || '—') + open + metaBits.join(' · ') + close
     ];
-    if (isFinite(day) && day > 0) {
-      parts.push(t().day + C + money(car.day));
-      parts.push(t().inqTotal + C + '¥' + (day * ddlg.days));
-    }
-    if (isFinite(week) && week > 0) {
+    /* 总价：7 的倍数 + 有周租 → 按周算；否则按日算 */
+    var byWeek = (ddlg.days % 7 === 0) && isFinite(week) && week > 0;
+    if (byWeek) {
+      var wcount = ddlg.days / 7;
       parts.push(t().week + C + money(car.week));
+      parts.push(t().inqTotal + C + '¥' + (week * wcount) + '（' + wcount + ' ' + t().week + '）');
+    } else {
+      if (isFinite(day) && day > 0) {
+        parts.push(t().day + C + money(car.day));
+        parts.push(t().inqTotal + C + '¥' + (day * ddlg.days));
+      }
+      if (isFinite(week) && week > 0) {
+        parts.push(t().week + C + money(car.week));
+      }
     }
     parts.push(t().inqDays + C + ddlg.days + t().daysUnit);
     return t().inqLabel + parts.join(' · ');
