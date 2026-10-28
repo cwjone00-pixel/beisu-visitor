@@ -262,6 +262,7 @@
     .ddlg__num small { display: block; margin-top: 2px; font-size: 10.5px; font-weight: 500; color: #8a94a6; }
     .ddlg__total { margin: 12px 0 0; font-size: 12.5px; color: #6b7a90; }
     .ddlg__total b { color: #1b3a6b; font-size: 14px; }
+    .ddlg__weekref { margin: 4px 0 0; font-size: 11.5px; color: #8a94a6; }
 
     /* 加载中 / 出错提示 */
     .rstate {
@@ -380,6 +381,7 @@
       <button class="ddlg__btn" id="ddlgPlus" type="button" aria-label="+">+</button>
     </div>
     <p class="ddlg__total" id="ddlgTotal"></p>
+    <p class="ddlg__weekref" id="ddlgWeekref" hidden></p>
     <p class="rdlg__note" id="ddlgNote" data-i18n="daysNote" style="margin-top:12px"></p>
     <div class="rdlg__actions">
       <button class="rbtn rbtn--ghost" id="ddlgCancel" type="button" data-i18n="dispatchCancel"></button>
@@ -447,6 +449,7 @@
       daysTitle: '选择租赁天数',
       daysUnit: '天',
       daysEst: '预估租金',
+      daysWeekref: '周租参考',
       daysNote: '点击「确定」将回到首页聊天，把车辆信息和租赁天数发送给客服，由客服为您确认价格与安排取车。',
       daysConfirm: '确定',
       inqLabel: '【租车意向】',
@@ -504,6 +507,7 @@
       daysTitle: 'Choose rental days',
       daysUnit: 'days',
       daysEst: 'Estimated total',
+      daysWeekref: 'Weekly rate',
       daysNote: 'Click "Confirm" to return to the home chat — your vehicle choice and rental days will be sent to our staff as a message for confirmation and pickup arrangement.',
       daysConfirm: 'Confirm',
       inqLabel: '[Rental Inquiry] ',
@@ -561,6 +565,7 @@
       daysTitle: 'Выберите срок аренды',
       daysUnit: 'дн.',
       daysEst: 'Ориентировочная стоимость',
+      daysWeekref: 'Аренда за неделю',
       daysNote: 'Нажмите «Подтвердить», чтобы вернуться в чат на главной — информация об авто и срок аренды будут отправлены менеджеру для подтверждения и организации выдачи.',
       daysConfirm: 'Подтвердить',
       inqLabel: '[Заявка на аренду авто] ',
@@ -1019,7 +1024,9 @@
 
     /* 预估租金 = 日租 × 天数（无日租价的车辆只显示天数） */
     var day = +car.day;
+    var week = +car.week;
     var total = $('ddlgTotal');
+    var weekref = $('ddlgWeekref');
     if (isFinite(day) && day > 0) {
       total.style.display = '';
       total.textContent = t().daysEst + '：';
@@ -1033,6 +1040,23 @@
       total.style.display = 'none';
       total.textContent = '';
     }
+    /* 周租参考：车辆有 week 字段时显示一行小字参考价，租期≥7天可选用周租更划算 */
+    if (isFinite(week) && week > 0) {
+      weekref.hidden = false;
+      weekref.textContent = t().daysWeekref + '：' + money(car.week) + ' / ' + t().week;
+      /* 如果天数是 7 的整数倍，额外提示按周算的总价 */
+      if (ddlg.days >= 7) {
+        var weeks = Math.floor(ddlg.days / 7);
+        var extra = ddlg.days - weeks * 7;
+        var hint = '（' + t().week + ' ' + weeks + ' × ' + money(car.week);
+        if (extra > 0 && isFinite(day) && day > 0) hint += ' + ' + money(car.day) + ' × ' + extra + ' ' + t().daysUnit;
+        hint += ' = ¥' + (weeks * week + (extra > 0 && isFinite(day) ? extra * day : 0)) + '）';
+        weekref.textContent += ' ' + hint;
+      }
+    } else {
+      weekref.hidden = true;
+      weekref.textContent = '';
+    }
   }
 
   /* 拼接发送到首页聊天的纯文字（当前语种），格式对齐【预订摘要】 */
@@ -1045,6 +1069,7 @@
     if (car.seats) metaBits.push(car.seats + t().seatUnit);
     metaBits.push(car.gear === 'manual' ? t().gearManual : t().gearAuto);
     var day = +car.day;
+    var week = +car.week;
     var parts = [
       t().inqAgency + C + (data && data.item ? I18N.agencyName(data.item, lang) : '—'),
       t().inqModel + C + (pick(car.names, '') || '—') + open + metaBits.join(' · ') + close
@@ -1052,6 +1077,9 @@
     if (isFinite(day) && day > 0) {
       parts.push(t().day + C + money(car.day));
       parts.push(t().inqTotal + C + '¥' + (day * ddlg.days));
+    }
+    if (isFinite(week) && week > 0) {
+      parts.push(t().week + C + money(car.week));
     }
     parts.push(t().inqDays + C + ddlg.days + t().daysUnit);
     return t().inqLabel + parts.join(' · ');
