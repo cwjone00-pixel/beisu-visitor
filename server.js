@@ -1042,7 +1042,7 @@ function articlePath(a){ return '/article/' + a.slug; }
 const CARD_PAGES = [
   { key:'island',    url:'/island', names:{ zh:'全岛游',           en:'Island Tour',              ru:'Островной тур' } },
   { key:'rent',      url:'',        names:{ zh:'租房',             en:'Housing Rental',           ru:'Аренда жилья' } },
-  { key:'car',       url:'',        names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
+  { key:'car',       url:'/rental',   names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
   { key:'review',    url:'/experience', names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
   { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } }
 ];
@@ -1194,6 +1194,263 @@ function sitemapXml(){
     + urls.join('\n') + '\n</urlset>\n';
 }
 
+/* ---------------- 租车/配车 API（从 hainan-map server.js 合并） ----------------
+   租车数据文件：沿用 beisu-visitor 根下 data/ 目录（与其它配置同目录）；
+   门店图片路径：beisu-visitor/rental/ 子目录下（RENTAL_ROOT）。
+   高德 Key：复用本文件已有的 amapKey()（读 data/secrets.json 的 amap.key 或环境变量 AMAP_KEY）。
+   amapGet / amapGap：复用本文件已有的同名函数。 */
+const RENTAL_ROOT = path.join(ROOT, 'rental');
+const RENTAL_DATA_DIR = path.join(RENTAL_ROOT, 'data');
+const RENTAL_FILE = path.join(RENTAL_DATA_DIR, 'rental-agencies.json');
+const RENTAL_CARS_FILE = path.join(RENTAL_DATA_DIR, 'rental-cars.json');
+const DISPATCH_FILE = path.join(RENTAL_DATA_DIR, 'dispatch.json');
+const DISPATCH_STATUS = ['pending', 'dispatched', 'cancelled'];
+
+/* 海南 18 个市县（三沙市没有租车门店，不列入） */
+const HAINAN_AREAS = [
+  { adcode: '460100', name: '海口市' },
+  { adcode: '460200', name: '三亚市' },
+  { adcode: '460400', name: '儋州市' },
+  { adcode: '469001', name: '五指山市' },
+  { adcode: '469002', name: '琼海市' },
+  { adcode: '469005', name: '文昌市' },
+  { adcode: '469006', name: '万宁市' },
+  { adcode: '469007', name: '东方市' },
+  { adcode: '469021', name: '定安县' },
+  { adcode: '469022', name: '屯昌县' },
+  { adcode: '469023', name: '澄迈县' },
+  { adcode: '469024', name: '临高县' },
+  { adcode: '469025', name: '白沙黎族自治县' },
+  { adcode: '469026', name: '昌江黎族自治县' },
+  { adcode: '469027', name: '乐东黎族自治县' },
+  { adcode: '469028', name: '陵水黎族自治县' },
+  { adcode: '469029', name: '保亭黎族苗族自治县' },
+  { adcode: '469030', name: '琼中黎族苗族自治县' }
+];
+
+/* 租车行缓存读取 */
+function readRentalCache() {
+  try { return JSON.parse(fs.readFileSync(RENTAL_FILE, 'utf8')); } catch (e) { return null; }
+}
+
+/* 只认租车相关的门店（关键词搜索会混进不相干的店），再按评分取最高 */
+function pickBestRental(pois, area) {
+  const list = (pois || []).filter(function (p) {
+    return p && p.location && /租车|汽车租赁/.test(p.name || '');
+  }).map(function (p) {
+    const c = String(p.location).split(',');
+    const biz = p.biz_ext || {};
+    return {
+      adcode: area.adcode,
+      area: area.name,
+      name: p.name,
+      rating: +(biz.rating || 0) || 0,
+      address: p.address || '',
+      tel: String(p.tel || '').split(';')[0] || '',
+      hours: biz.open_time || biz.opentime2 || '',
+      lng: +c[0],
+      lat: +c[1]
+    };
+  }).filter(function (p) { return isFinite(p.lng) && isFinite(p.lat); });
+
+  list.sort(function (a, b) { return b.rating - a.rating; });
+  return list[0] || null;
+}
+
+/* 逐个市县查询高德 POI，构建整岛租车行缓存（个人 Key QPS 低，串行+间隔） */
+async function buildRentalAgencies(key) {
+  const items = [];
+  for (const area of HAINAN_AREAS) {
+    let j = null;
+    try {
+      j = await amapGet('https://restapi.amap.com/v3/place/text?key=' + encodeURIComponent(key) +
+        '&keywords=' + encodeURIComponent('租车') +
+        '&city=' + area.adcode + '&citylimit=true&offset=25&page=1&extensions=all');
+    } catch (e) {
+      console.error('[rental] ' + area.name + ' 查询失败：' + e.message);
+    }
+    const best = pickBestRental(j && j.pois, area);
+    if (best) items.push(best);
+    await amapGap();
+  }
+  const data = { updatedAt: new Date().toISOString(), items: items };
+  try {
+    fs.mkdirSync(RENTAL_DATA_DIR, { recursive: true });
+    fs.writeFileSync(RENTAL_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.error('[rental] 写入缓存失败：' + e.message);
+  }
+  return data;
+}
+
+/* 高德静态图（门店位置小地图）是二进制图片，不能走 amapGet 的 JSON 解析，
+   这里单独代理：Key 只留在服务端，浏览器看到的是本站的图片地址。 */
+function proxyAmapImage(url, res) {
+  const req = https.get(url, { timeout: 15000 }, function (up) {
+    const type = String(up.headers['content-type'] || '');
+    if (up.statusCode !== 200 || type.indexOf('image/') !== 0) {
+      let body = '';
+      up.setEncoding('utf8');
+      up.on('data', function (c) { body += c; });
+      up.on('end', function () {
+        send(res, 502, { error: '高德静态图返回异常：' + body.slice(0, 200) });
+      });
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': type, 'Cache-Control': 'public, max-age=3600' });
+    up.pipe(res);
+  });
+  req.on('timeout', function () { req.destroy(new Error('高德静态图超时')); });
+  req.on('error', function () { send(res, 502, 'static map failed'); });
+}
+
+/* ---------------- 租车行的车型与价格 ----------------
+   门店信息来自高德（上面的缓存），车型 / 库存 / 价格不在高德返回里，
+   由 data/rental-cars.json 配置（全部数据驱动，页面不写死任何车型）：
+     · classes  座位档位（4 / 5 / 7 / 9 座，名称三语，页面按它出板块）
+     · catalog  车辆库：每台车的基础信息（三语名、座位、电车、变速箱、基准价、图片）
+     · agencies 按门店 adcode 配置该店自己的库存：fleet 列出各档有哪些车，
+                factor 是该店的整体系数（不同门店租金不同）
+     · fallback 没单独配置库存的门店用这份兜底
+   页面只读接口，不改这个文件；改车型 / 价格 / 各店库存直接编辑 JSON 即可。 */
+function readRentalCars() {
+  try {
+    const j = JSON.parse(fs.readFileSync(RENTAL_CARS_FILE, 'utf8'));
+    return j && typeof j === 'object' ? j : {};
+  } catch (e) { return {}; }
+}
+function rentalClasses() {
+  const cfg = readRentalCars();
+  return Array.isArray(cfg.classes) ? cfg.classes : [];
+}
+/* 价格按门店系数换算，取整到 10 元，避免出现 187.04 这种数字 */
+function roundPrice(v, factor) {
+  const n = Math.round((+v || 0) * factor / 10) * 10;
+  return n > 0 ? n : 0;
+}
+/* 某门店的车队：先按该店的 fleet 取车，再套本店系数算价格。
+   只保留「有配套照片且照片实际存在」的车辆 —— 没有图的车不上前台。 */
+function rentalFleet(adcode) {
+  const cfg = readRentalCars();
+  const catalog = cfg.catalog || {};
+  const own = (cfg.agencies && cfg.agencies[adcode]) || cfg.fallback || {};
+  const ownFleet = own.fleet || {};
+  const defFleet = (cfg.fallback && cfg.fallback.fleet) || {};
+  const factor = +own.factor > 0 ? +own.factor : 1;
+  const fleet = {};
+  rentalClasses().forEach(function (c) {
+    const ids = ownFleet[c.key] || defFleet[c.key] || [];
+    fleet[c.key] = (Array.isArray(ids) ? ids : []).map(function (id) {
+      const car = catalog[id];
+      if (!car) return null;
+      const img = (typeof car.image === 'string') ? car.image : '';
+      if (!img) return null;
+      if (!fs.existsSync(path.join(RENTAL_ROOT, img))) return null;
+      return Object.assign({}, car, {
+        image: img,
+        day: roundPrice(car.day, factor),
+        week: roundPrice(car.week, factor)
+      });
+    }).filter(Boolean);
+  });
+  return fleet;
+}
+
+/* ---------------- 配车 / 车辆调度 ----------------
+   门店没有客户想要的车型时，客户在详情页「配车」发起调度申请。
+   数据落 data/dispatch.json：
+     · config.defaultEta 默认预估等待时长（分钟）
+     · config.cars      按车辆 id 配置「是否可调度 + 该车预估等待分钟」
+     · requests         客户提交的调度申请（门店、车型、状态、联系方式）
+   车辆是否「本店已有」由 rentalFleet 实时判断，已有车型不会出现在可调度列表里。
+   注意：可调度范围是车辆库（catalog）里启用的车，不代表真实运力。 */
+function readDispatch() {
+  try {
+    const j = JSON.parse(fs.readFileSync(DISPATCH_FILE, 'utf8'));
+    if (!j || typeof j !== 'object') return { config: {}, requests: [] };
+    if (!Array.isArray(j.requests)) j.requests = [];
+    if (!j.config || typeof j.config !== 'object') j.config = {};
+    return j;
+  } catch (e) { return { config: {}, requests: [] }; }
+}
+function writeDispatch(d) {
+  fs.mkdirSync(RENTAL_DATA_DIR, { recursive: true });
+  fs.writeFileSync(DISPATCH_FILE, JSON.stringify(d, null, 2), 'utf8');
+}
+function dispatchConfig(d) {
+  const cfg = (d && d.config) || {};
+  const eta = +cfg.defaultEta;
+  return {
+    defaultEta: eta > 0 ? Math.round(eta) : 120,
+    cars: (cfg.cars && typeof cfg.cars === 'object') ? cfg.cars : {}
+  };
+}
+function dispatchCarEnabled(conf, id) {
+  const c = conf.cars[id] || {};
+  return c.enabled !== false;
+}
+function dispatchCarEta(conf, id) {
+  const c = conf.cars[id] || {};
+  const v = +c.eta;
+  return v > 0 ? Math.round(v) : conf.defaultEta;
+}
+/* 该门店还能调度的车型：车辆库里有图的车，按座位档位归类，剔除本店已有的 */
+function dispatchOptions(adcode) {
+  const cfg = readRentalCars();
+  const catalog = cfg.catalog || {};
+  const classes = rentalClasses();
+  const d = readDispatch();
+  const conf = dispatchConfig(d);
+  const have = {};
+  const fleet = rentalFleet(adcode);
+  classes.forEach(function (c) {
+    (fleet[c.key] || []).forEach(function (car) { have[car.id] = true; });
+  });
+  const items = [];
+  classes.forEach(function (c) {
+    Object.keys(catalog).forEach(function (id) {
+      const car = catalog[id];
+      if (!car || +car.seats !== +c.seats) return;
+      const img = typeof car.image === 'string' ? car.image : '';
+      if (!img || !fs.existsSync(path.join(RENTAL_ROOT, img))) return;
+      if (!dispatchCarEnabled(conf, id)) return;
+      if (have[id]) return;
+      items.push({
+        classKey: c.key,
+        id: id,
+        names: car.names || {},
+        seats: +car.seats || 0,
+        ev: !!car.ev,
+        gear: car.gear || 'auto',
+        image: img,
+        eta: dispatchCarEta(conf, id)
+      });
+    });
+  });
+  return {
+    adcode: adcode,
+    defaultEta: conf.defaultEta,
+    classes: classes.map(function (c) { return { key: c.key, seats: c.seats, names: c.names }; }),
+    items: items
+  };
+}
+/* 后台「可调度车辆列表」：车辆库里每台车 + 是否启用 + 预估等待 */
+function dispatchCatalog(conf) {
+  const cfg = readRentalCars();
+  const catalog = cfg.catalog || {};
+  return Object.keys(catalog).map(function (id) {
+    const car = catalog[id];
+    return {
+      id: id,
+      names: car.names || {},
+      seats: +car.seats || 0,
+      image: typeof car.image === 'string' ? car.image : '',
+      enabled: dispatchCarEnabled(conf, id),
+      eta: dispatchCarEta(conf, id)
+    };
+  }).sort(function (a, b) { return a.seats - b.seats; });
+}
+
 const MIME = {
   '.html':'text/html; charset=utf-8',
   '.js':'application/javascript; charset=utf-8',
@@ -1209,6 +1466,13 @@ function serveStatic(req, res){
   /* 全岛游地图子页面：站内路径，不对外暴露地图自己的独立网址（/island → 露营点地图，/island/spots → 打卡点页） */
   if (urlPath === '/island' || urlPath === '/island/') urlPath = '/island/camp.html';
   if (urlPath === '/island/spots' || urlPath === '/island/spots/') urlPath = '/island/camp-next.html';
+  /* 租车板块：/rental → 301 重定向到 /rental/（确保相对路径 js/、css/、data/ 能正确解析）；
+     /rental/ → 映射到 map-play.html 入口页。详情页 /rental/rental.html?adcode=xxx 等真实文件直出 */
+  if (urlPath === '/rental') {
+    res.writeHead(301, { Location: '/rental/', 'Cache-Control': 'no-cache' });
+    return res.end();
+  }
+  if (urlPath === '/rental/') urlPath = '/rental/map-play.html';
   /* 海南项目体验（站内整条链路：项目列表 → 项目详情 → 预订 → 预订成功）。
      /experience 及其子路径都交给同一份前端入口，由前端路由接管；
      真实存在的静态文件（assets 等）照常直出，找不到才回退到 index.html。 */
@@ -1878,10 +2142,176 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/settings' && req.method === 'GET') ||        // 站内体验页页脚联系方式（游客只读）
       (p === '/api/exp/projects' && req.method === 'GET') ||    // 站内体验页项目与价格（游客只读）
       (p === '/api/booking-terms' && req.method === 'GET') ||   // 预订条款（游客端弹窗只读）
-      (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET');
+      (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET') ||
+      p.startsWith('/api/rental/');                              // 租车/配车 API（整段前缀放行，供游客端直接调用）
     if (!open && !sessionUser(req.headers['x-op-token'] || url.searchParams.get('token') || '')){
       return send(res, 401, { ok:false, error:'未登录或登录态已失效，请重新登录' });
     }
+  }
+
+  /* ---- 租车/配车 API（前缀 /api/rental/，整段放行无需登录） ---- */
+  if (p.startsWith('/api/rental/')) {
+    const rp = p.slice('/api/rental'.length);   // 例如 /rental-agencies /dispatch-options /admin/dispatch
+    const method = req.method.toUpperCase();
+
+    /* 各县市评价最好的租车行：高德 POI 搜索 + 本地缓存。
+       默认读缓存（秒回），带 ?refresh=1 才重新逐个市县查询并覆盖缓存。 */
+    if (rp === '/rental-agencies' && method === 'GET') {
+      const refresh = /[?&]refresh=1/.test(req.url || '');
+      const cached = refresh ? null : readRentalCache();
+      if (cached && Array.isArray(cached.items)) return send(res, 200, cached);
+
+      const key = amapKey();
+      if (!key) return send(res, 500, { error: '缺少高德 Key（data/secrets.json 的 amap.key 或环境变量 AMAP_KEY）' });
+      try {
+        const data = await buildRentalAgencies(key);
+        return send(res, 200, data);
+      } catch (e) {
+        return send(res, 500, { error: e.message });
+      }
+    }
+
+    /* 租车行详情页：单个门店（按 adcode）的高德信息 + 该门店的车型 / 价格配置。
+       门店信息读上面那份缓存，车型价格读 data/rental-cars.json。 */
+    if (rp === '/rental-agency' && method === 'GET') {
+      const q = url.searchParams;
+      const adcode = String(q.get('adcode') || '').trim();
+      const cached = readRentalCache();
+      const item = (cached && Array.isArray(cached.items))
+        ? cached.items.filter(function (x) { return String(x.adcode) === adcode; })[0]
+        : null;
+      if (!item) return send(res, 404, { error: '门店不存在：' + (adcode || '缺少 adcode') });
+      return send(res, 200, { item: item, cars: { classes: rentalClasses(), fleet: rentalFleet(adcode) } });
+    }
+
+    /* 门店位置小地图：服务端代理高德静态图，Key 不外泄 */
+    if (rp === '/rental-map' && method === 'GET') {
+      const q = url.searchParams;
+      const adcode = String(q.get('adcode') || '').trim();
+      const cached = readRentalCache();
+      const item = (cached && Array.isArray(cached.items))
+        ? cached.items.filter(function (x) { return String(x.adcode) === adcode; })[0]
+        : null;
+      if (!item) return send(res, 404, { error: '门店不存在：' + (adcode || '缺少 adcode') });
+      const key = amapKey();
+      if (!key) return send(res, 500, { error: '缺少高德 Key（data/secrets.json 的 amap.key 或环境变量 AMAP_KEY）' });
+      const loc = (+item.lng).toFixed(6) + ',' + (+item.lat).toFixed(6);
+      const mapUrl = 'https://restapi.amap.com/v3/staticmap?key=' + encodeURIComponent(key) +
+        '&location=' + encodeURIComponent(loc) + '&zoom=14&size=600*340&scale=1' +
+        '&markers=' + encodeURIComponent('mid,,' + 'A:' + loc);
+      return proxyAmapImage(mapUrl, res);
+    }
+
+    /* ---------------- 配车 / 调度（访客端） ----------------
+       GET  /api/rental/dispatch-options?adcode=xxx  该门店还能调度的车型 + 预估等待
+       POST /api/rental/dispatch                     提交调度申请 {adcode, carId, name?, phone?, note?} */
+    if (rp === '/dispatch-options' && method === 'GET') {
+      const adcode = String((req.url.match(/[?&]adcode=([^&]*)/) || [])[1] || '').trim();
+      if (!adcode) return send(res, 400, { error: '缺少 adcode' });
+      return send(res, 200, dispatchOptions(adcode));
+    }
+
+    if (rp === '/dispatch' && method === 'POST') {
+      const body = await readBody(req);
+      const adcode = String(body.adcode || '').trim();
+      const carId = String(body.carId || '').trim();
+      if (!adcode || !carId) return send(res, 400, { error: '缺少门店或车型' });
+
+      const cached = readRentalCache();
+      const store = (cached && Array.isArray(cached.items))
+        ? cached.items.filter(function (x) { return String(x.adcode) === adcode; })[0]
+        : null;
+      if (!store) return send(res, 404, { error: '门店不存在：' + adcode });
+
+      const opts = dispatchOptions(adcode);
+      const pick = opts.items.filter(function (x) { return x.id === carId; })[0];
+      if (!pick) return send(res, 400, { error: '该车型已在本店库存中或不可调度' });
+
+      const d = readDispatch();
+      const now = new Date().toISOString();
+      const reqItem = {
+        id: 'd_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        adcode: adcode,
+        area: store.area || '',
+        store: store.name || '',
+        classKey: pick.classKey,
+        seats: pick.seats,
+        carId: pick.id,
+        carName: (pick.names && pick.names.zh) || pick.id,
+        customer: String(body.name || '').trim().slice(0, 40),
+        phone: String(body.phone || '').trim().slice(0, 30),
+        note: String(body.note || '').trim().slice(0, 200),
+        eta: pick.eta,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now
+      };
+      d.requests.push(reqItem);
+      try { writeDispatch(d); } catch (e) { return send(res, 500, { error: '写入失败：' + e.message }); }
+      console.log('[dispatch] 新申请：' + (store.area || '') + ' / ' + reqItem.carName + ' / 预计 ' + reqItem.eta + ' 分钟');
+      return send(res, 200, { ok: true, item: reqItem });
+    }
+
+    /* ---------------- 配车 / 调度（后台） ----------------
+       GET    /api/rental/admin/dispatch                    可调度车辆 + 默认等待 + 全部申请
+       POST   /api/rental/admin/dispatch                    保存配置 {defaultEta, cars:{id:{enabled,eta}}}
+       DELETE /api/rental/admin/dispatch?id=xxx             删除一条申请 */
+    if (rp === '/admin/dispatch') {
+      const d = readDispatch();
+      const conf = dispatchConfig(d);
+      if (method === 'GET') {
+        return send(res, 200, {
+          config: conf,
+          catalog: dispatchCatalog(conf),
+          requests: d.requests.slice().sort(function (a, b) {
+            return String(b.createdAt).localeCompare(String(a.createdAt));
+          })
+        });
+      }
+      if (method === 'POST') {
+        const body = await readBody(req);
+        const cur = readDispatch();
+        const cars = {};
+        const src = (body.cars && typeof body.cars === 'object') ? body.cars : {};
+        Object.keys(src).forEach(function (id) {
+          const c = src[id] || {};
+          const eta = +c.eta;
+          cars[id] = { enabled: c.enabled !== false, eta: eta > 0 ? Math.round(eta) : 0 };
+        });
+        const eta = +body.defaultEta;
+        cur.config = { defaultEta: eta > 0 ? Math.round(eta) : 120, cars: cars };
+        try { writeDispatch(cur); } catch (e) { return send(res, 500, { error: '写入失败：' + e.message }); }
+        console.log('[dispatch] 配置已保存：默认 ' + cur.config.defaultEta + ' 分钟 / ' + Object.keys(cars).length + ' 台可调度');
+        return send(res, 200, { ok: true, config: dispatchConfig(cur), catalog: dispatchCatalog(dispatchConfig(cur)) });
+      }
+      if (method === 'DELETE') {
+        const id = String(url.searchParams.get('id') || '').trim();
+        const cur = readDispatch();
+        const i = cur.requests.findIndex(function (x) { return x.id === id; });
+        if (i < 0) return send(res, 404, { error: '申请不存在' });
+        cur.requests.splice(i, 1);
+        try { writeDispatch(cur); } catch (e) { return send(res, 500, { error: '写入失败：' + e.message }); }
+        return send(res, 200, { ok: true });
+      }
+      return send(res, 405, { error: '方法不支持' });
+    }
+
+    if (rp === '/admin/dispatch/status' && method === 'POST') {
+      const body = await readBody(req);
+      const status = String(body.status || '');
+      if (DISPATCH_STATUS.indexOf(status) < 0) return send(res, 400, { error: '状态无效：' + status });
+      const cur = readDispatch();
+      const item = cur.requests.filter(function (x) { return x.id === body.id; })[0];
+      if (!item) return send(res, 404, { error: '申请不存在' });
+      item.status = status;
+      item.updatedAt = new Date().toISOString();
+      try { writeDispatch(cur); } catch (e) { return send(res, 500, { error: '写入失败：' + e.message }); }
+      console.log('[dispatch] 状态更新：' + item.carName + ' → ' + status);
+      return send(res, 200, { ok: true, item: item });
+    }
+
+    /* 租车 API 内部异常兜底（前缀对但子路由不匹配） */
+    return send(res, 404, { error: '接口不存在：' + rp });
   }
 
   /* ---- 客服在线状态（游客前端轮询；带 token 时同时校验登录态） ---- */

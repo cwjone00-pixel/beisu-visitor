@@ -1,0 +1,470 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>海南全岛地图</title>
+  <style>
+    /* ============================================================
+       海南全岛 · 游玩打卡地图（不含任何露营点）
+       ------------------------------------------------------------
+       与全岛地图后台共用同一份点位数据：读 /api/play-points，
+       只把「游玩打卡」这一类点位画到图上，露营点不参与渲染。
+       后端新增 / 修改 / 删除打卡点，本页刷新即同步。
+       电脑端与手机端共用同一网址，按屏幕宽度（≤768px）自动切换布局。
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      background: #edf3fb; color: #1f2d3d;
+      -webkit-text-size-adjust: 100%;
+      overscroll-behavior: none;
+    }
+
+    .pmap {
+      position: relative; height: 100vh; height: 100dvh; overflow: hidden;
+      background: radial-gradient(130% 95% at 50% 5%, #c9ddf4 0%, #d6e6f8 45%, #e3eefa 100%);
+    }
+    .pmap > .map { position: relative; z-index: 1; width: 100%; height: 100%; }
+
+    /* 右上角：语言切换（三个独立选项横向排列） */
+    .pmap__langs {
+      position: absolute; top: 14px; right: 18px; z-index: 3;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .pmap__langs button {
+      border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px;
+      color: #6b7a90; cursor: pointer;
+    }
+    .pmap__langs button:hover { color: #2f6fed; }
+    .pmap__langs button.on { color: #2f6fed; font-weight: 700; }
+
+    /* 右下角：点位详情卡（点地图上的圆点后出现） */
+    .pmap__detail {
+      position: absolute; right: 18px; bottom: 18px; z-index: 3;
+      width: 300px; max-width: 46vw; max-height: 46vh; overflow-y: auto;
+      background: rgba(255,255,255,.92);
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      border-radius: 14px; padding: 14px 16px;
+      box-shadow: 0 10px 30px rgba(31,45,61,.14);
+      display: none;
+    }
+    .pmap__detail.open { display: block; }
+    .pmap__name { margin: 3px 0 0; font-size: 17px; font-weight: 700; line-height: 1.4; }
+    /* 车辆清单：点位下可选车辆，一行一辆 */
+    .pmap__vlabel { margin: 10px 0 0; font-size: 11.5px; font-weight: 700; color: #8a94a6; letter-spacing: .5px; }
+    .pmap__vlist { margin: 4px 0 0; padding: 0; list-style: none; }
+    .pmap__vlist li { font-size: 13px; color: #2c3a4d; line-height: 1.7; }
+    .pmap__vlist li + li { margin-top: 2px; }
+    .pmap__vempty { margin: 4px 0 0; font-size: 12.5px; color: #97a1b1; }
+    .pmap__close {
+      position: absolute; top: 8px; right: 10px;
+      border: 0; background: none; font-size: 18px; line-height: 1;
+      color: #b3bccb; cursor: pointer; padding: 2px 4px;
+    }
+    .pmap__close:hover { color: #2f6fed; }
+
+    /* 右下角：常驻引导文案（点开详情卡时自动让位，避免两块叠在一起） */
+    .pmap__tip {
+      position: absolute; right: 18px; bottom: 18px; z-index: 2;
+      max-width: 340px; padding: 9px 14px; border-radius: 12px;
+      background: rgba(255,255,255,.86);
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+      box-shadow: 0 8px 22px rgba(31,45,61,.12);
+      font-size: 12.5px; line-height: 1.6; color: #2c3a4d;
+      pointer-events: none;
+    }
+    .pmap__tip b { color: #2f6fed; font-weight: 700; }
+    /* 详情卡是 .pmap__detail 的兄弟节点且在它之后：详情一开，引导文案就隐藏 */
+    .pmap__detail.open ~ .pmap__tip { display: none; }
+
+    /* 数据为空 / 加载失败的提示（居中） */
+    .pmap__empty {
+      position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+      z-index: 2; font-size: 13px; color: #77839a; text-align: center;
+      pointer-events: none; display: none; white-space: pre-line; line-height: 1.7;
+    }
+    .pmap__empty.show { display: block; }
+
+    /* ==================== 手机端（≤768px） ====================
+       语言按钮独占顶部一行；点位名称不常显（点按标记看详情）；
+       详情卡变成贴底的整宽卡片。电脑端不受影响。 */
+    @media (max-width: 768px) {
+      .pmap__langs { top: 12px; right: 12px; gap: 16px; }
+      .pmap__langs button { font-size: 12.5px; padding: 6px 2px; }
+
+      .pmap__detail {
+        left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        width: auto; max-width: none; max-height: 46vh;
+        border-radius: 14px; padding: 14px 16px;
+      }
+      .pmap__name { font-size: 16px; }
+      /* 手机端引导文案贴底整宽，同样在详情卡打开时让位 */
+      .pmap__tip {
+        left: 10px; right: 10px; bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        max-width: none; font-size: 12px; text-align: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="pmap">
+  <div id="playMap" class="map"></div>
+
+  <!-- 右上角语言切换 -->
+  <div class="pmap__langs" id="pmapLangs">
+    <button data-lang="zh" class="on">中文</button>
+    <button data-lang="en">English</button>
+    <button data-lang="ru">Русский</button>
+  </div>
+
+  <!-- 点位详情卡：点地图上的圆点后出现，显示该点位的车辆 -->
+  <div class="pmap__detail" id="pmapDetail">
+    <button class="pmap__close" id="pmapClose" aria-label="close">&times;</button>
+    <h2 class="pmap__name" id="pmapName"></h2>
+    <div class="pmap__vlabel" id="pmapVlabel"></div>
+    <ul class="pmap__vlist" id="pmapVlist"></ul>
+    <p class="pmap__vempty" id="pmapVempty"></p>
+  </div>
+
+  <div class="pmap__empty" id="pmapEmpty"></div>
+
+  <!-- 右下角引导文案：告诉用户点蓝色租车行即可开始租车，跟随语言切换 -->
+  <div class="pmap__tip" id="pmapTip"></div>
+</div>
+
+<script src="vendor/echarts.min.js"></script>
+<script src="data/hainan.geojson.js"></script>
+<!-- 同一份点位数据源：接口拿不到时（未启动服务 / 直接本地打开）直接读它，页面照样能显示 -->
+<script src="data/points.js"></script>
+<script src="js/rental-i18n.js"></script>
+<script src="js/map.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var LANGS = ['zh', 'en', 'ru'];
+  var T = {
+    zh: {
+      kind: '点位',
+      vehicles: '车辆',
+      noVehicles: '该点位暂无车辆信息',
+      unnamed: '未命名点位',
+      agency: '租车行',
+      rating: '评分',
+      addr: '地址',
+      tel: '电话',
+      hours: '营业',
+      noInfo: '暂无门店信息',
+      rentalTip: '根据你现在所在的位置，选择你附近的租车行，点击开始租车。',
+      areaKind: '行政区',
+      empty: '暂无可显示的点位。',
+      fail: '数据加载失败：',
+      failTip: '请先启动服务（在 hainan-map 目录执行 node server.js），再打开 http://localhost:3220/map-play.html'
+    },
+    en: {
+      kind: 'Spot',
+      vehicles: 'Vehicles',
+      noVehicles: 'No vehicles listed for this spot',
+      unnamed: 'Unnamed spot',
+      agency: 'Car rental',
+      rating: 'Rating',
+      addr: 'Address',
+      tel: 'Phone',
+      hours: 'Hours',
+      noInfo: 'No store details',
+      rentalTip: 'Based on your current location, pick a car rental near you and tap it to start booking.',
+      areaKind: 'District',
+      empty: 'Nothing to show yet.',
+      fail: 'Failed to load data: ',
+      failTip: 'Start the server first (run node server.js in the hainan-map folder), then open http://localhost:3220/map-play.html'
+    },
+    ru: {
+      kind: 'Точка',
+      vehicles: 'Транспорт',
+      noVehicles: 'Для этой точки транспорт не указан',
+      unnamed: 'Без названия',
+      agency: 'Прокат авто',
+      rating: 'Рейтинг',
+      addr: 'Адрес',
+      tel: 'Телефон',
+      hours: 'Часы работы',
+      noInfo: 'Нет данных о салоне',
+      rentalTip: 'Выберите ближайший прокат авто рядом с вами и нажмите, чтобы начать аренду.',
+      areaKind: 'Район',
+      empty: 'Пока нечего показать.',
+      fail: 'Не удалось загрузить данные: ',
+      failTip: 'Сначала запустите сервер (node server.js в папке hainan-map), затем откройте http://localhost:3220/map-play.html'
+    }
+  };
+
+  var LANG_KEY = 'camp.lang';     /* 与其他游客页共用，语言选择带过来 */
+  var lang = 'zh';
+  var map = null;
+  var spots = [];
+  var rental = [];               /* 各县市评价最好的租车行（/api/rental-agencies） */
+  var kind = null;
+  var curId = null;
+
+  function t() { return T[lang] || T.zh; }
+  /* 取三语字段里当前语种的值，缺该语种时回落到中文 */
+  function pick(i18n, fallback) {
+    if (i18n && i18n[lang]) return i18n[lang];
+    if (i18n && i18n.zh) return i18n.zh;
+    return fallback || '';
+  }
+  function spotName(s) { return pick(s && s.names, '') || t().unnamed; }
+  function playKey() { return (kind && kind.key) || 'play'; }
+  /* 租车行是单独一层，与打卡点位在图上用不同颜色 / 图标区分 */
+  var RENTAL_KEY = 'rental';
+  var RENTAL_COLOR = '#2f6fed';
+
+  /* 市县 / 门店名称的三语对照表与 rental.html 共用一份（js/rental-i18n.js），
+     这里只按当前语种取显示名。 */
+  function areaText(name) { return window.RentalI18n.areaName(name, lang); }
+  function rentalName(r) { return window.RentalI18n.agencyName(r, lang); }
+
+  function mapCategories() {
+    return [{
+      key: playKey(),
+      name: (kind && kind.name) || t().kind,
+      color: (kind && kind.color) || '#d2cc1e',
+      symbol: (kind && kind.symbol) || 'circle',
+      symbolSize: (kind && kind.symbolSize) || 14,
+      z: 20
+    }, {
+      key: RENTAL_KEY,
+      name: t().agency,
+      color: RENTAL_COLOR,
+      symbol: 'pin',
+      symbolSize: 26,
+      z: 21
+    }];
+  }
+  function mapPoints() {
+    var out = spots.map(function (s) {
+      return { id: s.id, name: spotName(s), lng: +s.lng, lat: +s.lat, categories: [playKey()] };
+    });
+    rental.forEach(function (r) {
+      out.push({ id: rentalId(r), name: rentalName(r), lng: +r.lng, lat: +r.lat, categories: [RENTAL_KEY] });
+    });
+    return out;
+  }
+
+  /* ---------------- 详情卡：展示该点位的车辆 ---------------- */
+  function findSpot(id) {
+    return spots.filter(function (s) { return s.id === id; })[0] || null;
+  }
+  function rentalId(r) { return 'rental:' + (r && r.adcode); }
+  function findRental(id) {
+    return rental.filter(function (r) { return rentalId(r) === id; })[0] || null;
+  }
+  /* 车辆条目允许三种写法：纯字符串、"中文名" 字符串、{ names:{zh,en,ru} } / { name } */
+  function vehicleLabel(v) {
+    if (v == null) return '';
+    if (typeof v === 'string' || typeof v === 'number') return String(v);
+    if (v.names) return pick(v.names, '');
+    if (v.name && typeof v.name === 'object') return pick(v.name, '');
+    return v.name || v.plate || v.model || '';
+  }
+  function vehicleLabels(s) {
+    return ((s && s.vehicles) || []).map(vehicleLabel).filter(function (x) { return !!x; });
+  }
+  /* 只有配了车辆的点位才上图：没有车辆的点位不显示 */
+  function hasVehicles(s) { return vehicleLabels(s).length > 0; }
+
+  function renderDetail() {
+    var box = $('pmapDetail');
+    if (!curId) { box.classList.remove('open'); return; }
+
+    var s = findSpot(curId);
+    var r = s ? null : findRental(curId);
+    if (!s && !r) { box.classList.remove('open'); return; }
+
+    var rows = [];
+    if (s) {
+      $('pmapName').textContent = spotName(s);
+      $('pmapVlabel').textContent = t().vehicles;
+      rows = vehicleLabels(s);
+      $('pmapVempty').textContent = rows.length ? '' : t().noVehicles;
+    } else {
+      /* 租车行：名称 + 市县，下面按行给出评分 / 地址 / 电话 / 营业时间 */
+      $('pmapName').textContent = rentalName(r);
+      $('pmapVlabel').textContent = t().agency + ' · ' + areaText(r.area);
+      if (r.rating) rows.push(t().rating + '  ' + (+r.rating).toFixed(1));
+      if (r.address) rows.push(t().addr + '  ' + r.address);
+      if (r.tel) rows.push(t().tel + '  ' + r.tel);
+      if (r.hours) rows.push(t().hours + '  ' + r.hours);
+      $('pmapVempty').textContent = rows.length ? '' : t().noInfo;
+    }
+
+    var list = $('pmapVlist');
+    list.innerHTML = '';
+    rows.forEach(function (label) {
+      var li = document.createElement('li');
+      li.textContent = label;
+      list.appendChild(li);
+    });
+
+    box.classList.add('open');
+    box.scrollTop = 0;
+  }
+  $('pmapClose').onclick = function () { curId = null; renderDetail(); };
+
+  /* ---------------- 语种 ---------------- */
+  function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+    Array.prototype.forEach.call($('pmapLangs').children, function (b) {
+      b.classList.toggle('on', b.getAttribute('data-lang') === lang);
+    });
+    $('pmapTip').textContent = t().rentalTip;
+    renderDetail();
+    /* 名称 / 行政区名随语种切换：地图层的标签与悬浮提示也要跟着刷新 */
+    if (map) {
+      map.update({
+        categories: mapCategories(),
+        points: mapPoints(),
+        areaText: areaText,
+        areaKind: t().areaKind
+      });
+    }
+  }
+  function setLang(next) {
+    if (LANGS.indexOf(next) < 0) next = 'zh';
+    lang = next;
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+  }
+  Array.prototype.forEach.call($('pmapLangs').children, function (b) {
+    b.onclick = function () { setLang(b.getAttribute('data-lang')); };
+  });
+
+  /* ---------------- 取数 ----------------
+     优先读接口（/api/play-points，后台改完刷新即同步）；
+     接口不通时（服务没启动 / 用本地文件直接打开）退回同一份数据源 data/points.js，
+     只挑「游玩打卡」这一类，页面照样能正常显示。 */
+  var PLAY_KEY = 'play';
+
+  function fromApi() {
+    return fetch('/api/play-points', { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  function fromLocal() {
+    var cats = window.MAP_CATEGORIES || [];
+    var pts = window.MAP_POINTS || [];
+    var cat = null;
+    for (var i = 0; i < cats.length; i++) {
+      if (cats[i] && cats[i].key === PLAY_KEY) { cat = cats[i]; break; }
+    }
+    if (!cat) return null;
+    return {
+      category: cat,
+      points: pts.filter(function (p) {
+        return p && (p.categories || []).indexOf(PLAY_KEY) >= 0;
+      })
+    };
+  }
+
+  /* 图上什么都没有时才给居中提示；打卡点位或租车行任一个存在就不显示 */
+  function syncEmpty() {
+    var box = $('pmapEmpty');
+    if (spots.length || rental.length) {
+      box.classList.remove('show');
+      box.textContent = '';
+    } else {
+      box.textContent = t().empty;
+      box.classList.add('show');
+    }
+  }
+
+  function render(d) {
+    kind = d.category || null;
+    /* 只保留配了车辆的点位：没车辆的点位不上图 */
+    spots = (d.points || []).filter(function (s) {
+      return s && isFinite(+s.lng) && isFinite(+s.lat) && hasVehicles(s);
+    });
+
+    /* 只画这些配了车辆的点位：不传露营点、不传城市 / 机场地标 */
+    map = window.HainanMap.create($('playMap'), {
+      categories: mapCategories(),
+      points: mapPoints(),
+      roam: true,
+      legend: false,
+      /* 名称默认不常显：鼠标悬浮到圆点上时才弹出店名（手机端点按看底部详情卡） */
+      labelMode: 'hover',
+      labelKinds: false,
+      /* 悬浮提示只给门店名，不显示经纬度 */
+      tipMode: 'name',
+      /* 未选中的圆点 / 租车行都带一圈缓慢呼吸光晕，暗示「这个可以点」 */
+      haloCategory: [playKey(), RENTAL_KEY],
+      /* 底图各市县名称按当前语种显示，切语言后由 applyLang 重新下发 */
+      areaText: areaText,
+      areaKind: t().areaKind,
+      onClick: function (ev) {
+        var d2 = ev && ev.data;
+        if (!d2 || d2.cluster) return;      /* 聚合气泡交给地图自己展开 */
+        if (!d2.pointId) return;
+        /* 租车行：跳到独立的车辆详情页（新标签同一窗口，不再弹卡片） */
+        var r = findRental(d2.pointId);
+        if (r) {
+          window.location.href = 'rental.html?adcode=' + encodeURIComponent(r.adcode);
+          return;
+        }
+        curId = d2.pointId;
+        renderDetail();
+      }
+    });
+    applyLang();
+    syncEmpty();
+  }
+
+  /* 各县市评价最好的租车行：单独的只读接口，慢一点也没关系，拿到就并进地图 */
+  function loadRental() {
+    return fetch('/api/rental/rental-agencies', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) {
+        rental = ((d && d.items) || []).filter(function (x) {
+          return x && x.name && isFinite(+x.lng) && isFinite(+x.lat);
+        });
+      })
+      .catch(function () { rental = []; })
+      .then(function () {
+        if (map) map.update({ categories: mapCategories(), points: mapPoints() });
+        syncEmpty();
+      });
+  }
+
+  function showFail(e) {
+    $('pmapEmpty').textContent = t().fail + (e && e.message ? e.message : '') + '\n' + t().failTip;
+    $('pmapEmpty').classList.add('show');
+  }
+
+  /* ---------------- 启动 ---------------- */
+  function boot() {
+    var saved = '';
+    try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
+    lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    applyLang();
+
+    loadRental();
+
+    fromApi()
+      .then(render)
+      .catch(function (e) {
+        var d = fromLocal();
+        if (d) { render(d); return; }   /* 本地数据源可用：照常显示，只是没有后台实时同步 */
+        showFail(e);
+      });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

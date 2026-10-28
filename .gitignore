@@ -10,6 +10,8 @@ npm-debug.log*
 # （secrets.json 含 Resend / reCAPTCHA 密钥；users/chats/auth/rules 为运行时数据）
 data/*.json
 !data/.gitkeep
+# 租车板块（rental/）的密钥与调度申请同样严禁提交
+rental/data/secrets.json
 # 全岛游地图的初始点位种子（内容数据，非运行时用户数据）：
 # 随仓库发布，云端 map 文档缺失时由 readLocalSeed() 自动播种，保证首屏地图不是空的
 !data/map.json

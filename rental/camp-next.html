@@ -1,0 +1,534 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>游玩打卡点</title>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  /* 本页是露营地图的第二个子页面：展示数据库里「游玩打卡」分类的那批点位
+     （与全岛地图页读的是同一份数据，不用另外录入）。
+     露营点图层（含城市 / 机场地标）在这里不加载，画面上只有游玩打卡点。
+     样式沿用第一页的浅蓝底色与纯文字浮层，带 camp__ 前缀，互不干扰。 */
+  body { background: #edf3fb; }
+  .camp {
+    position: relative; height: 100vh; overflow: hidden;
+    background: radial-gradient(130% 95% at 50% 5%, #c9ddf4 0%, #d6e6f8 45%, #e3eefa 100%);
+  }
+  .camp > .map { position: relative; z-index: 1; width: 100%; height: 100%; }
+
+  /* 语言切换：浮在地图右上角，三个独立选项横向排列 */
+  .camp__langs {
+    position: absolute; top: 14px; right: 18px; z-index: 3;
+    display: flex; align-items: center; gap: 14px;
+  }
+  .camp__langs button {
+    border: 0; background: none; padding: 0;
+    font: inherit; font-size: 12.5px; color: #6b7a90; cursor: pointer;
+  }
+  .camp__langs button:hover { color: #2f6fed; }
+  .camp__langs button.on { color: #2f6fed; font-weight: 700; }
+
+  /* 顶部说明：上一步选中的是哪个露营点（纯文字，无容器） */
+  .camp__head {
+    position: absolute; left: 18px; top: 14px; z-index: 3;
+    max-width: 52vw; font-size: 12.5px; color: #4c5a70; line-height: 1.65;
+    pointer-events: none;
+  }
+
+  /* 打卡点详情：页面最右下角，纯文字右对齐 */
+  .camp__detail {
+    position: absolute; right: 18px; bottom: 16px; z-index: 2;
+    max-width: 44vw; text-align: right;
+    font-size: 12.5px; color: #8a94a6; line-height: 1.7;
+    pointer-events: none;
+  }
+  .camp__kind { font-size: 12px; font-weight: 700; color: #9a8b00; }
+  .camp__name { margin: 2px 0 0; font-size: 16px; font-weight: 700; color: #1f2d3d; line-height: 1.45; }
+  .camp__intro { margin: 4px 0 0; font-size: 12.5px; color: #4a5260; white-space: pre-wrap; }
+  .camp__coords { margin: 4px 0 0; font-size: 12px; color: #8a94a6; }
+
+  /* 未选中时的引导文字：与第一页完全同一套特效 ——
+     高亮亮蓝文字 + 轻微半透明深色底衬（磨砂玻璃感），一道柔和高光缓慢横向掠过。
+     文字本体大小 / 位置全程固定，不缩放、不做整体透明度闪烁，只靠光带移动吸引注意。
+     注意：这里刻意不写 position —— 由基类 .camp__detail 的 absolute 把它钉在右下角。 */
+  .camp__detail--hint {
+    overflow: hidden;
+    padding: 8px 15px; border-radius: 10px;
+    background: rgba(18, 32, 52, .55);
+    -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px);
+    box-shadow: 0 8px 22px rgba(18, 32, 52, .18);
+    font-size: 13.5px; font-weight: 700; color: #9ecbff;
+  }
+  /* 高光带：只在底衬内部移动，不碰文字，因此文字始终纹丝不动 */
+  .camp__detail--hint::after {
+    content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 45%;
+    background: linear-gradient(100deg,
+      rgba(255,255,255,0) 0%, rgba(255,255,255,.42) 50%, rgba(255,255,255,0) 100%);
+    pointer-events: none;
+    animation: campHintSweep 3.6s ease-in-out infinite;
+  }
+  @keyframes campHintSweep {
+    0%,  10%  { transform: translateX(-130%); }   /* 停在左侧（不可见）稍作停顿 */
+    60%, 100% { transform: translateX(330%);  }   /* 缓慢掠过后停在右侧（不可见） */
+  }
+
+  /* 露营点专属印记：详情框里那条紫色类型名 */
+  .camp__kind--camp { color: #7b4bc4; }
+  /* 顶部说明里追加的一行：上一步选中的是哪个露营点 */
+  .camp__origin { margin: 6px 0 0; font-size: 12px; font-weight: 700; color: #7b4bc4; }
+
+  /* 底部停靠区：电脑端 display:contents —— 已选清单 / 详情各自钉在左下、右下角，与原来完全一致；
+     手机端（见文末媒体查询）变成一条纵向 dock，两块上下叠放、整行留白，互不覆盖。 */
+  .camp__dock { display: contents; }
+
+  /* 左下角：已多选的游玩打卡点（可单个取消，也可一键清空） */
+  .camp__picked { position: absolute; left: 18px; bottom: 16px; z-index: 3; max-width: 40vw; }
+  .camp__picked-hd { font-size: 12.5px; font-weight: 700; color: #1f2d3d; }
+  .camp__picked-hd b { color: #e0492f; font-size: 14px; }
+  .camp__picked-tip { margin-top: 3px; font-size: 11.5px; color: #8a94a6; line-height: 1.5; }
+  .camp__chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .camp__chip {
+    display: inline-flex; align-items: center; gap: 5px;
+    border: 1px solid #f2cbc3; background: #fff6f3; color: #c5402a;
+    border-radius: 999px; padding: 3px 9px;
+    font: inherit; font-size: 11.5px; cursor: pointer;
+  }
+  .camp__chip:hover { background: #ffe9e3; }
+  .camp__chip i { font-style: normal; font-weight: 700; }
+  .camp__chip--clear { border-color: #dde5f0; background: #f4f7fc; color: #5a6a82; }
+
+  /* ==================== 手机端（≤768px）：简化布局 ====================
+     顶部：语言切换一行、说明文字一行，上下错开不再左右抢位置；
+     底部：已选清单 + 详情合成一条纵向 dock，整行铺开上下叠放，中间地图整块留白；
+     点位名称不常显（改点按标记查看），地图本身也更干净。电脑端不受任何影响。 */
+  @media (max-width: 768px) {
+    .camp__langs { top: 10px; right: 12px; gap: 12px; }
+    .camp__langs button { font-size: 12.5px; padding: 4px 2px; }
+    .camp__head {
+      left: 12px; right: 12px; top: 40px;
+      max-width: none; font-size: 12px; line-height: 1.5;
+    }
+    .camp__origin { margin-top: 0; }
+
+    .camp__dock {
+      display: flex; flex-direction: column; gap: 8px;
+      position: absolute; left: 10px; right: 10px;
+      bottom: calc(10px + env(safe-area-inset-bottom, 0px)); z-index: 3;
+    }
+    .camp__picked {
+      position: static; max-width: none;
+      max-height: 24vh; overflow-y: auto;
+      background: rgba(255,255,255,.72);
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+      border-radius: 12px; padding: 8px 10px;
+      box-shadow: 0 6px 18px rgba(31,45,61,.10);
+    }
+    .camp__picked:empty { display: none; }        /* 空态整块收起，不占位置、不重复提示 */
+    .camp__picked-hd { font-size: 12px; }
+    .camp__picked-tip { font-size: 11px; }
+    .camp__chips { gap: 5px; margin-top: 5px; }
+    .camp__chip { font-size: 11px; padding: 3px 8px; }
+
+    /* 详情解除右下角钉位、回到 dock 流内（relative 仅为引导气泡的扫光带提供定位基准） */
+    .camp__detail {
+      position: relative; right: auto; bottom: auto;
+      max-width: none; text-align: left;
+    }
+    /* 有内容时给一张浅色卡片，手机上读文字更清楚；深色引导气泡保留原样 */
+    .camp__detail:not(.camp__detail--hint) {
+      max-height: 30vh; overflow-y: auto;
+      background: rgba(255,255,255,.78);
+      -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+      border-radius: 12px; padding: 10px 12px;
+      box-shadow: 0 6px 18px rgba(31,45,61,.10);
+    }
+    .camp__name { font-size: 15px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="camp">
+  <div id="campMap" class="map"></div>
+
+  <!-- 语言切换：三个独立选项，与第一页共用同一份语言记忆 -->
+  <div class="camp__langs" id="campLangs">
+    <button type="button" data-lang="zh">中文</button>
+    <button type="button" data-lang="en">English</button>
+    <button type="button" data-lang="ru">Русский</button>
+  </div>
+
+  <!-- 顶部说明：只显示上一步选中的露营点（紫色文字） -->
+  <div class="camp__head" id="campHead"></div>
+
+  <!-- 底部停靠区：电脑端两块各自钉在左下 / 右下角；手机端上下叠放成一条 dock -->
+  <div class="camp__dock">
+    <!-- 已选游玩打卡点：支持多选，点标签上的 × 可单个取消 -->
+    <div class="camp__picked" id="campPicked"></div>
+
+    <!-- 打卡点详情：点击地图上的标记后显示（电脑端在页面右下角） -->
+    <div class="camp__detail" id="campDetail"></div>
+  </div>
+</div>
+
+<script src="vendor/echarts.min.js"></script>
+<script src="data/hainan.geojson.js"></script>
+<script src="js/map.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var LANGS = ['zh', 'en', 'ru'];
+  var T = {
+    zh: {
+      title: '游玩打卡点',
+      kindLabel: '游玩打卡点',
+      hint: '点地图上的圆点图标，请选择打卡点',
+      origin: function (name) { return '你选择的露营点：' + name; },
+      campLabel: '露营点',
+      selLabel: '已选打卡点',
+      pickedHd: function (n) { return '已选 <b>' + n + '</b> 个游玩打卡点'; },
+      pickedTip: '点地图上的标记可多选，再点一次取消；点下面的标签也能取消',
+      pickedNone: '还没有选择游玩打卡点，点地图上的标记开始多选',
+      clearAll: '清空',
+      empty: '数据库里还没有游玩打卡点。',
+      coords: '经纬度',
+      unnamed: '未命名打卡点',
+      kindFallback: '游玩打卡点',
+      noIntro: '暂无介绍',
+      loadFail: '数据加载失败：'
+    },
+    en: {
+      title: 'Sightseeing Spots',
+      kindLabel: 'Sightseeing Spot',
+      hint: 'Click a dot icon on the map to select spots',
+      origin: function (name) { return 'Your campsite: ' + name; },
+      campLabel: 'Campsite',
+      selLabel: 'Selected spot',
+      pickedHd: function (n) { return 'Selected <b>' + n + '</b> sightseeing spot(s)'; },
+      pickedTip: 'Click markers on the map to select more; click again to deselect',
+      pickedNone: 'Nothing selected yet — click markers on the map to select',
+      clearAll: 'Clear',
+      empty: 'No sightseeing spots in the database yet.',
+      coords: 'Coordinates',
+      unnamed: 'Unnamed spot',
+      kindFallback: 'Sightseeing Spot',
+      noIntro: 'No description yet',
+      loadFail: 'Failed to load data: '
+    },
+    ru: {
+      title: 'Достопримечательности',
+      kindLabel: 'Достопримечательность',
+      hint: 'Нажмите на точку-значок на карте, чтобы выбрать места',
+      origin: function (name) { return 'Ваш кемпинг: ' + name; },
+      campLabel: 'Кемпинг',
+      selLabel: 'Выбранная точка',
+      pickedHd: function (n) { return 'Выбрано: <b>' + n + '</b>'; },
+      pickedTip: 'Нажмите на метки на карте, чтобы выбрать несколько; повторное нажатие отменяет',
+      pickedNone: 'Пока ничего не выбрано — нажмите на метки на карте',
+      clearAll: 'Очистить',
+      empty: 'В базе данных пока нет достопримечательностей.',
+      coords: 'Координаты',
+      unnamed: 'Без названия',
+      kindFallback: 'Достопримечательность',
+      noIntro: 'Описания пока нет',
+      loadFail: 'Не удалось загрузить данные: '
+    }
+  };
+
+  var LANG_KEY = 'camp.lang';          /* 与第一页共用，语言选择带过来 */
+  var lang = 'zh';
+  var map = null;
+  var spots = [];                      /* 游玩打卡点（直接读库里「游玩打卡」分类那批点位） */
+  var kind = null;                     /* 该分类在后台的配色 / 名称，与地图页保持一致 */
+  var campSite = null;                 /* 上一步选中的露营点（带 ?point= 进来时才有） */
+  var detailId = null;                 /* 右下角详情当前展示的标记 id */
+  var selIds = [];                     /* 已多选的游玩打卡点 id，按选择先后排列 */
+  /* 手机端（窄屏）走简化布局：点位名称不常显（点按标记看名称，底部详情卡同步展示），
+     底部浮层合成一条 dock —— 判定口径与 CSS 媒体查询保持一致（≤768px），
+     即同一网址：手机打开自动是手机页面，电脑打开自动是电脑页面。 */
+  var isMobile = window.matchMedia ? window.matchMedia('(max-width: 768px)').matches : false;
+
+  /* 各图层配色：露营点用专属紫色大头针，与黄色的打卡点、红色的「已选」一眼区分 */
+  var CAMP_KEY = 'camp', CAMP_COLOR = '#7b4bc4';
+  var PLAY_SEL_KEY = 'playSel', PLAY_SEL_COLOR = '#e0492f';
+
+  function t() { return T[lang] || T.zh; }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+    });
+  }
+  /* 取三语字段里当前语种的值，缺该语种时回落到中文 */
+  function pick(i18n, fallback) {
+    if (i18n && i18n[lang]) return i18n[lang];
+    if (i18n && i18n.zh) return i18n.zh;
+    return fallback || '';
+  }
+  function spotName(s) { return pick(s && s.names, '') || t().unnamed; }
+
+  /* 地图数据：游玩打卡点一层（未选的黄点 / 已选的红点），不传其它露营点、也不传城市与机场地标。
+     名称与颜色沿用后台给这个分类的配置（与全岛地图页上那一批一致）。 */
+  function isSel(id) { return selIds.indexOf(id) >= 0; }
+  /* 未选中的打卡点分类 key，同时也是「挂呼吸光晕」的那一层 */
+  function playKey() { return (kind && kind.key) || 'play'; }
+
+  function mapCategories() {
+    return [
+      /* 待点击：细描边的小黄点，外圈由 __halo__ 系列叠一圈呼吸光晕，暗示「这个可以点」 */
+      { key: playKey(), name: (kind && kind.name) || t().kindFallback,
+        color: (kind && kind.color) || '#d2cc1e',
+        symbol: (kind && kind.symbol) || 'circle',
+        symbolSize: (kind && kind.symbolSize) || 14, z: 20 },
+      /* 已选中：比黄点大一圈、粗白描边 + 重投影的红色徽章，完全静止 ——
+         与「会呼吸的小黄点」在静止画面里也一眼分得开（第一页同一套两态设计）。 */
+      { key: PLAY_SEL_KEY, name: t().selLabel, color: PLAY_SEL_COLOR,
+        symbol: 'circle', symbolSize: 24, z: 26,
+        borderColor: '#fff', borderWidth: 3.5, shadowBlur: 14,
+        shadowColor: 'rgba(224,73,47,.45)' }
+    ];
+  }
+  function mapPoints() {
+    return spots.map(function (s) {
+      return {
+        id: s.id, name: spotName(s), lng: +s.lng, lat: +s.lat,
+        categories: [isSel(s.id) ? PLAY_SEL_KEY : playKey()]
+      };
+    });
+  }
+  /* 上一步选中的露营点：单独走「地标层」渲染 —— 该层不被密集区聚合，
+     因此它始终是一个独立的紫色大头针，不会被别的点合并成气泡藏起来。 */
+  function campLandmarks() {
+    if (!campSite) return [];
+    return [{
+      key: CAMP_KEY,
+      name: t().campLabel,
+      color: CAMP_COLOR,
+      symbol: 'pin',
+      symbolSize: 46,
+      z: 32,
+      points: [{
+        id: campSite.id,
+        name: pick(campSite.names, campSite.name) || t().campLabel,
+        lng: +campSite.lng,
+        lat: +campSite.lat
+      }]
+    }];
+  }
+
+  /* 悬浮提示：默认提示是固定的中文，这里按当前语种覆盖成打卡点的名称与简介 */
+  function applyTooltip() {
+    if (!map || !map.chart) return;
+    map.chart.setOption({
+      tooltip: {
+        formatter: function (pp) {
+          var d = pp.data || {};
+          if (d.kind === 'bubble' || d.kind === 'collapse' || d.kind === 'route') return '';
+          if (d.cluster) return '';
+          if (pp.componentType === 'geo') return '';
+          var r = d.raw || {};
+          /* 露营点走地标层，它的名称放在 raw 里，series 的 name 是分组名 */
+          var nm = (d.landmark && r.name) || d.name || t().unnamed;
+          var intro = d.landmark ? '' : pick(r.intro, '');
+          return '<b>' + esc(nm) + '</b>' +
+                 (intro ? '<br><span style="opacity:.78">' + esc(intro) + '</span>' : '');
+        }
+      }
+    });
+  }
+
+  function refreshMap() {
+    if (!map) return;
+    map.update({ categories: mapCategories(), points: mapPoints(), landmarks: campLandmarks() });
+    applyTooltip();
+  }
+  /* 多选状态变了：重画地图 + 刷新左下角已选清单 */
+  function redraw() { refreshMap(); renderPicked(); }
+  function selectSpot(id) { if (!isSel(id)) selIds.push(id); redraw(); }
+  function unselectSpot(id) {
+    var i = selIds.indexOf(id);
+    if (i >= 0) selIds.splice(i, 1);
+    redraw();
+  }
+  function toggleSpot(id) { if (isSel(id)) unselectSpot(id); else selectSpot(id); }
+
+  /* 顶部说明：只保留「上一步选中的露营点」那一行紫色标记文字；
+     标题与「全岛共 N 个」计数文案已按需求移除，不再渲染。 */
+  function renderHead() {
+    var html = '';
+    if (campSite) {
+      html += '<div class="camp__origin">' +
+              esc(t().origin(pick(campSite.names, campSite.name))) + '</div>';
+    }
+    $('campHead').innerHTML = html;
+  }
+
+  function findSpot(id) {
+    for (var i = 0; i < spots.length; i++) if (spots[i].id === id) return spots[i];
+    return null;
+  }
+  /* 右下角详情：显示最近点过的那个标记（露营点或游玩打卡点） */
+  function renderDetail() {
+    var box = $('campDetail');
+    if (campSite && detailId === campSite.id) {           /* 上一步选中的露营点 */
+      box.className = 'camp__detail';                     /* 有内容：去掉引导态，恢复正常文字样式 */
+      box.innerHTML =
+        '<div class="camp__kind camp__kind--camp">' + esc(t().campLabel) + '</div>' +
+        '<div class="camp__name">' + esc(pick(campSite.names, campSite.name)) + '</div>' +
+        '<div class="camp__coords">' + esc(t().coords) + ' ' +
+          (+campSite.lng).toFixed(5) + ', ' + (+campSite.lat).toFixed(5) + '</div>';
+      return;
+    }
+    var s = findSpot(detailId);
+    if (!s) {
+      /* 还没有点过：给一行带扫光的引导文字（与第一页同一套特效）。
+         库里一个打卡点都没有时是「无数据」提示，不长成引导气泡。 */
+      if (!spots.length) {
+        box.className = 'camp__detail';
+        box.textContent = t().empty;
+        return;
+      }
+      box.className = 'camp__detail camp__detail--hint';
+      box.textContent = t().hint;
+      return;
+    }
+    box.className = 'camp__detail';
+    var intro = pick(s.intro, '');
+    box.innerHTML =
+      '<div class="camp__kind">' + esc(t().kindLabel) + '</div>' +
+      '<div class="camp__name">' + esc(spotName(s)) + '</div>' +
+      (intro ? '<div class="camp__intro">' + esc(intro) + '</div>'
+             : '<div class="camp__intro" style="color:#a2abb9">' + esc(t().noIntro) + '</div>') +
+      '<div class="camp__coords">' + esc(t().coords) + ' ' + (+s.lng).toFixed(5) + ', ' + (+s.lat).toFixed(5) + '</div>';
+  }
+
+  /* 左下角：已多选的游玩打卡点清单（点标签可单个取消，另有清空） */
+  function renderPicked() {
+    var box = $('campPicked');
+    if (!selIds.length) {
+      /* 手机端空态整块收起：右下角引导气泡已在提示，不再重复占一行，把位置留给地图 */
+      box.innerHTML = isMobile ? '' : '<div class="camp__picked-tip">' + esc(t().pickedNone) + '</div>';
+      return;
+    }
+    var chips = selIds.map(function (id) {
+      var s = findSpot(id);
+      return '<button type="button" class="camp__chip" data-off="' + esc(id) + '">' +
+             esc(s ? spotName(s) : t().unnamed) + '<i>&times;</i></button>';
+    }).join('');
+
+    box.innerHTML =
+      '<div class="camp__picked-hd">' + t().pickedHd(selIds.length) + '</div>' +
+      '<div class="camp__chips">' + chips +
+        '<button type="button" class="camp__chip camp__chip--clear" data-off="">' +
+        esc(t().clearAll) + '</button>' +
+      '</div>' +
+      '<div class="camp__picked-tip">' + esc(t().pickedTip) + '</div>';
+
+    Array.prototype.forEach.call(box.querySelectorAll('[data-off]'), function (b) {
+      b.onclick = function () {
+        var id = b.dataset.off;
+        if (id) unselectSpot(id);
+        else { selIds = []; redraw(); }          /* 清空 */
+      };
+    });
+  }
+
+  /* 切换语种：页内文字 + 顶部说明 + 详情 + 地图标签（含悬浮提示）全部同步刷新 */
+  function applyLang() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+    document.title = t().title;
+    Array.prototype.forEach.call($('campLangs').children, function (b) {
+      b.className = (b.dataset.lang === lang) ? 'on' : '';
+    });
+    renderHead();
+    renderDetail();
+    renderPicked();
+    refreshMap();
+  }
+  function setLang(next) {
+    if (LANGS.indexOf(next) < 0) next = 'zh';
+    lang = next;
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    applyLang();
+  }
+  Array.prototype.forEach.call($('campLangs').children, function (b) {
+    b.onclick = function () { setLang(b.dataset.lang); };
+  });
+
+  /* 直接向服务端接口取数据（接口读的是本地数据库），不抓取任何网页。
+     1) /api/play-points 取「游玩打卡」分类那批点位（与全岛地图页同一份数据）；
+     2) 若地址带 ?point=，再从 /api/camp-points 取回上一步选中的露营点，
+        在本页用专属紫色印记标出来。 */
+  function boot() {
+    var saved = '';
+    try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
+    lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    applyLang();
+
+    var pid = '';
+    try { pid = new URLSearchParams(location.search).get('point') || ''; } catch (e) {}
+
+    fetch('/api/play-points', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        kind = d.category || null;
+        spots = (d.points || []).filter(function (s) {
+          return s && isFinite(+s.lng) && isFinite(+s.lat);
+        });
+        if (!pid) return null;
+        return fetch('/api/camp-points', { cache: 'no-store' })
+          .then(function (r) { return r.json(); })
+          .then(function (c) {
+            var arr = c.points || [];
+            campSite = arr.filter(function (x) { return x.id === pid; })[0] || null;
+          });
+      })
+      .then(function () {
+        /* 只建「游玩打卡点」这一层；上一步选中的露营点作为地标层的专属印记单独绘制 */
+        map = window.HainanMap.create($('campMap'), {
+          categories: mapCategories(),
+          points: mapPoints(),
+          landmarks: campLandmarks(),
+          roam: true,
+          legend: false,
+          /* 电脑端：打卡点数量不多，名称直接常显；
+             手机端：名称不常显（点按标记时悬浮显示，底部详情卡同步展示名称与简介），地图更干净 */
+          labelMode: isMobile ? 'hover' : 'always',
+          labelKinds: false,
+          /* 与第一页同一套两态设计：所有「待点击」的打卡点圆点默认带一圈缓慢呼吸光晕，
+             表示「这个可以点」；一旦点中被选中，它就换到红色高亮徽章那一层、光晕自动撤掉。 */
+          haloCategory: [playKey()],
+          onClick: function (ev) {
+            var d2 = ev && ev.data;
+            /* 聚合气泡 / 同心环：交给地图自身展开收起，不当作选点 */
+            if (!d2 || d2.cluster) return;
+            var id = d2.pointId;
+            if (!id) return;
+
+            if (d2.landmark) {                  /* 点到露营点专属印记：只出详情，不进多选 */
+              detailId = id;
+              renderDetail();
+              return;
+            }
+            if (!findSpot(id)) return;
+            detailId = id;
+            renderDetail();
+            toggleSpot(id);                     /* 再点一次即取消，支持连续多选 */
+          }
+        });
+        applyTooltip();
+        applyLang();
+      })
+      .catch(function (e) {
+        $('campDetail').textContent = t().loadFail + e.message;
+      });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

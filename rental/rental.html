@@ -1,0 +1,965 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>车辆详情</title>
+  <style>
+    /* ============================================================
+       租车行 · 车辆详情页（从地图页点击蓝色租车点位跳转进入）
+       ------------------------------------------------------------
+       左侧：门店基础信息（门店 / 评分 / 地址 / 电话 / 营业时间），
+             位置小地图由服务端代理高德静态图接口生成；
+       右侧：按 4 座 / 7 座 / 9 座三个板块列出车型与日租、周租、押金。
+       门店信息来自高德接口缓存，车型与价格来自 data/rental-cars.json；
+       全部文案支持中文 / English / Русский，切换即时生效。
+       ============================================================ */
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      background: radial-gradient(120% 80% at 50% 0%, #dcebfa 0%, #eef4fb 55%, #f4f8fd 100%);
+      background-attachment: fixed;
+      color: #1f2d3d;
+      -webkit-text-size-adjust: 100%;
+      min-height: 100vh;
+    }
+
+    /* ---------------- 顶部栏 ---------------- */
+    .rhead {
+      position: sticky; top: 0; z-index: 5;
+      background: rgba(255,255,255,.86);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border-bottom: 1px solid #dbe6f5;
+    }
+    .rhead__inner {
+      max-width: 1240px; margin: 0 auto; padding: 12px 20px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .rhead__back {
+      color: #2f6fed; text-decoration: none; font-size: 13px; font-weight: 600;
+      white-space: nowrap;
+    }
+    .rhead__back:hover { text-decoration: underline; }
+    .rhead__title { font-size: 14.5px; font-weight: 700; color: #1f2d3d; }
+    .rlangs { margin-left: auto; display: flex; align-items: center; gap: 14px; }
+    .rlangs button {
+      border: 0; background: none; padding: 0; font: inherit; font-size: 12.5px;
+      color: #6b7a90; cursor: pointer;
+    }
+    .rlangs button:hover { color: #2f6fed; }
+    .rlangs button.on { color: #2f6fed; font-weight: 700; }
+
+    /* ---------------- 主体两栏 ---------------- */
+    .rshell {
+      max-width: 1240px; margin: 0 auto; padding: 22px 20px 44px;
+      display: grid; grid-template-columns: 330px minmax(0, 1fr);
+      gap: 22px; align-items: start;
+    }
+
+    /* 左侧：门店信息卡 */
+    .ragency {
+      position: sticky; top: 72px;
+      background: #fff; border: 1px solid #dbe6f5; border-radius: 16px;
+      padding: 16px; box-shadow: 0 10px 28px rgba(31,45,61,.08);
+    }
+    .ragency__map {
+      position: relative; border-radius: 12px; overflow: hidden;
+      background: #e6eef9; aspect-ratio: 600 / 340;
+    }
+    .ragency__map img { width: 100%; height: 100%; display: block; object-fit: cover; }
+    .ragency__maplink {
+      position: absolute; right: 8px; bottom: 8px;
+      padding: 4px 10px; border-radius: 999px;
+      background: rgba(255,255,255,.92);
+      font-size: 11.5px; color: #2f6fed; text-decoration: none;
+      box-shadow: 0 2px 8px rgba(31,45,61,.16);
+    }
+    .ragency__name {
+      margin: 14px 0 8px; font-size: 17px; font-weight: 700; line-height: 1.45;
+    }
+    .ragency__meta { display: flex; flex-wrap: wrap; gap: 7px; }
+    .rtag {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 11.5px; background: #eef4ff; color: #2f6fed;
+    }
+    .rtag--rate { background: #fff6e5; color: #b47b12; }
+
+    .rinfo { margin: 14px 0 0; padding: 0; }
+    .rinfo__row {
+      display: flex; gap: 10px; padding: 7px 0;
+      border-top: 1px dashed #e6eef9; font-size: 12.5px; line-height: 1.55;
+    }
+    .rinfo__row:first-child { border-top: 0; }
+    .rinfo dt { flex: 0 0 62px; color: #8a94a6; margin: 0; }
+    .rinfo dd { flex: 1; margin: 0; color: #2c3a4d; word-break: break-word; }
+    .rinfo dd a { color: #2f6fed; text-decoration: none; }
+    .ragency__note {
+      margin: 12px 0 0; font-size: 11px; color: #97a1b1; line-height: 1.5;
+    }
+
+    /* 右侧：三个座位板块 */
+    .rsec {
+      background: #fff; border: 1px solid #dbe6f5; border-radius: 16px;
+      padding: 16px 18px 18px; box-shadow: 0 8px 24px rgba(31,45,61,.06);
+    }
+    .rsec + .rsec { margin-top: 18px; }
+    .rsec__head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .rsec__seat {
+      width: 34px; height: 34px; border-radius: 10px;
+      display: grid; place-items: center;
+      background: #eaf1ff; color: #2f6fed;
+      font-size: 15px; font-weight: 800;
+    }
+    .rsec__head h2 { margin: 0; font-size: 15px; font-weight: 700; }
+    .rsec__count { margin-left: auto; font-size: 12px; color: #8a94a6; }
+    .rsec__empty { margin: 0; font-size: 12.5px; color: #97a1b1; }
+
+    /* 配车按钮：本店没有客户想要的车型时，从这里发起调度 */
+    .rsec__dispatch {
+      margin-left: auto; flex: 0 0 auto;
+      border: 1px solid #c9dcff; background: #f2f7ff; color: #2f6fed;
+      border-radius: 999px; padding: 5px 13px;
+      font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+      white-space: nowrap;
+    }
+    .rsec__dispatch:hover { background: #e5efff; }
+    .rsec__dispatch + .rsec__count { margin-left: 0; }
+    .rsec__hint { margin: 8px 0 0; font-size: 11.5px; color: #9aa4b4; line-height: 1.6; }
+
+    /* ---------------- 配车 / 调度弹层 ---------------- */
+    .rdlg[hidden] { display: none; }
+    .rdlg {
+      position: fixed; inset: 0; z-index: 40;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    .rdlg__mask { position: absolute; inset: 0; background: rgba(23,36,54,.42); }
+    .rdlg__panel {
+      position: relative; width: 100%; max-width: 560px; max-height: 88vh;
+      overflow-y: auto; background: #fff; border-radius: 18px;
+      box-shadow: 0 24px 60px rgba(20,35,60,.26);
+      padding: 20px 22px 18px;
+    }
+    .rdlg__close {
+      position: absolute; right: 12px; top: 10px; border: 0; background: none;
+      font-size: 20px; line-height: 1; color: #b3bccb; cursor: pointer;
+    }
+    .rdlg__close:hover { color: #2f6fed; }
+    .rdlg__title { margin: 0 26px 6px 0; font-size: 17px; font-weight: 700; }
+    .rdlg__note {
+      margin: 0 0 14px; padding: 9px 12px; border-radius: 10px;
+      background: #fff8e8; color: #8a6416; font-size: 12px; line-height: 1.65;
+    }
+    .rdlg__pick { margin: 0 0 8px; font-size: 12px; font-weight: 700; color: #6b7a90; }
+    .rdlg__opts {
+      display: grid; gap: 9px; grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+    }
+    .ropt {
+      display: flex; gap: 10px; align-items: center;
+      border: 1px solid #e0e9f6; border-radius: 12px; padding: 8px;
+      cursor: pointer; background: #fff;
+    }
+    .ropt.on { border-color: #2f6fed; box-shadow: 0 0 0 2px rgba(47,111,237,.14); }
+    .ropt input { flex: 0 0 auto; accent-color: #2f6fed; }
+    .ropt__img { width: 74px; height: 56px; border-radius: 8px; object-fit: cover; background: #eef3fa; }
+    .ropt__txt { min-width: 0; }
+    .ropt__name { font-size: 13px; font-weight: 700; line-height: 1.35; }
+    .ropt__meta { margin-top: 3px; font-size: 11px; color: #7c8798; }
+    .ropt__eta { color: #b47b12; font-weight: 700; }
+    .rdlg__none { margin: 4px 0 0; font-size: 12.5px; color: #97a1b1; }
+    .rdlg__form { margin: 14px 0 0; display: grid; gap: 9px; grid-template-columns: 1fr 1fr; }
+    .rdlg__form label { display: flex; flex-direction: column; gap: 4px; font-size: 11.5px; color: #7c8798; }
+    .rdlg__form input {
+      border: 1px solid #dbe6f5; border-radius: 9px; padding: 8px 10px;
+      font: inherit; font-size: 13px; color: #1f2d3d; background: #fbfdff;
+    }
+    .rdlg__form input:focus { outline: none; border-color: #2f6fed; background: #fff; }
+    /* 分隔线「或」 */
+    .rdlg__sep {
+      display: flex; align-items: center; gap: 10px;
+      margin: 14px 0 10px; font-size: 11.5px; color: #8a94a6;
+    }
+    .rdlg__sepLine { flex: 1; height: 1px; background: #e0e9f6; }
+    .rdlg__sepTxt { white-space: nowrap; }
+
+    /* 自由输入车型 */
+    .rdlg__custom {
+      display: flex; flex-direction: column; gap: 4px;
+      margin: 0 0 12px; font-size: 11.5px; color: #7c8798;
+    }
+    .rdlg__custom input {
+      border: 1px solid #dbe6f5; border-radius: 9px; padding: 8px 10px;
+      font: inherit; font-size: 13px; color: #1f2d3d; background: #fbfdff;
+    }
+    .rdlg__custom input:focus { outline: none; border-color: #2f6fed; background: #fff; }
+    .rdlg__custom input.highlight { border-color: #2f6fed; box-shadow: 0 0 0 2px rgba(47,111,237,.14); }
+
+    .rdlg__wide { grid-column: 1 / -1; }
+    .rdlg__err { margin: 10px 0 0; font-size: 12px; color: #d2413a; min-height: 0; }
+    .rdlg__actions { margin-top: 14px; display: flex; gap: 10px; justify-content: flex-end; }
+    .rbtn {
+      border: 1px solid #2f6fed; background: #2f6fed; color: #fff;
+      border-radius: 10px; padding: 9px 18px; font: inherit; font-size: 13px;
+      font-weight: 600; cursor: pointer;
+    }
+    .rbtn:hover { background: #2560d8; }
+    .rbtn--ghost { background: #fff; color: #6b7a90; border-color: #dbe6f5; }
+    .rbtn--ghost:hover { background: #f4f8ff; color: #2f6fed; }
+    .rbtn:disabled { opacity: .55; cursor: default; }
+    .rdlg__done { margin-top: 6px; }
+    .rdlg__done h3 { margin: 0 0 6px; font-size: 15px; font-weight: 700; color: #1a7f5a; }
+    .rdlg__done p { margin: 0 0 12px; font-size: 12.5px; color: #6b7a90; line-height: 1.7; }
+
+    .rcars {
+      display: grid; gap: 14px;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    }
+    .rcar {
+      border: 1px solid #e4ecf7; border-radius: 13px; overflow: hidden;
+      background: #fff;
+    }
+    /* 车辆实拍图：统一 4:3 裁切，图上左上角标能源类型 */
+    .rcar__img { position: relative; aspect-ratio: 4 / 3; background: #f1f5fb; }
+    .rcar__img img {
+      width: 100%; height: 100%; display: block; object-fit: cover;
+    }
+    .rcar__ev {
+      position: absolute; left: 9px; top: 9px;
+      padding: 2px 8px; border-radius: 999px;
+      font-size: 10.5px; font-weight: 700; letter-spacing: .3px;
+      background: rgba(20,168,120,.94); color: #fff;
+      box-shadow: 0 2px 8px rgba(20,120,90,.28);
+    }
+    .rcar__body { padding: 11px 13px 13px; }
+    .rcar h3 { margin: 0 0 6px; font-size: 14.5px; font-weight: 700; line-height: 1.4; }
+    .rcar__meta { font-size: 11.5px; color: #7c8798; }
+    .rcar__prices {
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px;
+      margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e1eaf7;
+    }
+    .rcar__prices div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .rcar__prices span { font-size: 10.5px; color: #8a94a6; }
+    .rcar__prices b { font-size: 13px; font-weight: 700; color: #1b3a6b; white-space: nowrap; }
+
+    /* 加载中 / 出错提示 */
+    .rstate {
+      max-width: 1240px; margin: 0 auto; padding: 34px 20px;
+      font-size: 13px; color: #77839a; display: none; line-height: 1.8;
+    }
+    .rstate.show { display: block; }
+    .rstate p { margin: 0 0 10px; }
+    .rstate a { color: #2f6fed; text-decoration: none; font-weight: 600; }
+
+    /* ---------------- 手机 / 窄屏 ---------------- */
+    @media (max-width: 900px) {
+      .rshell { grid-template-columns: 1fr; padding: 14px 12px 34px; gap: 14px; }
+      .ragency { position: static; }
+      .rcars { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
+      .rhead__inner { padding: 10px 12px; gap: 10px; }
+      .rhead__title { display: none; }
+      .rcars { grid-template-columns: 1fr; }
+      .ragency__name { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="rhead">
+  <div class="rhead__inner">
+    <a class="rhead__back" id="rback" href="map-play.html">← <span data-i18n="back"></span></a>
+    <div class="rhead__title" data-i18n="title"></div>
+    <div class="rlangs" id="rlangs">
+      <button data-lang="zh" class="on">中文</button>
+      <button data-lang="en">English</button>
+      <button data-lang="ru">Русский</button>
+    </div>
+  </div>
+</header>
+
+<div class="rstate" id="rstate"></div>
+
+<div class="rshell" id="rshell">
+  <aside class="ragency">
+    <div class="ragency__map">
+      <img id="rmapImg" alt="">
+      <a class="ragency__maplink" id="rmapLink" href="#" target="_blank" rel="noopener" data-i18n="openMap"></a>
+    </div>
+    <h1 class="ragency__name" id="rname"></h1>
+    <div class="ragency__meta">
+      <span class="rtag" id="rarea"></span>
+      <span class="rtag rtag--rate" id="rrate"></span>
+    </div>
+    <dl class="rinfo">
+      <div class="rinfo__row"><dt data-i18n="addr"></dt><dd id="raddr"></dd></div>
+      <div class="rinfo__row"><dt data-i18n="tel"></dt><dd><a id="rtel"></a></dd></div>
+      <div class="rinfo__row"><dt data-i18n="hours"></dt><dd id="rhours"></dd></div>
+    </dl>
+    <p class="ragency__note" data-i18n="fromAmap"></p>
+  </aside>
+  <main class="rbody" id="rbody"></main>
+</div>
+
+<!-- 配车 / 车辆调度弹层（门店没有客户想要的车型时从这里发起） -->
+<div class="rdlg" id="rdlg" hidden>
+  <div class="rdlg__mask" id="rdlgMask"></div>
+  <div class="rdlg__panel" role="dialog" aria-modal="true" aria-labelledby="rdlgTitle">
+    <button class="rdlg__close" id="rdlgClose" type="button" aria-label="close">&times;</button>
+    <h2 class="rdlg__title" id="rdlgTitle"></h2>
+    <p class="rdlg__note" id="rdlgNote"></p>
+
+    <div id="rdlgFormWrap">
+      <div class="rdlg__pick" id="rdlgPick"></div>
+      <div class="rdlg__opts" id="rdlgOpts"></div>
+      <p class="rdlg__none" id="rdlgNone" hidden></p>
+
+      <!-- 分隔线 + 自由输入 -->
+      <div class="rdlg__sep" id="rdlgSep">
+        <span class="rdlg__sepLine"></span>
+        <span class="rdlg__sepTxt" data-i18n="dispatchOr"></span>
+        <span class="rdlg__sepLine"></span>
+      </div>
+      <label class="rdlg__custom">
+        <span data-i18n="dispatchCustom"></span>
+        <input id="rdlgCustom" maxlength="60" placeholder="">
+      </label>
+
+      <div class="rdlg__form">
+        <label><span data-i18n="dispatchName"></span><input id="rdlgName" maxlength="40" autocomplete="name"></label>
+        <label><span data-i18n="dispatchPhone"></span><input id="rdlgPhone" maxlength="30" autocomplete="tel"></label>
+        <label class="rdlg__wide"><span data-i18n="dispatchNoteLabel"></span><input id="rdlgNoteInput" maxlength="200"></label>
+      </div>
+
+      <div class="rdlg__err" id="rdlgErr"></div>
+      <div class="rdlg__actions">
+        <button class="rbtn rbtn--ghost" id="rdlgCancel" type="button" data-i18n="dispatchCancel"></button>
+        <button class="rbtn" id="rdlgSubmit" type="button" data-i18n="dispatchSubmit"></button>
+      </div>
+    </div>
+
+    <div class="rdlg__done" id="rdlgDone" hidden>
+      <h3 id="rdlgOk"></h3>
+      <p id="rdlgOkNote"></p>
+      <button class="rbtn" id="rdlgDoneBtn" type="button" data-i18n="dispatchClose"></button>
+    </div>
+  </div>
+</div>
+
+<script src="js/rental-i18n.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var I18N = window.RentalI18n;
+  var LANGS = ['zh', 'en', 'ru'];
+  var LANG_KEY = 'camp.lang';
+  var T = {
+    zh: {
+      back: '返回地图',
+      title: '车辆详情',
+      addr: '地址',
+      tel: '电话',
+      hours: '营业时间',
+      ratingLabel: '评分',
+      fromAmap: '门店信息与位置数据来自高德地图',
+      openMap: '在高德地图中查看',
+      seatUnit: '座',
+      ev: '电车',
+      gearAuto: '自动挡',
+      gearManual: '手动挡',
+      models: '款车型',
+      day: '日租',
+      week: '周租',
+      deposit: '押金',
+      noCars: '该档位暂无可租车辆',
+      noInfo: '暂无',
+      loading: '正在加载门店与车辆信息…',
+      fail: '加载失败：',
+      notFound: '未找到该租车行，请返回地图重新选择。',
+      backMap: '返回地图',
+      dispatch: '配车',
+      dispatchHint: '没有想要的车型？可从其他网点调配车辆。',
+      dispatchTitle: '发起车辆调度',
+      dispatchNote: '配车需要等待一定时长（预计 {eta}），能否调度成功以实际情况为准，门店会与您电话确认。',
+      dispatchPick: '选择需要的车型',
+      dispatchNone: '该档位暂无可调度车辆。',
+      dispatchEta: '预计等待',
+      minute: '分钟',
+      hour: '小时',
+      dispatchName: '联系人（选填）',
+      dispatchPhone: '手机号（选填）',
+      dispatchNoteLabel: '备注（选填）',
+      dispatchSubmit: '提交调度申请',
+      dispatchCancel: '取消',
+      dispatchClose: '关闭',
+      dispatchOr: '或者',
+      dispatchCustom: '手动输入想要的车型',
+      dispatchCustomPlaceholder: '例如：别克 GL8、宝马 5 系…',
+      dispatchNeedPick: '请选择车型或手动输入想要的车型。',
+      dispatchOk: '调度申请已提交',
+      dispatchOkNote: '门店确认后会与您联系，实际到车时间以门店通知为准。',
+      dispatchFail: '提交失败：',
+      dispatchLoading: '正在查询可调度车辆…'
+    },
+    en: {
+      back: 'Back to map',
+      title: 'Vehicle details',
+      addr: 'Address',
+      tel: 'Phone',
+      hours: 'Opening hours',
+      ratingLabel: 'Rating',
+      fromAmap: 'Store and location data from Amap',
+      openMap: 'Open in Amap',
+      seatUnit: 'seats',
+      ev: 'EV',
+      gearAuto: 'Automatic',
+      gearManual: 'Manual',
+      models: 'models',
+      day: 'Per day',
+      week: 'Per week',
+      deposit: 'Deposit',
+      noCars: 'No cars available in this group',
+      noInfo: 'N/A',
+      loading: 'Loading store and vehicle details…',
+      fail: 'Failed to load: ',
+      notFound: 'Car rental not found. Please go back to the map and pick another one.',
+      backMap: 'Back to map',
+      dispatch: 'Dispatch',
+      dispatchHint: 'Not the model you want? We can transfer one from another branch.',
+      dispatchTitle: 'Request a vehicle transfer',
+      dispatchNote: 'A transfer takes time (about {eta}). Whether it can be arranged depends on actual availability; the branch will call you to confirm.',
+      dispatchPick: 'Choose the model you need',
+      dispatchNone: 'No vehicles available for transfer in this group.',
+      dispatchEta: 'Est. wait',
+      minute: 'min',
+      hour: 'h',
+      dispatchName: 'Contact (optional)',
+      dispatchPhone: 'Phone (optional)',
+      dispatchNoteLabel: 'Note (optional)',
+      dispatchSubmit: 'Submit request',
+      dispatchCancel: 'Cancel',
+      dispatchClose: 'Close',
+      dispatchOr: 'or',
+      dispatchCustom: 'Type any model you want',
+      dispatchCustomPlaceholder: 'e.g. Buick GL8, BMW 5 Series…',
+      dispatchNeedPick: 'Please pick a model or type one you need.',
+      dispatchOk: 'Transfer request submitted',
+      dispatchOkNote: 'The branch will contact you after confirmation; the actual arrival time is subject to their notice.',
+      dispatchFail: 'Submission failed: ',
+      dispatchLoading: 'Checking available vehicles…'
+    },
+    ru: {
+      back: 'На карту',
+      title: 'Информация об авто',
+      addr: 'Адрес',
+      tel: 'Телефон',
+      hours: 'Часы работы',
+      ratingLabel: 'Рейтинг',
+      fromAmap: 'Данные о салоне и местоположении — Amap',
+      openMap: 'Открыть в Amap',
+      seatUnit: 'мест',
+      ev: 'Электро',
+      gearAuto: 'Автоматическая',
+      gearManual: 'Механическая',
+      models: 'модели',
+      day: 'В сутки',
+      week: 'В неделю',
+      deposit: 'Залог',
+      noCars: 'В этой группе нет свободных автомобилей',
+      noInfo: 'Нет данных',
+      loading: 'Загружаем данные о салоне и автомобилях…',
+      fail: 'Не удалось загрузить: ',
+      notFound: 'Прокат авто не найден. Вернитесь на карту и выберите другой.',
+      backMap: 'На карту',
+      dispatch: 'Перегон',
+      dispatchHint: 'Нужной модели нет? Можем перегнать авто из другого филиала.',
+      dispatchTitle: 'Заявка на перегон автомобиля',
+      dispatchNote: 'Перегон требует времени (около {eta}); возможность подтверждается по факту, салон свяжется с вами по телефону.',
+      dispatchPick: 'Выберите нужную модель',
+      dispatchNone: 'В этой группе нет авто для перегона.',
+      dispatchEta: 'Ожидание',
+      minute: 'мин',
+      hour: 'ч',
+      dispatchName: 'Контакт (необязательно)',
+      dispatchPhone: 'Телефон (необязательно)',
+      dispatchNoteLabel: 'Примечание (необязательно)',
+      dispatchSubmit: 'Отправить заявку',
+      dispatchCancel: 'Отмена',
+      dispatchClose: 'Закрыть',
+      dispatchOr: 'или',
+      dispatchCustom: 'Введите нужную модель вручную',
+      dispatchCustomPlaceholder: 'например: Buick GL8, BMW 5 Series…',
+      dispatchNeedPick: 'Выберите модель из списка или введите свою.',
+      dispatchOk: 'Заявка на перегон отправлена',
+      dispatchOkNote: 'Салон свяжется с вами после подтверждения; время прибытия уточняет салон.',
+      dispatchFail: 'Не удалось отправить: ',
+      dispatchLoading: 'Проверяем доступные автомобили…'
+    }
+  };
+
+  var lang = 'zh';
+  var data = null;                 /* { item, cars:{ classes, fleet } } */
+  var adcode = '';
+  try {
+    adcode = new URLSearchParams(location.search).get('adcode') || '';
+  } catch (e) { adcode = ''; }
+
+  function t() { return T[lang] || T.zh; }
+  function pick(i18n, fallback) { return I18N.pickText(i18n, lang, fallback); }
+
+  /* 静态文案（含返回链接）随语种切换 */
+  function applyStatic() {
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-i18n]'), function (el) {
+      var k = el.getAttribute('data-i18n');
+      var v = t()[k];
+      if (v != null) el.textContent = v;
+    });
+    Array.prototype.forEach.call($('rlangs').children, function (b) {
+      b.classList.toggle('on', b.getAttribute('data-lang') === lang);
+    });
+  }
+
+  function money(v) {
+    var n = +v;
+    return isFinite(n) && n > 0 ? '¥' + n : '—';
+  }
+
+  function priceCell(label, value) {
+    var cell = document.createElement('div');
+    var s = document.createElement('span');
+    s.textContent = label;
+    var b = document.createElement('b');
+    b.textContent = value;
+    cell.appendChild(s);
+    cell.appendChild(b);
+    return cell;
+  }
+
+  function carCard(car) {
+    var card = document.createElement('article');
+    card.className = 'rcar';
+
+    /* 车辆照片（服务端已过滤掉没有图的车辆，这里拿到的一定有图） */
+    var pic = document.createElement('div');
+    pic.className = 'rcar__img';
+    var img = document.createElement('img');
+    img.src = car.image;
+    img.alt = pick(car.names, '');
+    img.loading = 'lazy';
+    pic.appendChild(img);
+    if (car.ev) {
+      var ev = document.createElement('span');
+      ev.className = 'rcar__ev';
+      ev.textContent = t().ev;
+      pic.appendChild(ev);
+    }
+    card.appendChild(pic);
+
+    var body = document.createElement('div');
+    body.className = 'rcar__body';
+
+    var h = document.createElement('h3');
+    h.textContent = pick(car.names, '') || '—';
+
+    var meta = document.createElement('div');
+    meta.className = 'rcar__meta';
+    var bits = [];
+    if (car.seats) bits.push(car.seats + ' ' + t().seatUnit);
+    bits.push(car.gear === 'manual' ? t().gearManual : t().gearAuto);
+    meta.textContent = bits.join(' · ');
+
+    var prices = document.createElement('div');
+    prices.className = 'rcar__prices';
+    prices.appendChild(priceCell(t().day, money(car.day)));
+    prices.appendChild(priceCell(t().week, money(car.week)));
+    prices.appendChild(priceCell(t().deposit, money(car.deposit)));
+
+    body.appendChild(h);
+    body.appendChild(meta);
+    body.appendChild(prices);
+    card.appendChild(body);
+    return card;
+  }
+
+  function section(cls) {
+    var cars = (data && data.cars && data.cars.fleet && data.cars.fleet[cls.key]) || [];
+    var box = document.createElement('section');
+    box.className = 'rsec';
+
+    var head = document.createElement('div');
+    head.className = 'rsec__head';
+    var seat = document.createElement('span');
+    seat.className = 'rsec__seat';
+    seat.textContent = cls.seats || '';
+    var h2 = document.createElement('h2');
+    h2.textContent = pick(cls.names, '');
+
+    /* 配车按钮：任何档位都能发起调度（本店已有的车型不会出现在可调度列表里） */
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'rsec__dispatch';
+    btn.textContent = t().dispatch;
+    btn.onclick = function () { openDispatch(cls.key); };
+
+    var count = document.createElement('span');
+    count.className = 'rsec__count';
+    count.textContent = cars.length ? cars.length + ' ' + t().models : '';
+    head.appendChild(seat);
+    head.appendChild(h2);
+    head.appendChild(btn);
+    head.appendChild(count);
+    box.appendChild(head);
+
+    if (!cars.length) {
+      var empty = document.createElement('p');
+      empty.className = 'rsec__empty';
+      empty.textContent = t().noCars;
+      box.appendChild(empty);
+      var hint = document.createElement('p');
+      hint.className = 'rsec__hint';
+      hint.textContent = t().dispatchHint;
+      box.appendChild(hint);
+      return box;
+    }
+    var grid = document.createElement('div');
+    grid.className = 'rcars';
+    cars.forEach(function (c) { grid.appendChild(carCard(c)); });
+    box.appendChild(grid);
+    return box;
+  }
+
+  function renderAgency() {
+    var it = data.item;
+    $('rname').textContent = I18N.agencyName(it, lang);
+    $('rarea').textContent = I18N.areaName(it.area, lang);
+
+    var rate = +it.rating;
+    var rateEl = $('rrate');
+    if (isFinite(rate) && rate > 0) {
+      rateEl.textContent = t().ratingLabel + ' ' + rate.toFixed(1);
+      rateEl.style.display = '';
+    } else {
+      rateEl.textContent = '';
+      rateEl.style.display = 'none';
+    }
+
+    $('raddr').textContent = it.address || t().noInfo;
+
+    var tel = $('rtel');
+    if (it.tel) {
+      tel.textContent = it.tel;
+      tel.setAttribute('href', 'tel:' + it.tel);
+    } else {
+      tel.textContent = t().noInfo;
+      tel.removeAttribute('href');
+    }
+
+    var hours = Array.isArray(it.hours) ? it.hours.join(' / ') : (it.hours || '');
+    $('rhours').textContent = hours || t().noInfo;
+
+    $('rmapImg').src = '/api/rental/rental-map?adcode=' + encodeURIComponent(it.adcode);
+    $('rmapLink').href = 'https://uri.amap.com/marker?position=' + it.lng + ',' + it.lat +
+      '&name=' + encodeURIComponent(I18N.agencyName(it, lang)) +
+      '&src=hainanmap&coordinate=gaode&callnative=0';
+    document.title = I18N.agencyName(it, lang) + ' · ' + t().title;
+  }
+
+  function render() {
+    if (!data) return;
+    applyStatic();             /* 车辆板块里的文案也依赖当前语种 */
+    renderAgency();
+    var body = $('rbody');
+    body.innerHTML = '';
+    (data.cars.classes || []).forEach(function (c) { body.appendChild(section(c)); });
+  }
+
+  function showError(msg) {
+    $('rshell').style.display = 'none';
+    var box = $('rstate');
+    box.innerHTML = '';
+    var p = document.createElement('p');
+    p.textContent = msg;
+    var a = document.createElement('a');
+    a.href = 'map-play.html';
+    a.textContent = t().backMap;
+    box.appendChild(p);
+    box.appendChild(a);
+    box.classList.add('show');
+  }
+
+  /* ---------------- 配车 / 车辆调度 ----------------
+     门店没有客户想要的车型时，点板块标题上的「配车」发起调度：
+     · 可调度车型 = 车辆库里启用、且本店没有的车（服务端实时比对库存）
+     · 预估等待时间由后台按车型配置，弹层里明确提示「能否成功以实际情况为准」 */
+  var dlg = { open: false, classKey: '', options: null, loading: false, selected: '', customInput: '', submitting: false };
+
+  function fmtEta(mins) {
+    var m = Math.max(0, Math.round(+mins || 0));
+    if (m < 60) return m + ' ' + t().minute;
+    var h = Math.floor(m / 60), rest = m % 60;
+    return h + ' ' + t().hour + (rest ? ' ' + rest + ' ' + t().minute : '');
+  }
+  function dlgCar(id) {
+    var items = (dlg.options && dlg.options.items) || [];
+    for (var i = 0; i < items.length; i++) if (items[i].id === id) return items[i];
+    return null;
+  }
+
+  function openDispatch(classKey) {
+    dlg.open = true;
+    dlg.classKey = classKey;
+    dlg.selected = '';
+    dlg.customInput = '';
+    dlg.submitting = false;
+    $('rdlgErr').textContent = '';
+    $('rdlgCustom').value = '';
+    $('rdlgCustom').classList.remove('highlight');
+    $('rdlgFormWrap').hidden = false;
+    $('rdlgDone').hidden = true;
+    $('rdlgSubmit').disabled = false;
+    $('rdlg').hidden = false;
+    document.body.style.overflow = 'hidden';
+    renderDialog();
+    if (!dlg.options && !dlg.loading) loadDispatchOptions();
+  }
+
+  function closeDispatch() {
+    dlg.open = false;
+    $('rdlg').hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  function loadDispatchOptions() {
+    dlg.loading = true;
+    renderDialog();
+    fetch('/api/rental/dispatch-options?adcode=' + encodeURIComponent(adcode), { cache: 'no-store' })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j && j.error ? j.error : 'HTTP ' + r.status);
+          return j;
+        });
+      })
+      .then(function (j) {
+        dlg.loading = false;
+        dlg.options = j;
+        renderDialog();
+      })
+      .catch(function (e) {
+        dlg.loading = false;
+        dlg.options = { items: [], defaultEta: 120 };
+        renderDialog();
+        $('rdlgErr').textContent = t().dispatchFail + (e && e.message ? e.message : '');
+      });
+  }
+
+  function renderOpts() {
+    var box = $('rdlgOpts');
+    box.innerHTML = '';
+    var list = ((dlg.options && dlg.options.items) || []).filter(function (x) {
+      return x.classKey === dlg.classKey;
+    });
+    $('rdlgNone').hidden = !(dlg.options && !list.length);
+    $('rdlgNone').textContent = t().dispatchNone;
+
+    list.forEach(function (it) {
+      var lab = document.createElement('label');
+      lab.className = 'ropt' + (dlg.selected === it.id ? ' on' : '');
+
+      var radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'ropt';
+      radio.value = it.id;
+      radio.checked = dlg.selected === it.id;
+      radio.onchange = function () {
+        dlg.selected = it.id;
+        dlg.customInput = '';
+        $('rdlgCustom').value = '';
+        $('rdlgCustom').classList.remove('highlight');
+        renderDialog();
+      };
+
+      var img = document.createElement('img');
+      img.className = 'ropt__img';
+      img.src = it.image;
+      img.alt = pick(it.names, '');
+      img.loading = 'lazy';
+
+      var txt = document.createElement('div');
+      txt.className = 'ropt__txt';
+
+      var nm = document.createElement('div');
+      nm.className = 'ropt__name';
+      nm.textContent = pick(it.names, '') || '—';
+
+      var mt = document.createElement('div');
+      mt.className = 'ropt__meta';
+      var bits = [];
+      if (it.seats) bits.push(it.seats + ' ' + t().seatUnit);
+      bits.push(it.gear === 'manual' ? t().gearManual : t().gearAuto);
+      if (it.ev) bits.push(t().ev);
+      mt.textContent = bits.join(' · ');
+
+      var et = document.createElement('div');
+      et.className = 'ropt__meta';
+      var eta = document.createElement('span');
+      eta.className = 'ropt__meta ropt__eta';
+      eta.textContent = t().dispatchEta + ' ' + fmtEta(it.eta);
+      et.appendChild(eta);
+
+      txt.appendChild(nm);
+      txt.appendChild(mt);
+      txt.appendChild(et);
+      lab.appendChild(radio);
+      lab.appendChild(img);
+      lab.appendChild(txt);
+      box.appendChild(lab);
+    });
+  }
+
+  function renderDialog() {
+    if (!dlg.open) return;
+    var cls = null;
+    ((data && data.cars && data.cars.classes) || []).forEach(function (c) {
+      if (c.key === dlg.classKey) cls = c;
+    });
+    $('rdlgTitle').textContent = t().dispatchTitle +
+      (cls && cls.seats ? ' · ' + cls.seats + ' ' + t().seatUnit : '');
+    var sel = dlg.selected ? dlgCar(dlg.selected) : null;
+    var eta = sel ? sel.eta : (dlg.options ? dlg.options.defaultEta : null);
+    $('rdlgNote').textContent = t().dispatchNote.replace('{eta}', eta ? fmtEta(eta) : '—');
+    $('rdlgPick').textContent = dlg.options ? t().dispatchPick : t().dispatchLoading;
+    $('rdlgCustom').setAttribute('placeholder', t().dispatchCustomPlaceholder);
+    renderOpts();
+  }
+
+  function submitDispatch() {
+    if (dlg.submitting) return;
+    $('rdlgErr').textContent = '';
+
+    var customVal = ($('rdlgCustom').value || '').trim();
+    var hasPick = !!dlg.selected;
+    var hasCustom = customVal.length > 0;
+
+    if (!hasPick && !hasCustom) {
+      $('rdlgErr').textContent = t().dispatchNeedPick;
+      $('rdlgCustom').classList.add('highlight');
+      return;
+    }
+    $('rdlgCustom').classList.remove('highlight');
+
+    dlg.submitting = true;
+    $('rdlgSubmit').disabled = true;
+
+    var selCar = dlg.selected ? dlgCar(dlg.selected) : null;
+    var eta = selCar ? selCar.eta : (dlg.options ? dlg.options.defaultEta : null);
+    var modelName = hasPick ? pick(selCar.names, '') : customVal;
+
+    fetch('/api/rental/dispatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        adcode: adcode,
+        carId: dlg.selected || '',
+        customModel: hasCustom ? customVal : '',
+        name: $('rdlgName').value,
+        phone: $('rdlgPhone').value,
+        note: $('rdlgNoteInput').value
+      })
+    })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j && j.error ? j.error : 'HTTP ' + r.status);
+          return j;
+        });
+      })
+      .then(function (j) {
+        dlg.submitting = false;
+        $('rdlgFormWrap').hidden = true;
+        $('rdlgDone').hidden = false;
+        $('rdlgOk').textContent = t().dispatchOk + ' · ' + modelName;
+        var finalEta = (j.item && j.item.eta) != null ? j.item.eta : eta;
+        $('rdlgOkNote').textContent = t().dispatchOkNote + ' ' +
+          t().dispatchEta + ' ' + fmtEta(finalEta);
+        /* 提交后本店的可调度清单会变化，下次打开重新拉一次 */
+        dlg.selected = '';
+        dlg.customInput = '';
+        dlg.options = null;
+      })
+      .catch(function (e) {
+        dlg.submitting = false;
+        $('rdlgSubmit').disabled = false;
+        $('rdlgErr').textContent = t().dispatchFail + (e && e.message ? e.message : '');
+      });
+  }
+
+  $('rdlgClose').onclick = closeDispatch;
+  $('rdlgCancel').onclick = closeDispatch;
+  $('rdlgMask').onclick = closeDispatch;
+  $('rdlgSubmit').onclick = submitDispatch;
+  $('rdlgDoneBtn').onclick = closeDispatch;
+  $('rdlgCustom').addEventListener('input', function () {
+    var v = ($('rdlgCustom').value || '').trim();
+    dlg.customInput = v;
+    if (v.length > 0 && dlg.selected) {
+      dlg.selected = '';
+      renderOpts();
+    }
+    $('rdlgCustom').classList.toggle('highlight', !!(v.length > 0));
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && dlg.open) closeDispatch();
+  });
+
+  function setLang(next) {
+    lang = LANGS.indexOf(next) >= 0 ? next : 'zh';
+    try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+    applyStatic();
+    if (data) render();
+    else $('rstate').textContent = t().loading;
+    if (dlg.open) renderDialog();     /* 弹层开着时也要跟着切语种 */
+  }
+
+  Array.prototype.forEach.call($('rlangs').children, function (b) {
+    b.onclick = function () { setLang(b.getAttribute('data-lang')); };
+  });
+
+  /* 门店位置小地图加载失败时，退化成一块浅色底，不显示破图 */
+  $('rmapImg').onerror = function () { this.style.visibility = 'hidden'; };
+
+  function boot() {
+    var saved = '';
+    try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
+    lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    applyStatic();
+    $('rstate').textContent = t().loading;
+    $('rstate').classList.add('show');
+
+    if (!adcode) { showError(t().notFound); return; }
+
+    fetch('/api/rental/rental-agency?adcode=' + encodeURIComponent(adcode), { cache: 'no-store' })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j && j.error ? j.error : 'HTTP ' + r.status);
+          return j;
+        });
+      })
+      .then(function (j) {
+        data = j;
+        $('rstate').classList.remove('show');
+        render();
+      })
+      .catch(function (e) {
+        showError(t().fail + (e && e.message ? e.message : ''));
+      });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

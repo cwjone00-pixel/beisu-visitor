@@ -1,0 +1,362 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>配车调度管理</title>
+  <style>
+    /* ============================================================
+       配车 / 车辆调度 · 后台管理
+       ------------------------------------------------------------
+       1. 可调度车辆列表：哪些车允许跨店调配、各自的预估等待分钟
+       2. 默认预估等待时间：没单独配置的车型按它算
+       3. 客户提交的调度申请：待处理 / 已调度 / 已取消，可改状态、可删除
+       数据落 data/dispatch.json，前台弹层实时读同一份配置。
+       ============================================================ */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; padding: 0 0 60px;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+      background: #f2f6fc; color: #1f2d3d; font-size: 13px;
+    }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 18px; }
+    header.top {
+      background: #fff; border-bottom: 1px solid #dde7f4; position: sticky; top: 0; z-index: 5;
+    }
+    .top__inner {
+      max-width: 1120px; margin: 0 auto; padding: 12px 18px;
+      display: flex; align-items: center; gap: 14px;
+    }
+    .top h1 { margin: 0; font-size: 15.5px; font-weight: 700; }
+    .top a { color: #2f6fed; text-decoration: none; font-size: 12.5px; }
+    .top a:hover { text-decoration: underline; }
+    .top__spacer { margin-left: auto; }
+    button {
+      font: inherit; cursor: pointer; border-radius: 9px;
+      border: 1px solid #d4e1f3; background: #fff; color: #33465e;
+      padding: 7px 14px; font-size: 12.5px;
+    }
+    button:hover { border-color: #2f6fed; color: #2f6fed; }
+    button.primary { background: #2f6fed; border-color: #2f6fed; color: #fff; }
+    button.primary:hover { background: #2560d8; color: #fff; }
+    button.danger:hover { border-color: #d2413a; color: #d2413a; }
+
+    .card {
+      background: #fff; border: 1px solid #dde7f4; border-radius: 14px;
+      padding: 16px 18px; margin-bottom: 18px;
+      box-shadow: 0 6px 18px rgba(31,45,61,.05);
+    }
+    .card h2 { margin: 0 0 4px; font-size: 14.5px; font-weight: 700; }
+    .card .sub { margin: 0 0 14px; font-size: 12px; color: #8a94a6; line-height: 1.6; }
+    .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+    .row label { font-size: 12.5px; color: #5d6b7f; }
+    input[type="number"], input[type="text"] {
+      font: inherit; font-size: 12.5px; padding: 6px 9px;
+      border: 1px solid #d4e1f3; border-radius: 8px; background: #fbfdff; color: #1f2d3d;
+    }
+    input[type="number"] { width: 92px; }
+    input:focus { outline: none; border-color: #2f6fed; background: #fff; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left; padding: 9px 8px; border-bottom: 1px solid #eef4fb;
+      font-size: 12.5px; vertical-align: middle;
+    }
+    th { color: #8a94a6; font-weight: 600; font-size: 11.5px; letter-spacing: .3px; }
+    tr:last-child td { border-bottom: 0; }
+    .thumb { width: 58px; height: 44px; border-radius: 7px; object-fit: cover; background: #eef3fa; display: block; }
+    .muted { color: #8a94a6; font-size: 11.5px; }
+    .pill {
+      display: inline-block; padding: 2px 9px; border-radius: 999px;
+      font-size: 11px; background: #eef4ff; color: #2f6fed;
+    }
+    .pill--pending { background: #fff4e2; color: #b47b12; }
+    .pill--dispatched { background: #e6f7ef; color: #1a7f5a; }
+    .pill--cancelled { background: #f2f4f8; color: #8a94a6; }
+    select { font: inherit; font-size: 12px; padding: 5px 8px; border-radius: 8px; border: 1px solid #d4e1f3; background: #fff; }
+    .empty { padding: 14px 0; color: #97a1b1; font-size: 12.5px; }
+    .toast {
+      position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%);
+      background: #1f2d3d; color: #fff; padding: 9px 18px; border-radius: 999px;
+      font-size: 12.5px; opacity: 0; pointer-events: none; transition: opacity .2s;
+      z-index: 20;
+    }
+    .toast.on { opacity: .94; }
+    @media (max-width: 820px) {
+      .tbl-wrap { overflow-x: auto; }
+      table { min-width: 720px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top__inner">
+    <h1>配车调度管理</h1>
+    <span class="top__spacer"></span>
+    <a href="admin.html">返回内容管理</a>
+    <a href="map-play.html">查看地图</a>
+    <button id="btnRefresh">刷新</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- 调度参数 -->
+  <section class="card">
+    <h2>调度参数</h2>
+    <p class="sub">默认预估等待时间用于没有单独配置的车型。保存后，前台「配车」弹层里的等待时长会立刻按新值显示。</p>
+    <div class="row">
+      <label for="defaultEta">默认预估等待（分钟）</label>
+      <input id="defaultEta" type="number" min="5" max="2880" step="5">
+      <button class="primary" id="btnSave">保存配置</button>
+      <span class="muted" id="savedAt"></span>
+    </div>
+  </section>
+
+  <!-- 可调度车辆 -->
+  <section class="card">
+    <h2>可调度车辆列表</h2>
+    <p class="sub">勾选代表该车允许跨门店调配；等待分钟留空或填 0 时按默认值计算。本店已有的车型不会出现在客户的调度列表里。</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:70px">照片</th>
+            <th>车型</th>
+            <th style="width:70px">座位</th>
+            <th style="width:86px">可调度</th>
+            <th style="width:150px">预估等待（分钟）</th>
+          </tr>
+        </thead>
+        <tbody id="carsBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 调度申请 -->
+  <section class="card">
+    <h2>客户调度申请 <span class="muted" id="reqCount"></span></h2>
+    <p class="sub">按提交时间倒序。改状态即保存，删除不可恢复。</p>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:132px">提交时间</th>
+            <th>门店 / 市县</th>
+            <th>车型</th>
+            <th style="width:64px">座位</th>
+            <th style="width:96px">预估等待</th>
+            <th>联系人 / 电话</th>
+            <th>备注</th>
+            <th style="width:110px">状态</th>
+            <th style="width:56px"></th>
+          </tr>
+        </thead>
+        <tbody id="reqBody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="reqEmpty" hidden>还没有客户提交调度申请。</div>
+  </section>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var state = { config: { defaultEta: 120, cars: {} }, catalog: [], requests: [] };
+  var STATUS = { pending: '待处理', dispatched: '已调度', cancelled: '已取消' };
+
+  function toast(msg) {
+    var el = $('toast');
+    el.textContent = msg;
+    el.classList.add('on');
+    clearTimeout(el._t);
+    el._t = setTimeout(function () { el.classList.remove('on'); }, 2200);
+  }
+  function api(url, opt) {
+    return fetch(url, opt || {}).then(function (r) {
+      return r.json().then(function (j) {
+        if (!r.ok) throw new Error(j && j.error ? j.error : 'HTTP ' + r.status);
+        return j;
+      });
+    });
+  }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+  function fmtTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso || '';
+    function p(n) { return n < 10 ? '0' + n : '' + n; }
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' +
+      p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  /* ---------- 车辆列表（可调度开关 + 单车等待） ---------- */
+  function renderCars() {
+    var tb = $('carsBody');
+    tb.innerHTML = '';
+    state.catalog.forEach(function (c) {
+      var tr = el('tr');
+
+      var tdImg = el('td');
+      var img = el('img', 'thumb');
+      img.src = c.image || '';
+      img.alt = '';
+      tdImg.appendChild(img);
+
+      var tdName = el('td');
+      tdName.appendChild(el('div', '', (c.names && c.names.zh) || c.id));
+      tdName.appendChild(el('div', 'muted', c.id));
+
+      var tdSeat = el('td', '', c.seats + ' 座');
+
+      var tdOn = el('td');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!c.enabled;
+      cb.setAttribute('data-car', c.id);
+      cb.setAttribute('data-role', 'enabled');
+      tdOn.appendChild(cb);
+
+      var tdEta = el('td');
+      var num = document.createElement('input');
+      num.type = 'number';
+      num.min = '0';
+      num.max = '2880';
+      num.step = '5';
+      num.value = c.eta || '';
+      num.placeholder = String(state.config.defaultEta);
+      num.setAttribute('data-car', c.id);
+      num.setAttribute('data-role', 'eta');
+      tdEta.appendChild(num);
+
+      tr.appendChild(tdImg);
+      tr.appendChild(tdName);
+      tr.appendChild(tdSeat);
+      tr.appendChild(tdOn);
+      tr.appendChild(tdEta);
+      tb.appendChild(tr);
+    });
+  }
+
+  /* ---------- 调度申请列表 ---------- */
+  function renderRequests() {
+    var tb = $('reqBody');
+    tb.innerHTML = '';
+    var list = state.requests || [];
+    $('reqCount').textContent = list.length ? '（' + list.length + ' 条）' : '';
+    $('reqEmpty').hidden = !!list.length;
+
+    list.forEach(function (r) {
+      var tr = el('tr');
+
+      tr.appendChild(el('td', 'muted', fmtTime(r.createdAt)));
+
+      var tdStore = el('td');
+      tdStore.appendChild(el('div', '', r.store || '—'));
+      tdStore.appendChild(el('div', 'muted', r.area || r.adcode || ''));
+
+      tr.appendChild(tdStore);
+      tr.appendChild(el('td', '', r.carName || r.carId || '—'));
+      tr.appendChild(el('td', '', (r.seats || 0) + ' 座'));
+      tr.appendChild(el('td', '', (r.eta || 0) + ' 分钟'));
+
+      var tdWho = el('td');
+      tdWho.appendChild(el('div', '', r.customer || '—'));
+      tdWho.appendChild(el('div', 'muted', r.phone || ''));
+      tr.appendChild(tdWho);
+
+      tr.appendChild(el('td', 'muted', r.note || ''));
+
+      var tdStatus = el('td');
+      var sel = document.createElement('select');
+      ['pending', 'dispatched', 'cancelled'].forEach(function (s) {
+        var o = document.createElement('option');
+        o.value = s;
+        o.textContent = STATUS[s];
+        o.selected = r.status === s;
+        sel.appendChild(o);
+      });
+      sel.onchange = function () {
+        api('/api/rental/admin/dispatch/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: r.id, status: sel.value })
+        }).then(function () {
+          toast('状态已更新：' + STATUS[sel.value]);
+          load();
+        }).catch(function (e) { toast('更新失败：' + e.message); });
+      };
+      tdStatus.appendChild(sel);
+
+      var tdDel = el('td');
+      var del = el('button', 'danger', '删除');
+      del.onclick = function () {
+        if (!confirm('删除这条调度申请？')) return;
+        api('/api/rental/admin/dispatch?id=' + encodeURIComponent(r.id), { method: 'DELETE' })
+          .then(function () { toast('已删除'); load(); })
+          .catch(function (e) { toast('删除失败：' + e.message); });
+      };
+      tdDel.appendChild(del);
+
+      tr.appendChild(tdStatus);
+      tr.appendChild(tdDel);
+      tb.appendChild(tr);
+    });
+  }
+
+  function render() {
+    $('defaultEta').value = state.config.defaultEta;
+    renderCars();
+    renderRequests();
+    $('savedAt').textContent = '';
+  }
+
+  function load() {
+    api('/api/rental/admin/dispatch').then(function (j) {
+      state = j;
+      render();
+    }).catch(function (e) {
+      toast('加载失败：' + e.message);
+    });
+  }
+
+  /* 保存配置：把表格里每台车的开关与等待时间整体提交 */
+  function save() {
+    var cars = {};
+    Array.prototype.forEach.call(document.querySelectorAll('[data-role="enabled"]'), function (cb) {
+      var id = cb.getAttribute('data-car');
+      var etaEl = document.querySelector('[data-role="eta"][data-car="' + id + '"]');
+      cars[id] = { enabled: cb.checked, eta: etaEl ? +etaEl.value || 0 : 0 };
+    });
+    var eta = +$('defaultEta').value;
+    if (!(eta > 0)) { toast('默认预估需要大于 0'); return; }
+
+    api('/api/rental/admin/dispatch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ defaultEta: eta, cars: cars })
+    }).then(function (j) {
+      state.config = j.config;
+      state.catalog = j.catalog;
+      renderCars();
+      $('defaultEta').value = j.config.defaultEta;
+      $('savedAt').textContent = '已保存 · ' + new Date().toLocaleTimeString();
+      toast('配置已保存');
+    }).catch(function (e) { toast('保存失败：' + e.message); });
+  }
+
+  $('btnRefresh').onclick = load;
+  $('btnSave').onclick = save;
+  load();
+})();
+</script>
+</body>
+</html>

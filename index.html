@@ -690,7 +690,7 @@
             <span class="menu-sub" data-i18n="m1d">解决你的租房纠纷</span>
           </div>
         </div>
-        <div class="menu-item">
+        <div class="menu-item" data-entry="rental">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="15" height="8" rx="2"/><path d="M18 11.5h2.5a1 1 0 0 1 1 1V15h-3.5"/><circle cx="7" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/><path d="M6 9V6.5h6"/></svg>
           <div class="menu-text">
             <span class="menu-title" data-i18n="m2">租车</span>
@@ -1344,10 +1344,12 @@ $('catMenu').addEventListener('click', e => {
   item.classList.add('active');
   syncDrawer(false);   // 手机版：选中菜单项后自动收回抽屉
   /* 【全岛游】：在同一个标签页内跳转到站内的露营地图子页面（/island）。
+     【租车】：跳转到站内地图入口页（/rental → rental/map-play.html）。
      【海南项目体验】：同样走站内整条链路（/experience：项目列表 → 项目详情 → 预订 → 成功），
      不新开窗口、不跳外站，会话保持在同一标签页。
      其余菜单项保持原有行为。 */
   if (item.dataset.entry === 'island') location.href = '/island';
+  if (item.dataset.entry === 'rental') location.href = '/rental';
   if (item.dataset.entry === 'path' && item.dataset.url) location.href = item.dataset.url;
 });
 $('searchBtn').addEventListener('click', () => toast(dict().toastDemo));

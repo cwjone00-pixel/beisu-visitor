@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>海南全岛地图</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="shell">
+
+    <!-- 顶部标签：地图 / 内容管理，同一个链接内的两个视图（切换逻辑见 js/shell.js） -->
+    <header class="shell__bar">
+      <button class="shell__tab active" data-view="map">地图</button>
+      <button class="shell__tab" data-view="admin">内容管理</button>
+    </header>
+
+    <!-- ==================== 视图一：地图（查看 / 选类型录入） ==================== -->
+    <div id="viewMap" class="view">
+      <div class="app">
+
+        <!-- 侧栏：品牌 / 类型录入 / 图层显隐 / 说明 -->
+        <aside class="side">
+          <div class="brand">
+            <div class="brand__logo">琼</div>
+            <div>
+              <h1 class="brand__title">海南全岛地图</h1>
+              <p class="brand__sub">选类型 · 点地图 · 落点</p>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="block__hd">录入类型 <span class="block__hint">选中后点地图</span></div>
+            <div id="typePicker" class="chips"></div>
+          </div>
+
+          <div class="block">
+            <div class="block__hd">图层 <span class="block__hint">点击显隐</span></div>
+            <ul id="layerList" class="layers"></ul>
+          </div>
+
+          <div class="block">
+            <div class="block__hd">驾车路线 <span class="block__hint">高德实时规划</span></div>
+            <div class="chips" id="routeTools">
+              <button id="routeToggle" class="chip on" type="button">显示路线</button>
+              <button id="routeBuild" class="chip" type="button">规划 / 更新</button>
+            </div>
+            <div id="routeSummary" class="tip"></div>
+            <div id="routeList" class="route-list"></div>
+          </div>
+
+          <div class="block">
+            <div class="block__hd">说明</div>
+            <p class="tip">先点选一个类型，再点击地图空白处即可录入该点位。</p>
+            <p class="tip">落点后会弹出卡片，可在里面手动填写这个点位的「地名 / 位置名称」并保存；点击已有标记也能随时修改。</p>
+            <p class="tip">卡片里也有删除按钮，只删除这一个标记；同一位置的多条记录可逐条删除。</p>
+            <p class="tip">同一位置的多条记录以多层同心嵌套圆环同时显示，整体外径与普通单点一致。</p>
+          </div>
+
+          <div class="side__ft">
+            <div>数据源：DataV.GeoAtlas · 仅供内部使用</div>
+            <a class="side__admin" href="?tab=admin" data-goto="admin">内容管理 →</a>
+          </div>
+        </aside>
+
+        <!-- 地图区 -->
+        <main class="stage">
+          <div id="map" class="map"></div>
+          <div id="pop" class="pop" hidden></div>
+          <div id="pickHint" class="pick-hint" hidden></div>
+          <div id="toast" class="toast" hidden></div>
+        </main>
+
+      </div>
+    </div>
+
+    <!-- ==================== 视图二：内容管理（图层 / 点位维护，无登录门） ==================== -->
+    <div id="viewAdmin" class="view" hidden>
+      <div id="appView" class="admin">
+
+        <aside class="admin__side">
+          <div class="brand">
+            <div class="brand__logo">琼</div>
+            <div>
+              <h1 class="brand__title">内容管理</h1>
+              <p class="brand__sub">图层与点位维护</p>
+            </div>
+          </div>
+
+          <div class="tabs">
+            <button class="tab active" data-tab="points">点位</button>
+            <button class="tab" data-tab="layers">图层</button>
+            <button class="tab" data-tab="route">路线查询</button>
+            <button class="tab" data-tab="plans">路线方案</button>
+          </div>
+
+          <div id="tabPoints" class="tabpane">
+            <p class="tip">露营地点位与游玩打卡点位在这里统一管理，数据源只有一份（data/points.js），游客端两个页面都直接读这份数据，不用另外维护。新增：切到顶部「地图」标签，选类型（如「游玩打卡」）+ 点地图落点；此处可查看、改信息、删除。</p>
+            <p class="tip">名称 / 介绍按中 / 英 / 俄分别录入；经纬度可直接改（改完地图上的标记同步移动）。游客端跟随页面语言显示，某语种留空则回落到中文。</p>
+            <p class="tip" id="i18nStat"></p>
+            <div id="pointList" class="rows"></div>
+          </div>
+
+          <div id="tabLayers" class="tabpane" hidden>
+            <div class="toolbar">
+              <button id="addLayer" class="btn primary">+ 新增图层</button>
+            </div>
+            <div id="adminLayerList" class="rows"></div>
+          </div>
+
+          <!-- 路线查询：和高德「起点 / 终点」导航一致 —— 填地点、提交、出线路 -->
+          <div id="tabRoute" class="tabpane" hidden>
+            <p class="tip">填地点名称（如 海口骑楼老街 / 三亚亚龙湾），也可直接填经纬度（如 110.34,20.03）。</p>
+            <label class="field"><span>起点</span>
+              <input id="rqFrom" type="text" placeholder="起点地点或经纬度">
+            </label>
+            <label class="field"><span>终点</span>
+              <input id="rqTo" type="text" placeholder="终点地点或经纬度">
+            </label>
+            <div class="toolbar">
+              <button id="rqGo" class="btn primary" style="flex:1">查询路线</button>
+              <button id="rqClear" class="btn ghost">清除</button>
+            </div>
+            <div id="rqResult" class="tip"></div>
+          </div>
+
+          <!-- 路线方案：手动按顺序挑点位存成方案，只存后台，不画到地图上 -->
+          <div id="tabPlans" class="tabpane" hidden>
+            <p class="tip">按出行顺序依次选择点位，保存后仅作为后台路线方案留存，不渲染到地图。</p>
+            <label class="field"><span>方案名称</span>
+              <input id="planName" type="text" maxlength="60" placeholder="如：国庆三天自驾线">
+            </label>
+            <div id="planPicks" class="plan-picks"></div>
+            <div class="toolbar">
+              <button id="planAddStop" class="btn ghost">+ 添加一站</button>
+              <button id="planSave" class="btn primary" style="flex:1">保存方案</button>
+            </div>
+            <div id="planMsg" class="tip"></div>
+            <div class="block__hd">已保存方案 <span id="planCount" class="block__hint"></span></div>
+            <div id="planList" class="rows"></div>
+          </div>
+
+          <div class="admin__foot">
+            <span id="saveState" class="save-state"></span>
+            <div class="admin__footlinks">
+              <a href="?tab=map" data-goto="map">查看前台</a>
+            </div>
+          </div>
+        </aside>
+
+        <main class="admin__stage">
+          <div id="adminMap" class="map"></div>
+        </main>
+
+        <!-- 图层编辑抽屉 -->
+        <div id="layerDrawer" class="drawer">
+          <div class="drawer__hd"><h2 id="lyTitle">新增图层</h2><button class="x" data-close>&times;</button></div>
+          <div class="drawer__bd">
+            <label class="field"><span>标识（英文）</span><input id="lyKey" placeholder="如：camping"></label>
+            <label class="field"><span>名称</span><input id="lyName" placeholder="如：露营地"></label>
+            <div class="grid2">
+              <label class="field"><span>颜色</span><input id="lyColor" type="color"></label>
+              <label class="field"><span>图标</span>
+                <select id="lySymbol">
+                  <option value="pin">水滴 pin</option>
+                  <option value="circle">圆点 circle</option>
+                  <option value="roundRect">圆角方块</option>
+                  <option value="rect">方块</option>
+                  <option value="triangle">三角</option>
+                  <option value="diamond">菱形</option>
+                  <option value="arrow">箭头</option>
+                </select>
+              </label>
+            </div>
+            <label class="field"><span>图标大小</span><input id="lySize" type="number" min="6" max="60" value="20"></label>
+            <label class="chk"><input type="checkbox" id="lyLabel"> 地图上常显名称标签</label>
+            <div id="lyErr" class="form-err"></div>
+          </div>
+          <div class="drawer__ft">
+            <button class="btn ghost" data-close>取消</button>
+            <button class="btn primary" id="lySave">保存图层</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <script src="vendor/echarts.min.js"></script>
+  <script src="data/hainan.geojson.js"></script>
+  <script src="data/points.js"></script>
+  <script src="js/map.js"></script>
+  <script src="js/shell.js"></script>
+</body>
+</html>

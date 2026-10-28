@@ -1,0 +1,23 @@
+{
+  "note": "游客露营地图的类型归属。key 为点位 id，值为 sea（海边）/ forest（雨林）/ lake（湖田营地）。未列出的露营点默认按 sea 展示。点位数据本身仍以 data/points.js 为唯一来源，本文件只补充类型，两者互不影响。",
+  "types": {
+    "p_mv979vzoqjlt": "sea",
+    "p_mv97c2c86zb7": "sea",
+    "p_mv97cwxfr58b": "sea",
+    "p_mv97i5l4qi2x": "sea",
+    "p_mv97ism59znh": "sea",
+    "p_mv97l5qvn099": "sea",
+    "p_mv97liqccrvt": "sea",
+    "p_mv97m5wzbyxc": "sea",
+    "p_mv97mp35miax": "sea",
+    "p_mv97n7x85m36": "sea",
+    "p_mv97sd1b4sl6": "sea",
+
+    "p_mv97pilz6955": "forest",
+    "p_mv97qnor8909": "forest",
+    "p_mv9fp4zyopg6": "forest",
+
+    "p_mv97rh4nu5k7": "lake",
+    "p_mv9g1r6ns53j": "lake"
+  }
+}

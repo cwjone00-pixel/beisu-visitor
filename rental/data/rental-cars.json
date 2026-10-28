@@ -1,0 +1,45 @@
+{
+  "updatedAt": "2026-10-28T07:10:00.000Z",
+  "classes": [
+    { "key": "s4", "seats": 4, "names": { "zh": "4座", "en": "4 seats", "ru": "4 места" } },
+    { "key": "s5", "seats": 5, "names": { "zh": "5座", "en": "5 seats", "ru": "5 мест" } },
+    { "key": "s7", "seats": 7, "names": { "zh": "7座", "en": "7 seats", "ru": "7 мест" } },
+    { "key": "s9", "seats": 9, "names": { "zh": "9座", "en": "9 seats", "ru": "9 мест" } }
+  ],
+  "catalog": {
+    "lavida": { "id": "lavida", "names": { "zh": "大众朗逸", "en": "Volkswagen Lavida", "ru": "Volkswagen Lavida" }, "seats": 4, "ev": false, "gear": "auto", "day": 168, "week": 980, "deposit": 2000, "image": "img/cars/lavida.jpg" },
+    "sylphy": { "id": "sylphy", "names": { "zh": "日产轩逸", "en": "Nissan Sylphy", "ru": "Nissan Sylphy" }, "seats": 4, "ev": false, "gear": "auto", "day": 158, "week": 920, "deposit": 2000, "image": "img/cars/sylphy.jpg" },
+    "corolla": { "id": "corolla", "names": { "zh": "丰田卡罗拉", "en": "Toyota Corolla", "ru": "Toyota Corolla" }, "seats": 4, "ev": false, "gear": "auto", "day": 178, "week": 1050, "deposit": 2000, "image": "img/cars/corolla.jpg" },
+    "su7": { "id": "su7", "names": { "zh": "小米 SU7", "en": "Xiaomi SU7", "ru": "Xiaomi SU7" }, "seats": 5, "ev": true, "gear": "auto", "day": 398, "week": 2380, "deposit": 5000, "image": "img/cars/su7.jpg" },
+    "model3": { "id": "model3", "names": { "zh": "特斯拉 Model 3", "en": "Tesla Model 3", "ru": "Tesla Model 3" }, "seats": 5, "ev": true, "gear": "auto", "day": 368, "week": 2180, "deposit": 5000, "image": "img/cars/model3.jpg" },
+    "modely": { "id": "modely", "names": { "zh": "特斯拉 Model Y", "en": "Tesla Model Y", "ru": "Tesla Model Y" }, "seats": 5, "ev": true, "gear": "auto", "day": 428, "week": 2580, "deposit": 5000, "image": "img/cars/modely.jpg" },
+    "qinplus": { "id": "qinplus", "names": { "zh": "比亚迪 秦 PLUS", "en": "BYD Qin PLUS", "ru": "BYD Qin PLUS" }, "seats": 5, "ev": true, "gear": "auto", "day": 208, "week": 1200, "deposit": 3000, "image": "img/cars/qinplus.jpg" },
+    "gl8": { "id": "gl8", "names": { "zh": "别克 GL8", "en": "Buick GL8", "ru": "Buick GL8" }, "seats": 7, "ev": false, "gear": "auto", "day": 358, "week": 2100, "deposit": 3000, "image": "img/cars/gl8.jpg" },
+    "odyssey": { "id": "odyssey", "names": { "zh": "本田奥德赛", "en": "Honda Odyssey", "ru": "Honda Odyssey" }, "seats": 7, "ev": false, "gear": "auto", "day": 328, "week": 1950, "deposit": 3000, "image": "img/cars/odyssey.jpg" },
+    "m8": { "id": "m8", "names": { "zh": "广汽传祺 M8", "en": "GAC Trumpchi M8", "ru": "GAC Trumpchi M8" }, "seats": 7, "ev": false, "gear": "auto", "day": 298, "week": 1750, "deposit": 2500, "image": "img/cars/m8.jpg" },
+    "transit": { "id": "transit", "names": { "zh": "福特全顺", "en": "Ford Transit", "ru": "Ford Transit" }, "seats": 9, "ev": false, "gear": "manual", "day": 458, "week": 2700, "deposit": 4000, "image": "img/cars/transit.jpg" },
+    "g10": { "id": "g10", "names": { "zh": "上汽大通 G10", "en": "Maxus G10", "ru": "Maxus G10" }, "seats": 9, "ev": false, "gear": "auto", "day": 398, "week": 2350, "deposit": 3500, "image": "img/cars/g10.jpg" },
+    "journey": { "id": "journey", "names": { "zh": "五菱征程", "en": "Wuling Journey", "ru": "Wuling Journey" }, "seats": 9, "ev": false, "gear": "manual", "day": 268, "week": 1580, "deposit": 2500 }
+  },
+  "agencies": {
+    "460100": { "factor": 1.12, "fleet": { "s4": ["lavida", "corolla"], "s5": ["su7", "model3", "modely"], "s7": ["gl8", "odyssey"], "s9": ["transit", "g10"] } },
+    "460200": { "factor": 1.15, "fleet": { "s4": ["sylphy", "corolla"], "s5": ["su7", "model3", "modely"], "s7": ["gl8", "m8"], "s9": ["g10", "transit"] } },
+    "460400": { "factor": 1.0, "fleet": { "s4": ["lavida", "sylphy"], "s5": ["qinplus"], "s7": ["gl8"], "s9": ["g10", "journey"] } },
+    "469001": { "factor": 0.98, "fleet": { "s4": ["lavida"], "s5": ["qinplus", "model3"], "s7": ["m8"], "s9": ["journey"] } },
+    "469002": { "factor": 1.05, "fleet": { "s4": ["sylphy", "corolla"], "s5": ["su7", "qinplus"], "s7": ["odyssey"], "s9": ["g10"] } },
+    "469005": { "factor": 1.03, "fleet": { "s4": ["lavida"], "s5": ["model3", "modely"], "s7": ["gl8"], "s9": ["transit"] } },
+    "469006": { "factor": 1.08, "fleet": { "s4": ["lavida", "sylphy"], "s5": ["modely", "qinplus"], "s7": ["m8"], "s9": ["journey", "g10"] } },
+    "469007": { "factor": 1.0, "fleet": { "s4": ["corolla"], "s5": ["qinplus"], "s7": ["gl8", "odyssey"], "s9": ["transit"] } },
+    "469021": { "factor": 0.95, "fleet": { "s4": ["lavida"], "s5": ["qinplus"], "s7": ["m8"], "s9": ["journey"] } },
+    "469022": { "factor": 0.95, "fleet": { "s4": ["sylphy"], "s5": ["qinplus"], "s7": ["odyssey"], "s9": ["journey", "g10"] } },
+    "469023": { "factor": 1.02, "fleet": { "s4": ["lavida", "corolla"], "s5": ["su7"], "s7": ["gl8"], "s9": ["transit"] } },
+    "469024": { "factor": 0.96, "fleet": { "s4": ["sylphy"], "s5": ["qinplus"], "s7": ["m8"], "s9": ["g10"] } },
+    "469025": { "factor": 0.94, "fleet": { "s4": ["lavida", "corolla"], "s5": [], "s7": ["m8"], "s9": ["journey", "g10"] } },
+    "469026": { "factor": 0.97, "fleet": { "s4": ["corolla"], "s5": ["qinplus"], "s7": ["gl8"], "s9": ["journey", "g10"] } },
+    "469027": { "factor": 0.99, "fleet": { "s4": ["lavida", "sylphy"], "s5": ["model3"], "s7": ["odyssey"], "s9": ["transit"] } },
+    "469028": { "factor": 1.06, "fleet": { "s4": ["lavida", "corolla"], "s5": ["su7", "modely"], "s7": ["gl8", "m8"], "s9": ["g10"] } },
+    "469029": { "factor": 1.0, "fleet": { "s4": ["sylphy"], "s5": ["qinplus"], "s7": ["m8", "odyssey"], "s9": ["journey"] } },
+    "469030": { "factor": 0.93, "fleet": { "s4": ["lavida"], "s5": [], "s7": ["gl8"], "s9": ["transit"] } }
+  },
+  "fallback": { "factor": 1.0, "fleet": { "s4": ["lavida", "sylphy", "corolla"], "s5": ["su7", "model3", "modely", "qinplus"], "s7": ["gl8", "odyssey", "m8"], "s9": ["transit", "g10", "journey"] } }
+}

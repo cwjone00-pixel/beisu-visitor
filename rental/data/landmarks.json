@@ -1,0 +1,70 @@
+{
+  "_note": "游客露营地图上的地标层，坐标取自高德 Web 服务接口（GCJ-02，与点位数据同一坐标系）。labelOnly=不画图标点位（城市是面状地名，用点标记不贴切）；labelMode=hover 表示名称不进常显层、只在鼠标悬浮时出现，不写该字段则名称常显在图上。城市组现在同时带 labelOnly + labelMode=hover，即数据保留、图上不显示任何标注；以后要恢复显示，删掉 labelMode 一行即可。",
+  "groups": [
+    {
+      "key": "city",
+      "name": "城市",
+      "names": { "zh": "城市", "en": "City", "ru": "Город" },
+      "color": "#7b4bc4",
+      "labelOnly": true,
+      "labelMode": "hover",
+      "labelColor": "#5a34a0"
+    },
+    {
+      "key": "airport",
+      "name": "机场",
+      "names": { "zh": "机场", "en": "Airport", "ru": "Аэропорт" },
+      "color": "#c2185b",
+      "symbol": "triangle",
+      "symbolSize": 17,
+      "z": 17,
+      "labelColor": "#96134a"
+    }
+  ],
+  "points": [
+    {
+      "id": "lm_city_sanya",
+      "kind": "city",
+      "name": "三亚市",
+      "names": { "zh": "三亚市", "en": "Sanya City", "ru": "Город Санья" },
+      "lng": 109.511709,
+      "lat": 18.252865,
+      "source": "高德地理编码 · 海南省三亚市"
+    },
+    {
+      "id": "lm_city_haikou",
+      "kind": "city",
+      "name": "海口市",
+      "names": { "zh": "海口市", "en": "Haikou City", "ru": "Город Хайкоу" },
+      "lng": 110.200162,
+      "lat": 20.046316,
+      "source": "高德地理编码 · 海南省海口市"
+    },
+    {
+      "id": "lm_airport_sanya",
+      "kind": "airport",
+      "name": "三亚凤凰国际机场",
+      "names": {
+        "zh": "三亚凤凰国际机场",
+        "en": "Sanya Phoenix International Airport",
+        "ru": "Международный аэропорт Санья Феникс"
+      },
+      "lng": 109.414038,
+      "lat": 18.303410,
+      "source": "高德 POI 检索 · 三亚凤凰国际机场"
+    },
+    {
+      "id": "lm_airport_haikou",
+      "kind": "airport",
+      "name": "海口美兰国际机场",
+      "names": {
+        "zh": "海口美兰国际机场",
+        "en": "Haikou Meilan International Airport",
+        "ru": "Международный аэропорт Хайкоу Мэйлань"
+      },
+      "lng": 110.467385,
+      "lat": 19.942495,
+      "source": "高德 POI 检索 · 海口美兰国际机场"
+    }
+  ]
+}
