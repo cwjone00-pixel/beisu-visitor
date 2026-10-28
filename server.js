@@ -1603,13 +1603,23 @@ function getSession(id){
   if (!db.sessions[id]) db.sessions[id] = { id, mode:'bot', createdAt:Date.now(), messages:[] };
   return db.sessions[id];
 }
-function addMsg(sid, m){
+function addMsg(sid, m, opts){
   const s = getSession(sid);
   m.id = s.messages.length ? s.messages[s.messages.length - 1].id + 1 : 1;
   m.ts = Date.now();
   s.messages.push(m);
   if (s.messages.length > 500) s.messages.splice(0, s.messages.length - 500);
   saveChats();
+  /* 统一入口钩子：任何接口追加一条访客消息（role='visitor'）时，自动跑关键词匹配。
+     命中规则 → 推送机器人回复/卡片/追加消息；未命中 → 静默（不发兜底）。
+     人工接管中、机器人总开关关闭、或显式 opts.skipMatch=true 时跳过。
+     这样无论是游客打字、预订摘要、打卡提交、未来任何新入口，只要走 addMsg 就自动纳入规则匹配，无例外。 */
+  if (!opts || !opts.skipMatch){
+    if (m.role === 'visitor' && s.mode !== 'agent' && loadData().agentChat.botEnabled !== false){
+      const payload = matchPayload(matchInput(m.text, s.lang));
+      if (payload.matched) pushRuleMsgs(sid, payload, loadData().replySeq !== false);
+    }
+  }
   return m;
 }
 
@@ -2796,7 +2806,7 @@ const server = http.createServer(async (req, res) => {
       const vm = { role:'visitor', text:String(body.text || '').slice(0, 2000) };
       const imgId = String(body.imageId || '').trim();
       if (/^[A-Za-z0-9_-]{8,64}$/.test(imgId)) vm.image = '/api/media/' + imgId;   // 图片消息仅存引用，图片本体在 media 集合
-      addMsg(activeSid, vm);
+      addMsg(activeSid, vm, { skipMatch: true });   // /api/match 自己在后面处理 match+push+兜底，避免 addMsg 钩子重复触发
     }
     // 人工接管中：暂停机器人自动关键词回复（后台仍可手动发言）
     if (sess && sess.mode === 'agent'){
@@ -2901,12 +2911,6 @@ const server = http.createServer(async (req, res) => {
       text: summaryText,
       island: { campId: campId, spots: spotIds, tourType: tourType || undefined, people: people || undefined, vehicle: vehicle || undefined, tents: tents || undefined, tentType: tentType || undefined, checkedAt: Date.now() }   // 结构化打卡记录：点位ID + 方式 + 人数 + 车型 + 帐篷 + 打卡时间
     });
-    /* 系统整理文本同样走一遍关键词匹配：命中规则（如「出行方式: 拼团」）则自动追加机器人回复/卡片；
-       未命中保持静默（不发兜底）；人工接管中或机器人总开关关闭时不自动回复，与 /api/match 行为一致 */
-    if (sess.mode !== 'agent' && loadData().agentChat.botEnabled){
-      const hit = matchPayload(matchInput(summaryText, lang));
-      if (hit.matched) pushRuleMsgs(sid, hit, loadData().replySeq !== false);
-    }
     return send(res, 200, { ok:true, sid });
   }
 
@@ -2939,17 +2943,11 @@ const server = http.createServer(async (req, res) => {
       });
     }
     if (!sid) sid = getSession('booking').id;   // 还没有任何会话时新建一个，供坐席查看
-    const msg = addMsg(sid, { role:'visitor', text, bookingId:String((body && body.bookingId) || '').slice(0, 40) });
-    /* 预订摘要同样跑一遍关键词匹配：命中规则则自动追加机器人回复/卡片；
-       未命中保持静默（不发兜底）；人工接管中或机器人总开关关闭时不自动回复
-       —— 行为与 /api/island/submit 完全一致。 */
+    /* 先把界面语种写进会话，addMsg 统一匹配钩子会读 sess.lang */
     const noteLang = ['zh', 'en', 'ru'].indexOf(body && body.lang) >= 0 ? body.lang : 'zh';
-    const sess2 = getSession(sid);
-    sess2.lang = noteLang;
-    if (sess2.mode !== 'agent' && loadData().agentChat.botEnabled){
-      const hit = matchPayload(matchInput(text, noteLang));
-      if (hit.matched) pushRuleMsgs(sid, hit, loadData().replySeq !== false);
-    }
+    const sess = getSession(sid);
+    sess.lang = noteLang;
+    const msg = addMsg(sid, { role:'visitor', text, bookingId:String((body && body.bookingId) || '').slice(0, 40) });
     return send(res, 201, { ok:true, sessionId:sid, id:msg.id });
   }
 
