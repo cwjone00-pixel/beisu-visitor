@@ -722,15 +722,6 @@
 
     $('raddr').textContent = it.address || t().noInfo;
 
-    var tel = $('rtel');
-    if (it.tel) {
-      tel.textContent = it.tel;
-      tel.setAttribute('href', 'tel:' + it.tel);
-    } else {
-      tel.textContent = t().noInfo;
-      tel.removeAttribute('href');
-    }
-
     var hours = Array.isArray(it.hours) ? it.hours.join(' / ') : (it.hours || '');
     $('rhours').textContent = hours || t().noInfo;
 
