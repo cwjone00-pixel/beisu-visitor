@@ -2140,10 +2140,9 @@ async function requestMatch(text, imageId){
     return { reply:{ zh:'', en:'', ru:'' }, quickButtons:[], matched:false };
   }
 }
-/* 客户界面展示用：返回 {orig:中文原文, tr:该访客语种译文}
-   机器人：原文取三语回复里的中文版，译文取当前语种那一版（选中文时无译文行）
-   人工客服：原文取人工输入的中文原文(origText)，译文取发往客户语种的译文（多语补译字段优先）
-   原文与译文相同或译文缺失时不展示译文行 */
+/* 客户界面展示用：返回 {orig:主文案, tr:附加译文行}
+   人工客服：按当前页面语种决定 —— 中文页只发中文；英文页发 中文原文 + 英文译文；俄语页发 中文原文 + 俄语译文
+   机器人：只输出当前选中的语种（中/英/俄，不混排）；该语种缺失时回退中文 */
 function msgPairOf(m, lg){
   if (m && m.role === 'agent'){
     const orig = m.origText || m.text || '';
@@ -2156,9 +2155,9 @@ function msgPairOf(m, lg){
   }
   const r = (m && m.role === 'bot' && m.reply) ? m.reply : null;
   if (!r) return { orig: (m && m.text) || '', tr: '' };
-  const orig = r.zh || r.en || r.ru || '';
-  const tr = (lg === 'zh') ? '' : (r[lg] || '');
-  return { orig, tr: (tr && tr !== orig) ? tr : '' };
+  /* 机器人：仅当前语种一条；当前语种为空时依次回退 中 → 英 → 俄，保证有内容可显示 */
+  const single = (lg === 'zh' ? r.zh : (r[lg] || r.zh)) || r.en || r.ru || '';
+  return { orig: single, tr: '' };
 }
 /* Telegram 链接跳转：手机端优先用 tg:// 深链唤起 App（装了 Telegram 就直接进 App），
    1.5s 内未唤起（未装 App / 浏览器拦截/第三方浏览器不转交）则自动回落到 https://t.me 网页版；
@@ -2278,8 +2277,8 @@ function renderChat(){
       cInner += `<div class="msg-card-url">${escapeHtml(m.card.url)}</div></div></a>`;
       return `<div class="msg-row bot${m.role === 'agent' ? ' agent' : ''}"><div class="msg-bubble">${cInner}</div></div>`;
     }
-    /* 机器人 / 人工客服消息：客户界面同时展示【中文原文 + 对应语种翻译】
-       选俄 → 中文原文 + 俄语翻译；选英 → 中文原文 + 英文翻译；选中文 → 仅中文原文 */
+    /* 人工客服消息：中文页只显示中文；英文页显示 中文原文 + 英文译文；俄语页显示 中文原文 + 俄语译文
+       机器人消息：只显示当前选中语种（不混排） */
     const pair = msgPairOf(m, lang);
     if (m.role === 'agent'){
       // 人工客服消息：与机器人同侧，带蓝色徽标区分
