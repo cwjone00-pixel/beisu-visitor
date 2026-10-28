@@ -1036,7 +1036,7 @@
       b.textContent = '¥' + (week * wcount);
       total.appendChild(b);
       var calc = document.createElement('span');
-      calc.textContent = '（' + money(car.week) + ' / ' + t().week + ' × ' + wcount + ' ' + t().week + '）';
+      calc.textContent = '（' + money(car.week) + ' × ' + wcount + ' ' + t().week + '）';
       total.appendChild(calc);
       /* 既然是 7 的倍数，周租本身就是主展示，隐藏「周租参考」那一行 */
       weekref.hidden = true;
