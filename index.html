@@ -1918,6 +1918,7 @@ function acceptUser(user, switchSession){
   if (switchSession){ chatLog = []; lastMsgId = 0; }
   applyAuthState();
   syncMessages();
+  flushRentalInquiryDraft();   // 登录成功后补发租车详情页带回的意向草稿（未登录时草稿留在暂存里）
 }
 /* 登录状态渲染 + 未登录门控（禁用输入框，未登录不允许发消息） */
 function applyAuthState(){
@@ -2506,6 +2507,17 @@ window.BeisuAPI = {
 };
 
 /* ---------------- 初始化 ---------------- */
+/* 租车详情页回跳：把「租车意向」草稿作为普通文字消息发出。
+   详情页选好天数点「确定」后，车辆信息+天数拼好的文字存入 sessionStorage（beisu_rental_inquiry）
+   并跳回首页；这里读到草稿就走 sendMessage 正常发送（匹配/人工流程一致），发送前清除避免刷新重复发。
+   未登录时暂不消费草稿，等登录成功（acceptUser）后再发。 */
+function flushRentalInquiryDraft(){
+  let draft = '';
+  try { draft = sessionStorage.getItem('beisu_rental_inquiry') || ''; } catch(e){ return; }
+  if (!draft || !currentUser) return;
+  try { sessionStorage.removeItem('beisu_rental_inquiry'); } catch(e){}
+  sendMessage(draft);
+}
 setViewMode(detectViewMode());   // 打开时自动识别设备：手机→移动端视图、电脑→桌面端视图
 renderEvents();
 renderArticles();
@@ -2516,6 +2528,7 @@ loadConfig();          // 拉取后台配置的首页快捷按钮并渲染
 loadArticles();        // 拉取后台录入的已发布文章，渲染「文章资讯」栏目
 loadEvents();          // 拉取后台录入的商业活动，渲染「商业活动」栏目
 syncMessages();        // 拉取会话历史（含后台人工消息），刷新页面后不丢对话
+flushRentalInquiryDraft();   // 租车详情页「确定」跳回：自动发出车辆意向文字消息
 loadMoreArticles(); // 若占位卡片不满一屏，自动补足至出现纵向滚动
 </script>
 </body>

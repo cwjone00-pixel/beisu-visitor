@@ -241,6 +241,27 @@
     .rcar__prices div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
     .rcar__prices span { font-size: 10.5px; color: #8a94a6; }
     .rcar__prices b { font-size: 13px; font-weight: 700; color: #1b3a6b; white-space: nowrap; }
+    /* 车辆卡片可点击：点击弹出租赁天数选择 */
+    .rcar { cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+    .rcar:hover { border-color: #b9d1f7; box-shadow: 0 10px 22px rgba(31,58,107,.13); transform: translateY(-1px); }
+
+    /* ---------------- 租赁天数选择弹层（复用 rdlg 弹层骨架） ---------------- */
+    .ddlg__car { display: flex; gap: 12px; align-items: center; border: 1px solid #e0e9f6; border-radius: 12px; padding: 9px; margin: 0 0 14px; }
+    .ddlg__img { width: 88px; height: 64px; border-radius: 8px; object-fit: cover; background: #eef3fa; flex: 0 0 auto; }
+    .ddlg__name { font-size: 13.5px; font-weight: 700; }
+    .ddlg__meta { margin-top: 3px; font-size: 11.5px; color: #7c8798; }
+    .ddlg__stepper { display: flex; align-items: center; gap: 14px; }
+    .ddlg__btn {
+      width: 38px; height: 38px; border-radius: 10px; flex: 0 0 auto;
+      border: 1px solid #c9dcff; background: #f2f7ff; color: #2f6fed;
+      font: inherit; font-size: 20px; font-weight: 700; line-height: 1; cursor: pointer;
+    }
+    .ddlg__btn:hover { background: #e5efff; }
+    .ddlg__btn:disabled { opacity: .45; cursor: default; }
+    .ddlg__num { min-width: 92px; text-align: center; font-size: 16px; font-weight: 800; color: #1b3a6b; }
+    .ddlg__num small { display: block; margin-top: 2px; font-size: 10.5px; font-weight: 500; color: #8a94a6; }
+    .ddlg__total { margin: 12px 0 0; font-size: 12.5px; color: #6b7a90; }
+    .ddlg__total b { color: #1b3a6b; font-size: 14px; }
 
     /* 加载中 / 出错提示 */
     .rstate {
@@ -347,6 +368,27 @@
   </div>
 </div>
 
+<!-- 租赁天数选择弹层：点车辆卡片弹出；确定后把车辆信息 + 天数拼成纯文字跳回首页聊天发送 -->
+<div class="rdlg" id="ddlg" hidden>
+  <div class="rdlg__mask" id="ddlgMask"></div>
+  <div class="rdlg__panel" role="dialog" aria-modal="true" aria-labelledby="ddlgTitle">
+    <button class="rdlg__close" id="ddlgClose" type="button" aria-label="close">&times;</button>
+    <h2 class="rdlg__title" id="ddlgTitle" data-i18n="daysTitle"></h2>
+    <div class="ddlg__car" id="ddlgCar"></div>
+    <div class="ddlg__stepper">
+      <button class="ddlg__btn" id="ddlgMinus" type="button" aria-label="-">&minus;</button>
+      <div class="ddlg__num"><span id="ddlgDays">1</span><small data-i18n="daysUnit"></small></div>
+      <button class="ddlg__btn" id="ddlgPlus" type="button" aria-label="+">+</button>
+    </div>
+    <p class="ddlg__total" id="ddlgTotal"></p>
+    <p class="rdlg__note" id="ddlgNote" data-i18n="daysNote" style="margin-top:12px"></p>
+    <div class="rdlg__actions">
+      <button class="rbtn rbtn--ghost" id="ddlgCancel" type="button" data-i18n="dispatchCancel"></button>
+      <button class="rbtn" id="ddlgOk" type="button" data-i18n="daysConfirm"></button>
+    </div>
+  </div>
+</div>
+
 <script src="js/rental-i18n.js"></script>
 <script>
 (function () {
@@ -402,7 +444,17 @@
       dispatchOk: '调度申请已提交',
       dispatchOkNote: '门店确认后会与您联系，实际到车时间以门店通知为准。',
       dispatchFail: '提交失败：',
-      dispatchLoading: '正在查询可调度车辆…'
+      dispatchLoading: '正在查询可调度车辆…',
+      daysTitle: '选择租赁天数',
+      daysUnit: '天',
+      daysEst: '预估租金',
+      daysNote: '点击「确定」将回到首页聊天，把车辆信息和租赁天数发送给客服，由客服为您确认价格与安排取车。',
+      daysConfirm: '确定',
+      inqLabel: '【租车意向】',
+      inqAgency: '门店',
+      inqModel: '车型',
+      inqDays: '天数',
+      inqTotal: '预估租金'
     },
     en: {
       back: 'Back to map',
@@ -449,7 +501,17 @@
       dispatchOk: 'Transfer request submitted',
       dispatchOkNote: 'The branch will contact you after confirmation; the actual arrival time is subject to their notice.',
       dispatchFail: 'Submission failed: ',
-      dispatchLoading: 'Checking available vehicles…'
+      dispatchLoading: 'Checking available vehicles…',
+      daysTitle: 'Choose rental days',
+      daysUnit: 'days',
+      daysEst: 'Estimated total',
+      daysNote: 'Click "Confirm" to return to the home chat — your vehicle choice and rental days will be sent to our staff as a message for confirmation and pickup arrangement.',
+      daysConfirm: 'Confirm',
+      inqLabel: '[Rental Inquiry] ',
+      inqAgency: 'Agency',
+      inqModel: 'Model',
+      inqDays: 'Days',
+      inqTotal: 'Est. total'
     },
     ru: {
       back: 'На карту',
@@ -496,7 +558,17 @@
       dispatchOk: 'Заявка на перегон отправлена',
       dispatchOkNote: 'Салон свяжется с вами после подтверждения; время прибытия уточняет салон.',
       dispatchFail: 'Не удалось отправить: ',
-      dispatchLoading: 'Проверяем доступные автомобили…'
+      dispatchLoading: 'Проверяем доступные автомобили…',
+      daysTitle: 'Выберите срок аренды',
+      daysUnit: 'дн.',
+      daysEst: 'Ориентировочная стоимость',
+      daysNote: 'Нажмите «Подтвердить», чтобы вернуться в чат на главной — информация об авто и срок аренды будут отправлены менеджеру для подтверждения и организации выдачи.',
+      daysConfirm: 'Подтвердить',
+      inqLabel: '[Заявка на аренду авто] ',
+      inqAgency: 'Прокат',
+      inqModel: 'Модель',
+      inqDays: 'Срок',
+      inqTotal: 'Ориент. стоимость'
     }
   };
 
@@ -582,6 +654,8 @@
     body.appendChild(meta);
     body.appendChild(prices);
     card.appendChild(body);
+    /* 点卡片 → 弹出租赁天数选择（确定后把车辆信息+天数发到首页聊天） */
+    card.onclick = function () { openDaysDialog(car); };
     return card;
   }
 
@@ -901,6 +975,111 @@
   $('rdlgMask').onclick = closeDispatch;
   $('rdlgSubmit').onclick = submitDispatch;
   $('rdlgDoneBtn').onclick = closeDispatch;
+
+  /* ---------------- 租赁天数选择 ----------------
+     点车辆卡片弹出：选好天数点「确定」，把车辆信息 + 天数拼成纯文字存入
+     sessionStorage 后跳回首页，由首页聊天作为普通文字消息发出（不用卡片）。 */
+  var ddlg = { open: false, car: null, days: 1 };
+  var DAYS_MIN = 1, DAYS_MAX = 30;
+  var DRAFT_KEY = 'beisu_rental_inquiry';
+
+  function openDaysDialog(car) {
+    ddlg.open = true;
+    ddlg.car = car;
+    ddlg.days = DAYS_MIN;
+    renderDaysDialog();
+    $('ddlg').hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeDaysDialog() {
+    ddlg.open = false;
+    $('ddlg').hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  function renderDaysDialog() {
+    var car = ddlg.car;
+    if (!car) return;
+    /* 车辆摘要：图 + 名称 + 座位/变速箱 */
+    var box = $('ddlgCar');
+    box.innerHTML = '';
+    var img = document.createElement('img');
+    img.className = 'ddlg__img';
+    img.src = car.image;
+    img.alt = pick(car.names, '');
+    box.appendChild(img);
+    var txt = document.createElement('div');
+    var name = document.createElement('div');
+    name.className = 'ddlg__name';
+    name.textContent = pick(car.names, '') || '—';
+    var meta = document.createElement('div');
+    meta.className = 'ddlg__meta';
+    var metaBits = [];
+    if (car.seats) metaBits.push(car.seats + ' ' + t().seatUnit);
+    metaBits.push(car.gear === 'manual' ? t().gearManual : t().gearAuto);
+    meta.textContent = metaBits.join(' · ');
+    txt.appendChild(name);
+    txt.appendChild(meta);
+    box.appendChild(txt);
+
+    $('ddlgDays').textContent = ddlg.days;
+    $('ddlgMinus').disabled = ddlg.days <= DAYS_MIN;
+    $('ddlgPlus').disabled = ddlg.days >= DAYS_MAX;
+
+    /* 预估租金 = 日租 × 天数（无日租价的车辆只显示天数） */
+    var day = +car.day;
+    var total = $('ddlgTotal');
+    if (isFinite(day) && day > 0) {
+      total.style.display = '';
+      total.textContent = t().daysEst + '：';
+      var b = document.createElement('b');
+      b.textContent = '¥' + (day * ddlg.days);
+      total.appendChild(b);
+      var calc = document.createElement('span');
+      calc.textContent = '（' + money(car.day) + ' × ' + ddlg.days + ' ' + t().daysUnit + '）';
+      total.appendChild(calc);
+    } else {
+      total.style.display = 'none';
+      total.textContent = '';
+    }
+  }
+
+  /* 拼接发送到首页聊天的纯文字（当前语种），格式对齐【预订摘要】 */
+  function buildInquiryText() {
+    var car = ddlg.car;
+    var C = lang === 'zh' ? '：' : ': ';
+    var open = lang === 'zh' ? '（' : ' (';
+    var close = lang === 'zh' ? '）' : ')';
+    var metaBits = [];
+    if (car.seats) metaBits.push(car.seats + t().seatUnit);
+    metaBits.push(car.gear === 'manual' ? t().gearManual : t().gearAuto);
+    var day = +car.day;
+    var parts = [
+      t().inqAgency + C + (data && data.item ? I18N.agencyName(data.item, lang) : '—'),
+      t().inqModel + C + (pick(car.names, '') || '—') + open + metaBits.join(' · ') + close
+    ];
+    if (isFinite(day) && day > 0) {
+      parts.push(t().day + C + money(car.day));
+      parts.push(t().inqTotal + C + '¥' + (day * ddlg.days));
+    }
+    parts.push(t().inqDays + C + ddlg.days + t().daysUnit);
+    return t().inqLabel + parts.join(' · ');
+  }
+
+  function confirmDays() {
+    try { sessionStorage.setItem(DRAFT_KEY, buildInquiryText()); } catch (e) {}
+    closeDaysDialog();
+    location.href = '/';
+  }
+
+  $('ddlgClose').onclick = closeDaysDialog;
+  $('ddlgCancel').onclick = closeDaysDialog;
+  $('ddlgMask').onclick = closeDaysDialog;
+  $('ddlgMinus').onclick = function () { if (ddlg.days > DAYS_MIN) { ddlg.days--; renderDaysDialog(); } };
+  $('ddlgPlus').onclick = function () { if (ddlg.days < DAYS_MAX) { ddlg.days++; renderDaysDialog(); } };
+  $('ddlgOk').onclick = confirmDays;
+
   $('rdlgCustom').addEventListener('input', function () {
     var v = ($('rdlgCustom').value || '').trim();
     dlg.customInput = v;
@@ -912,6 +1091,7 @@
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && dlg.open) closeDispatch();
+    if (e.key === 'Escape' && ddlg.open) closeDaysDialog();
   });
 
   function setLang(next) {
@@ -922,6 +1102,7 @@
     if (data) render();
     else $('rstate').textContent = t().loading;
     if (dlg.open) renderDialog();     /* 弹层开着时也要跟着切语种 */
+    if (ddlg.open) renderDaysDialog();
   }
 
   Array.prototype.forEach.call($('rlangs').children, function (b) {
