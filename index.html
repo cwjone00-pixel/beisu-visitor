@@ -2357,12 +2357,20 @@ async function sendMessage(text, imageId){
 let seqFirstSync = true;
 let paceAfterSubmit = false;
 try { paceAfterSubmit = sessionStorage.getItem('beisu_pace') === '1'; } catch (e) {}
+/* 未显式配置延时的消息：按内容长度给一个自然的阅读停顿（卡片固定 900ms），
+   让聊天框里的每条消息都逐条出现，而不是同一帧一起冒出 */
+function paceGap(m){
+  if (m && m.card) return 900;
+  const r = (m && m.reply) || {};
+  const s = String((m && m.text) || r[lang] || r.zh || r.en || r.ru || '');
+  return 400 + Math.min(1200, s.length * 20);
+}
 async function syncMessages(){
   try {
     const res = await fetch('/api/chat/' + encodeURIComponent(sessionId) + '/messages?since=' + lastMsgId);
     const d = await res.json();
     let changed = false;
-    /* 打卡提交后的首屏：定位最后一条访客消息，其后的回复按 delayMs 逐条出现 */
+    /* 打卡提交后的首屏：定位最后一条访客消息，从这条总结开始按节奏逐条出现 */
     let paceFromId = 0;
     if (seqFirstSync && paceAfterSubmit){
       const list = d.messages || [];
@@ -2372,16 +2380,16 @@ async function syncMessages(){
       paceAfterSubmit = false;
       try { sessionStorage.removeItem('beisu_pace'); } catch (e) {}
     }
+    let acc = 0;
     (d.messages || []).forEach(m => {
       if (m.id <= lastMsgId) return;
       lastMsgId = m.id;
-      const useDelay = !seqFirstSync || (paceFromId > 0 && m.id > paceFromId);
-      const wait = useDelay ? Math.max(0, Number(m.delayMs) || 0) : 0;
-      if (wait > 0){
-        setTimeout(() => { chatLog.push(m); renderChat(); }, wait);
-      } else {
-        chatLog.push(m); changed = true;
-      }
+      /* 节奏作用于所有消息：访客自己发的、全岛游总结、机器人文字、卡片、追加消息一视同仁 */
+      const paced = !seqFirstSync || (paceFromId > 0 && m.id >= paceFromId);
+      if (!paced){ chatLog.push(m); changed = true; return; }
+      const cfg = Math.max(0, Number(m.delayMs) || 0);
+      acc += cfg > 0 ? cfg : paceGap(m);          /* 后台配了延时用配置值，没配的按字数估算停顿 */
+      setTimeout(() => { chatLog.push(m); renderChat(); }, acc);
     });
     if (changed) renderChat();
     seqFirstSync = false;
