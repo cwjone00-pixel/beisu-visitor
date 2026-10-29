@@ -110,6 +110,9 @@ window.HainanMap = (function () {
        'hover' —— 只有地标里标了常显的地名（城市）常显，其余点位名称鼠标悬浮才出现。
        游客露营页用 'hover'：城市地名常显，营地与机场的名称悬浮才显示。 */
     var hoverLabels  = cfg.labelMode === 'hover';
+    /* 行政区地名显示模式：'always' 进入页面即常显（不再需要悬浮）；
+       默认悬浮才显示。 */
+    var areaLabelAlways = cfg.areaLabelMode === 'always';
     var routesVisible = true;           /* 驾车路线层显隐 */
     var hoveredRoute = null;            /* 鼠标当前悬停的路线下标（null=未悬停） */
     /* 可点击引导光晕：给某几类里「每个独立显示的点位」叠一圈缓慢呼吸的光环，
@@ -1204,7 +1207,11 @@ window.HainanMap = (function () {
           roam: !!cfg.roam,
           zoom: 1.12,
           center: [109.83, 19.15],
-          label: { show: false },
+          /* 行政区地名：默认悬浮才显示；cfg.areaLabelMode='always' 时进入页面即常显 */
+          label: areaLabelAlways ? {
+            show: true, color: '#1f2d3d', fontSize: 12,
+            formatter: function (q) { return areaText ? areaText(q.name) : q.name; }
+          } : { show: false },
           itemStyle: { areaColor: '#e9f1fb', borderColor: '#9cb8dd', borderWidth: 1 },
           emphasis: {
             itemStyle: { areaColor: '#d6e6fb' },

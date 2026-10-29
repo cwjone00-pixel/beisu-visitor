@@ -249,8 +249,7 @@
       return { id: s.id, name: spotName(s), lng: +s.lng, lat: +s.lat, categories: [playKey()] };
     });
     rental.forEach(function (r) {
-      /* 地图标签只显示市县名（地名），不显示车行名；车行名留在详情卡/详情页 */
-      out.push({ id: rentalId(r), name: areaText(r.area), lng: +r.lng, lat: +r.lat, categories: [RENTAL_KEY] });
+      out.push({ id: rentalId(r), name: rentalName(r), lng: +r.lng, lat: +r.lat, categories: [RENTAL_KEY] });
     });
     return out;
   }
@@ -396,9 +395,11 @@
       points: mapPoints(),
       roam: true,
       legend: false,
-      /* 名称常显：进入页面后所有点位名称一次性全部显示在点位旁，不靠悬浮/点击 */
-      labelMode: 'always',
+      /* 车行名悬浮才显示（不常显）；市县地名改为常显 */
+      labelMode: 'hover',
       labelKinds: false,
+      /* 市县地名进入页面即全部常显，无需悬浮 */
+      areaLabelMode: 'always',
       /* 悬浮提示只给门店名，不显示经纬度 */
       tipMode: 'name',
       /* 未选中的圆点 / 租车行都带一圈缓慢呼吸光晕，暗示「这个可以点」 */
