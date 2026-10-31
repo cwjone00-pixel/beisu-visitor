@@ -1473,6 +1473,13 @@ function serveStatic(req, res){
     return res.end();
   }
   if (urlPath === '/rental/') urlPath = '/rental/map-play.html';
+  /* 租房板块：/rent → 301 到 /rent/（保证 iframe 内相对路径正确解析）；
+     /rent/ → 租房页入口，内部用 iframe 内嵌三级海南地图（rent/hainan-map.html） */
+  if (urlPath === '/rent') {
+    res.writeHead(301, { Location: '/rent/', 'Cache-Control': 'no-cache' });
+    return res.end();
+  }
+  if (urlPath === '/rent/') urlPath = '/rent/index.html';
   /* 海南项目体验（站内整条链路：项目列表 → 项目详情 → 预订 → 预订成功）。
      /experience 及其子路径都交给同一份前端入口，由前端路由接管；
      真实存在的静态文件（assets 等）照常直出，找不到才回退到 index.html。 */
@@ -2115,6 +2122,67 @@ function linkThirdParty(u, provider, id, info){
   saveUsers();
 }
 
+/* ---------------- 租房页（/rent）客服后台 ----------------
+   /rent 页面 = 主站顶栏 + iframe 内嵌三级海南地图（rent/hainan-map.html）：
+   全省市县 → 市县乡镇 → 租房需求登记表单。表单提交落在 data/rent-leads.jsonl，
+   聊天按「人工在线优先 → 离线关键词自动回复 → AI 兜底」三段路由。 */
+const RENT_DATA_DIR = path.join(ROOT, 'data');
+
+function appendRentJsonl(name, obj) {
+  try {
+    fs.mkdirSync(RENT_DATA_DIR, { recursive: true });
+    fs.appendFileSync(path.join(RENT_DATA_DIR, name), JSON.stringify(obj) + '\n');
+  } catch (e) { /* 持久化失败不影响接口返回 */ }
+}
+function readRentJsonl(name, limit) {
+  try {
+    const rows = fs.readFileSync(path.join(RENT_DATA_DIR, name), 'utf8')
+      .split('\n').filter(Boolean)
+      .map(l => { try { return JSON.parse(l); } catch (e) { return null; } })
+      .filter(Boolean);
+    return limit ? rows.slice(-limit) : rows;
+  } catch (e) { return []; }
+}
+/* 客服在线：9:00–22:00（Asia/Shanghai）；CS_ONLINE=1 / 0 可强制 */
+function rentCsOnline() {
+  if (process.env.CS_ONLINE === '1') return true;
+  if (process.env.CS_ONLINE === '0') return false;
+  const hh = Number(new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Shanghai', hour: '2-digit', hour12: false
+  }).format(new Date()));
+  return hh >= 9 && hh < 22;
+}
+
+/* 离线自动回复关键词（与租房表单字段对应） */
+const RENT_RULES = [
+  { re: /(户型|几室|一室|两室|三室|四室)/, a: '我们有一室到四室及以上的房源，您可以在登记表里勾选户型，客服会按您选的户型匹配房源。' },
+  { re: /(预算|价格|租金|多少钱|贵)/, a: '租金按乡镇和户型差异较大，3000以内到10000以上都有覆盖；提交需求后客服会给您具体报价。' },
+  { re: /(时长|短租|长租|几个月|一个月|半年)/, a: '支持短期（1个月内）、中期（1–6个月）、长期（6个月以上），长租通常价格更优。' },
+  { re: /(押金|付款|月付|季付|付几)/, a: '常规是押一付三，也可与房东协商月付/季付，具体以房源为准。' },
+  { re: /(看房|视频|实地)/, a: '可以预约实地看房，也可以先视频看房，客服会按您登记的乡镇安排时间。' },
+  { re: /(家具|家电|停车|近海|做饭|疗养|安静)/, a: '您的配套需求（家具家电、停车、近海、安静疗养、可做饭）已记录，客服会按优先级匹配。' },
+  { re: /(宠物|养狗|养猫)/, a: '部分房源可养宠物，可在“其他需求”里注明，客服帮您筛可养宠物的房源。' },
+  { re: /(人工|客服|电话|微信|联系)/, a: '已记录您的需求，人工客服在线时会立即接入；离线时上线后第一时间联系您。' }
+];
+
+/* AI 兜底：配置 AI_API_URL 时转发，否则返回兜底话术（同时标记需人工跟进） */
+async function rentAiReply(message, context) {
+  const url = process.env.AI_API_URL;
+  if (!url || typeof fetch !== 'function') return null;
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (process.env.AI_API_KEY) headers.Authorization = 'Bearer ' + process.env.AI_API_KEY;
+    const r = await fetch(url, { method: 'POST', headers, body: JSON.stringify({ message, context }) });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return d.reply || d.content || d.answer || null;
+  } catch (e) { return null; }
+}
+function rentFallbackReply(context) {
+  const town = context && context.town ? '（' + context.town + '）' : '';
+  return '这个问题我先记下了' + town + '，客服上线后会结合您的登记信息回复您。您也可以补充预算、户型和租住时长，我帮您先匹配。';
+}
+
 /* ---------------- 路由 ---------------- */
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
@@ -2153,10 +2221,60 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/exp/projects' && req.method === 'GET') ||    // 站内体验页项目与价格（游客只读）
       (p === '/api/booking-terms' && req.method === 'GET') ||   // 预订条款（游客端弹窗只读）
       (p.startsWith('/api/chat/') && p.endsWith('/messages') && req.method === 'GET') ||
+      (p === '/api/cs/status' && req.method === 'GET') ||        // 租房页客服在线状态（游客只读）
+      (p === '/api/leads' && req.method === 'POST') ||           // 租房需求表单提交（游客无登录态）
+      (p === '/api/chat' && req.method === 'POST') ||            // 租房页客服聊天（游客无登录态）
       p.startsWith('/api/rental/');                              // 租车/配车 API（整段前缀放行，供游客端直接调用）
     if (!open && !sessionUser(req.headers['x-op-token'] || url.searchParams.get('token') || '')){
       return send(res, 401, { ok:false, error:'未登录或登录态已失效，请重新登录' });
     }
+  }
+
+  /* ---- 租房页（/rent）客服接口：登记落库 + 在线状态 + 聊天三档路由 ---- */
+  if (p === '/api/cs/status' && req.method === 'GET') {
+    return send(res, 200, { online: rentCsOnline() });
+  }
+
+  if (p === '/api/leads' && req.method === 'POST') {
+    const body = await readBody(req, 200000);
+    const id = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    appendRentJsonl('rent-leads.jsonl', Object.assign({ id, receivedAt: new Date().toISOString() }, body));
+    console.log('[rent lead] ' + (body.town || '?') + ' / ' + (body.layout || '?') + ' / ' + (body.budget || '?'));
+    return send(res, 200, { ok: true, id });
+  }
+
+  /* 客服后台读取租房登记（该 GET 不在白名单内，需登录 token） */
+  if (p === '/api/leads' && req.method === 'GET') {
+    return send(res, 200, { ok: true, leads: readRentJsonl('rent-leads.jsonl', 200) });
+  }
+
+  if (p === '/api/chat' && req.method === 'POST') {
+    const body = await readBody(req, 200000);
+    const message = String(body.message || '').slice(0, 500);
+    const context = body.context || null;
+    const sessionId = String(body.sessionId || '');
+    const online = rentCsOnline();
+    let mode, reply;
+    if (online) {
+      mode = 'human';
+      reply = '已转接人工客服，请稍候；您的登记信息已同步给客服。';
+    } else {
+      const hit = RENT_RULES.find(r => r.re.test(message));
+      if (hit) {
+        mode = 'bot';
+        reply = hit.a;
+      } else {
+        const ai = await rentAiReply(message, context);
+        if (ai) { mode = 'ai'; reply = ai; }
+        else { mode = 'fallback'; reply = rentFallbackReply(context); }
+      }
+    }
+    appendRentJsonl('rent-chat.jsonl', {
+      ts: new Date().toISOString(), sessionId, message, context, online, mode,
+      needHuman: mode === 'human' || mode === 'fallback'
+    });
+    console.log('[rent chat ' + mode + '] ' + message.slice(0, 40));
+    return send(res, 200, { ok: true, online, mode, reply });
   }
 
   /* ---- 租车/配车 API（前缀 /api/rental/，整段放行无需登录） ---- */

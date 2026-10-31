@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>租房 · 海南全岛地图</title>
+<style>
+  /* ============================================================
+     租房页（/rent）：主站「租房」入口
+     ------------------------------------------------------------
+     布局：顶部一条与游客主站同款的顶栏（返回首页 + 语言切换），
+           下方整块区域用 iframe 内嵌三级海南地图（rent/hainan-map.html）：
+           全省市县 → 市县乡镇 → 租房需求登记表单，提交后唤起客服聊天。
+     颜色：主蓝 #2f7cf6、正文 #1c2330、背景 #edf3fb，与主站一致；
+     滚动：本页与地图页都不产生滚动条（地图内部自行拖动/缩放）。
+     ============================================================ */
+  :root {
+    --primary: #2f7cf6;
+    --text: #1c2330;
+    --muted: #4a5260;
+    --bg: #edf3fb;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", Roboto, sans-serif;
+    color: var(--text); background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+  }
+  .rent-shell { display: flex; flex-direction: column; height: 100%; }
+
+  /* ---------------- 顶栏 ---------------- */
+  .rent-bar {
+    flex: 0 0 auto;
+    display: flex; align-items: center; gap: 12px;
+    height: 54px; padding: 0 18px;
+    background: rgba(255, 255, 255, .82);
+    -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px);
+    border-bottom: 1px solid #dbe6f5;
+    position: relative; z-index: 2;
+  }
+  .rent-back {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 30px; padding: 0 11px; border-radius: 8px; white-space: nowrap;
+    background: rgba(20, 40, 80, .05); color: var(--muted);
+    font-size: 12.5px; text-decoration: none;
+    transition: background .15s, color .15s;
+  }
+  .rent-back:hover { background: rgba(20, 40, 80, .1); color: var(--primary); }
+  .rent-back svg { width: 12px; height: 12px; }
+
+  .rent-title { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+  .rent-title b { font-size: 16px; letter-spacing: .5px; color: var(--text); }
+  .rent-title span {
+    font-size: 12px; color: #7a879b; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .spacer { flex: 1 1 auto; }
+
+  /* 语言切换：与主站同款 —— 中文 / English / Русский 三项常驻展开 */
+  .lang { display: flex; align-items: center; gap: 6px; }
+  .lang-opt {
+    display: flex; align-items: center; justify-content: center;
+    height: 30px; padding: 0 12px; border-radius: 8px; white-space: nowrap;
+    font-size: 12.5px; color: var(--muted); background: rgba(20, 40, 80, .05);
+    border: 0; cursor: pointer; font-family: inherit;
+    transition: background .15s, color .15s;
+  }
+  .lang-opt:hover { background: rgba(20, 40, 80, .1); }
+  .lang-opt.active, .lang-opt.active:hover { background: var(--primary); color: #fff; }
+
+  /* ---------------- iframe 地图区 ---------------- */
+  .rent-frame { flex: 1 1 auto; position: relative; min-height: 0; background: #c6e2f7; }
+  .rent-frame iframe {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%; border: 0; display: block;
+    background: #c6e2f7;
+  }
+
+  /* ---------------- 手机端 ---------------- */
+  @media (max-width: 640px) {
+    .rent-bar { height: 48px; padding: 0 10px; gap: 8px; }
+    .rent-back { padding: 0 9px; }
+    .rent-title b { font-size: 14px; }
+    .rent-title span { display: none; }
+    .lang { gap: 4px; }
+    .lang-opt { height: 28px; padding: 0 9px; font-size: 11.5px; }
+  }
+</style>
+</head>
+<body>
+<div class="rent-shell">
+  <!-- 顶栏：返回游客主站 + 页面标题 + 三语切换（切换后同步给 iframe 内的地图页） -->
+  <header class="rent-bar">
+    <a class="rent-back" href="/">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+      <span>返回首页</span>
+    </a>
+    <div class="rent-title">
+      <b>租房</b>
+      <span>海南全岛地图 · 选市县 → 选乡镇 → 登记租房需求</span>
+    </div>
+    <div class="spacer"></span>
+    <div class="lang" id="langBox">
+      <button class="lang-opt" data-lang="zh" type="button">中文</button>
+      <button class="lang-opt" data-lang="en" type="button">English</button>
+      <button class="lang-opt" data-lang="ru" type="button">Русский</button>
+    </div>
+  </header>
+
+  <!-- 地图以 iframe 内嵌（同源同站内路径，不新开标签页） -->
+  <div class="rent-frame">
+    <iframe id="mapFrame" src="hainan-map.html?embed=1" title="海南全岛租房地图" allow="fullscreen"></iframe>
+  </div>
+</div>
+
+<script>
+  /* 语言：与主站共用 beisu-lang 记忆；切换后通过 postMessage 同步给地图页 */
+  var LANGS = ['zh', 'en', 'ru'];
+  var frame = document.getElementById('mapFrame');
+  var box = document.getElementById('langBox');
+  var lang = 'zh';
+  try { var saved = localStorage.getItem('beisu-lang'); if (LANGS.indexOf(saved) >= 0) lang = saved; } catch (e) { /* 忽略 */ }
+
+  function paint() {
+    Array.prototype.forEach.call(box.querySelectorAll('.lang-opt'), function (b) {
+      b.classList.toggle('active', b.dataset.lang === lang);
+    });
+  }
+  function post(langCode) {
+    try { frame.contentWindow.postMessage({ type: 'beisu:set-lang', lang: langCode }, location.origin); } catch (e) { /* iframe 未就绪 */ }
+  }
+  function setLang(code) {
+    if (LANGS.indexOf(code) < 0) return;
+    lang = code;
+    paint();
+    try { localStorage.setItem('beisu-lang', code); } catch (e) { /* 忽略 */ }
+    post(code);
+  }
+
+  box.addEventListener('click', function (e) {
+    var b = e.target.closest('.lang-opt');
+    if (b) setLang(b.dataset.lang);
+  });
+
+  /* 地图页每次就绪都会回一条 lang-ready，保证 iframe 载入后语种一致 */
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin) return;
+    if (e.data && e.data.type === 'beisu:lang-ready') post(lang);
+  });
+
+  frame.addEventListener('load', function () { post(lang); });
+  paint();
+</script>
+</body>
+</html>

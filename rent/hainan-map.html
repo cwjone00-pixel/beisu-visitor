@@ -1,0 +1,1724 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>海南地图</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background:
+      radial-gradient(120% 80% at 50% 0%, #f4fbff 0%, rgba(244,251,255,0) 60%),
+      linear-gradient(180deg, #e4f3ff 0%, #d3e9fb 55%, #c6e2f7 100%);
+    font-family: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    color: #2c5b79;
+    overflow: hidden;
+  }
+  .wrap { display: contents; }
+  .stage {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  svg#map { display: block; width: 100vw; height: 100vh; cursor: grab; touch-action: none; }
+  svg#map.grabbing { cursor: grabbing; }
+
+  #sea { pointer-events: none; }
+  .region {
+    fill: #ffffff;
+    stroke: #8fbdd8;
+    stroke-width: 1.2;
+    stroke-linejoin: round;
+    cursor: pointer;
+    transition: fill .12s ease;
+  }
+  /* hover 只高亮当前市县 */
+  .region:hover {
+    fill: #ffca6b;
+    stroke: #d98514;
+    stroke-width: 1.8;
+  }
+  svg.grabbing .region:hover { fill: #ffffff; stroke: #8fbdd8; stroke-width: 1.2; }
+
+  .zoom {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .zoom button {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, .55);
+    background: rgba(255, 255, 255, .32);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    color: #2b6b95;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 3px 8px rgba(41, 101, 145, .14);
+    transition: background .15s ease;
+  }
+  .zoom button:hover { background: rgba(255, 255, 255, .55); }
+
+  .label {
+    font-size: 15px;
+    font-weight: 500;
+    fill: #2b6b95;
+    letter-spacing: .5px;
+    text-anchor: middle;
+    dominant-baseline: central;
+    paint-order: stroke;
+    stroke: rgba(255, 255, 255, .95);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+    user-select: none;
+  }
+  svg.lang-en .label, svg.lang-ru .label { font-size: 12px; }
+
+  .ap-mark { fill: #1f7cb8; stroke: #ffffff; stroke-width: 1.8; }
+  .ap-icon {
+    fill: #ffffff;
+    font-size: 11px;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+  }
+  .ap-label {
+    font-size: 13px;
+    font-weight: 600;
+    fill: #14577f;
+    text-anchor: middle;
+    paint-order: stroke;
+    stroke: rgba(255, 255, 255, .95);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    pointer-events: none;
+    user-select: none;
+  }
+  svg.lang-en .ap-label, svg.lang-ru .ap-label { font-size: 11px; }
+
+  #amap {
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: #c6e2f7;
+    display: none;
+  }
+  #amap.amap-show { display: block; }
+  .landmark-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #e08a3c;
+    border: 2px solid #ffffff;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, .35);
+  }
+  .amap-marker-label {
+    border: 0 !important;
+    background: rgba(255, 255, 255, .88) !important;
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    padding: 1px 6px !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    color: #2c5b79 !important;
+    white-space: nowrap;
+    box-shadow: 0 1px 4px rgba(41, 101, 145, .2);
+  }
+  .amap-info-content { font-size: 13px; line-height: 1.5; color: #2c5b79; }
+  .amap-info-content b { color: #8a4d12; }
+
+  /* 乡镇名称标注：纯展示 div，pointer-events:none，不参与高德拾取，点击穿透到色块 */
+  .town-label {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    background: rgba(255, 255, 255, .86);
+    border-radius: 6px;
+    padding: 1px 5px;
+    color: #255a7a;
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: 0 1px 3px rgba(41, 101, 145, .22);
+    z-index: 95;
+    user-select: none;
+  }
+
+  .hint {
+    position: fixed;
+    left: 50%;
+    bottom: 14px;
+    transform: translateX(-50%);
+    margin: 0;
+    padding: 5px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .35);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, .5);
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: #4c7d9c;
+    pointer-events: none;
+    user-select: none;
+    z-index: 60;
+    max-width: 92vw;
+    text-align: center;
+  }
+
+  .lang {
+    position: fixed;
+    top: 20px;
+    right: 22px;
+    display: flex;
+    gap: 2px;
+    padding: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .35);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, .5);
+    box-shadow: 0 4px 12px rgba(41, 101, 145, .12);
+    z-index: 60;
+  }
+  .lang button {
+    border: 0;
+    background: transparent;
+    color: #4c7d9c;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: background .18s ease, color .18s ease;
+  }
+  .lang button.on { background: rgba(90, 169, 221, .85); color: #fff; }
+  /* 嵌入主站租房页（/rent?embed=1）时隐藏页内语言切换，由主站顶栏统一控制 */
+  .embed-mode .lang { display: none; }
+
+  .back {
+    position: fixed;
+    top: 20px;
+    left: 22px;
+    z-index: 60;
+    display: none;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .55);
+    background: rgba(255, 255, 255, .32);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    color: #2b6b95;
+    font-family: inherit;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(41, 101, 145, .12);
+    transition: background .15s ease;
+  }
+  .back:hover { background: rgba(255, 255, 255, .55); }
+  .back.show { display: flex; }
+
+  .tip {
+    position: fixed;
+    max-width: 260px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, .85);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, .6);
+    box-shadow: 0 6px 18px rgba(41, 101, 145, .18);
+    font-size: 12px;
+    line-height: 1.5;
+    color: #2c5b79;
+    pointer-events: none;
+    z-index: 80;
+    display: none;
+  }
+  .tip b { display: block; font-size: 13px; color: #8a4d12; margin-bottom: 2px; }
+
+  /* ===== 第 3 级：租房需求登记表单页 ===== */
+  .lead {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: none;
+    overflow-y: auto;
+    padding: 22px 16px 48px;
+    background: linear-gradient(180deg, #eaf6ff 0%, #d9edfc 55%, #c9e3f7 100%);
+    -webkit-overflow-scrolling: touch;
+  }
+  .lead.show { display: block; }
+  .lead-sheet {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 22px clamp(16px, 4vw, 32px) 20px;
+    background: rgba(255, 255, 255, .95);
+    border: 1px solid rgba(255, 255, 255, .9);
+    border-radius: 20px;
+    box-shadow: 0 18px 46px rgba(30, 90, 130, .18);
+  }
+  .lead-head {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px dashed #d5e7f4;
+  }
+  .lead-head h2 {
+    margin: 0 0 6px;
+    font-size: clamp(19px, 4.4vw, 26px);
+    line-height: 1.35;
+    letter-spacing: .5px;
+    color: #1d4f70;
+  }
+  .lead-head p { margin: 0; font-size: 12.5px; color: #6d93ab; }
+
+  /* 宽屏下聊天窗与表单并排，表单左移避免被遮挡 */
+  @media (min-width: 1100px) {
+    .lead.with-chat .lead-sheet {
+      margin-left: max(24px, calc((100vw - 760px - 400px) / 2));
+      margin-right: auto;
+    }
+  }
+
+  .q { margin: 0 0 18px; }
+  .q h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 9px;
+    font-size: 14.5px;
+    font-weight: 600;
+    color: #255a7a;
+  }
+  .q h3 i {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #e3f2fd;
+    color: #2b7bb8;
+    font-size: 12px;
+    font-style: normal;
+  }
+  .opts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+  .opt {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 10px;
+    border: 1.5px solid #d3e5f2;
+    border-radius: 11px;
+    background: #f7fbff;
+    font-size: 14px;
+    color: #35617d;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  .opt:hover { border-color: #9fc9e4; background: #f0f9ff; }
+  .opt input { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+  .opt .tick {
+    flex: 0 0 auto;
+    width: 15px;
+    height: 15px;
+    border: 1.5px solid #a9cbe2;
+    border-radius: 50%;
+    background: #fff;
+    transition: .15s;
+  }
+  .opt.cb .tick { border-radius: 4px; }
+  .opt.on { border-color: #4f9ed6; background: #e6f4fe; }
+  .opt.on .tick { border-color: #4f9ed6; background: #4f9ed6; box-shadow: inset 0 0 0 2px #fff; }
+  .opt.cb.on .tick { box-shadow: inset 0 0 0 3px #e6f4fe; }
+  .opt.on .txt { color: #1a5b87; font-weight: 600; }
+
+  .lead textarea {
+    width: 100%;
+    min-height: 84px;
+    padding: 10px 12px;
+    border: 1.5px solid #d3e5f2;
+    border-radius: 11px;
+    background: #f7fbff;
+    font-family: inherit;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #255a7a;
+    resize: vertical;
+    outline: none;
+  }
+  .lead textarea:focus { border-color: #4f9ed6; background: #fff; }
+
+  .lead-err { margin: -6px 0 12px; font-size: 12.5px; color: #c0392b; }
+  .lead-done {
+    display: none;
+    margin: 0 0 12px;
+    padding: 10px 12px;
+    border-radius: 11px;
+    background: #e8f6ea;
+    color: #2f7d4a;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .lead-done.show { display: block; }
+
+  .lead-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 6px; }
+  .lead-actions button {
+    flex: 1 1 150px;
+    padding: 13px 18px;
+    border: 0;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+    transition: filter .15s, background .15s;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, #5aa9dd, #2b7bb8);
+    color: #fff;
+    font-weight: 600;
+    box-shadow: 0 8px 20px rgba(43, 123, 184, .28);
+  }
+  .btn-primary:hover { filter: brightness(1.06); }
+  .btn-primary:disabled { filter: grayscale(.35); cursor: default; box-shadow: none; }
+  .btn-ghost { background: #eef6fc; color: #2b6b95; border: 1.5px solid #d3e5f2; }
+  .btn-ghost:hover { background: #e2f1fb; }
+
+  /* ===== 在线客服聊天窗 ===== */
+  .chat-fab {
+    position: fixed;
+    right: 12px;
+    bottom: 132px;
+    z-index: 66;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border: 1px solid rgba(255, 255, 255, .7);
+    border-radius: 50%;
+    background: linear-gradient(135deg, #5aa9dd, #2b7bb8);
+    color: #fff;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(43, 123, 184, .34);
+  }
+  .chat-fab:hover { filter: brightness(1.08); }
+  .chat-fab.show { display: flex; }
+
+  .chat {
+    position: fixed;
+    right: 14px;
+    bottom: 14px;
+    z-index: 130;
+    display: none;
+    flex-direction: column;
+    width: min(362px, calc(100vw - 28px));
+    height: min(540px, 74vh);
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid rgba(255, 255, 255, .7);
+    border-radius: 16px;
+    box-shadow: 0 22px 54px rgba(20, 70, 110, .3);
+  }
+  .chat.show { display: flex; }
+  .chat-head {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 11px 12px;
+    background: linear-gradient(135deg, #4f9ed6, #2b7bb8);
+    color: #fff;
+  }
+  .chat-head .dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: #8fe3a8; }
+  .chat-head .dot.off { background: #ffd77a; }
+  .chat-head .who { flex: 1; min-width: 0; }
+  .chat-head .who b { display: block; font-size: 14px; }
+  .chat-head .who small { display: block; margin-top: 1px; font-size: 11px; opacity: .85; }
+  .chat-head button {
+    padding: 2px 4px;
+    border: 0;
+    background: transparent;
+    color: #fff;
+    font-size: 20px;
+    line-height: 1;
+    opacity: .85;
+    cursor: pointer;
+  }
+  .chat-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 9px;
+    overflow-y: auto;
+    padding: 12px;
+    background: #f4faff;
+  }
+  .bubble {
+    max-width: 84%;
+    padding: 9px 12px;
+    border-radius: 13px;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .bubble.bot {
+    align-self: flex-start;
+    background: #fff;
+    color: #2c5b79;
+    border: 1px solid #e0eef8;
+    border-bottom-left-radius: 4px;
+  }
+  .bubble.me {
+    align-self: flex-end;
+    background: #4f9ed6;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .bubble.sys {
+    align-self: center;
+    max-width: 96%;
+    padding: 5px 11px;
+    border-radius: 99px;
+    background: rgba(90, 169, 221, .12);
+    color: #4c7d9c;
+    font-size: 11.5px;
+  }
+  .chat-quick { display: flex; gap: 6px; overflow-x: auto; padding: 8px 10px 0; background: #f4faff; }
+  .chat-quick button {
+    flex: 0 0 auto;
+    padding: 5px 10px;
+    border: 1px solid #cfe3f2;
+    border-radius: 99px;
+    background: #fff;
+    color: #35617d;
+    font-family: inherit;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .chat-quick button:hover { background: #e6f4fe; }
+  .chat-input {
+    display: flex;
+    gap: 8px;
+    padding: 9px 10px 11px;
+    background: #fff;
+    border-top: 1px solid #edf5fb;
+  }
+  .chat-input input {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border: 1.5px solid #d3e5f2;
+    border-radius: 10px;
+    background: #f8fcff;
+    font-family: inherit;
+    font-size: 13px;
+    color: #255a7a;
+    outline: none;
+  }
+  .chat-input input:focus { border-color: #4f9ed6; background: #fff; }
+  .chat-input button {
+    flex: 0 0 auto;
+    padding: 0 16px;
+    border: 0;
+    border-radius: 10px;
+    background: #2b7bb8;
+    color: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .chat-input button:disabled { opacity: .55; cursor: default; }
+</style>
+</head>
+<body>
+  <div class="lang" id="lang">
+    <button data-lang="zh" class="on">中文</button>
+    <button data-lang="en">English</button>
+    <button data-lang="ru">Русский</button>
+  </div>
+  <button class="back" id="back">← <span id="backTxt">返回全省地图</span></button>
+  <div class="wrap">
+    <div class="stage">
+      <svg id="map" viewBox="0 0 1000 920" preserveAspectRatio="xMidYMid meet" role="img" aria-label="海南地图">
+        <defs>
+          <filter id="softShadow" x="-15%" y="-15%" width="130%" height="130%">
+            <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#2f7cb0" flood-opacity="0.18"/>
+          </filter>
+          <linearGradient id="seaGrad" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" y2="920">
+            <stop offset="0" stop-color="#e4f3ff"/>
+            <stop offset=".55" stop-color="#d3e9fb"/>
+            <stop offset="1" stop-color="#c6e2f7"/>
+          </linearGradient>
+        </defs>
+        <rect id="sea" x="0" y="0" width="1000" height="920" fill="url(#seaGrad)"/>
+        <g id="regions" filter="url(#softShadow)"></g>
+        <g id="labels"></g>
+        <g id="airports"></g>
+      </svg>
+      <div class="zoom">
+        <button id="zin" aria-label="放大">＋</button>
+        <button id="zout" aria-label="缩小">－</button>
+        <button id="zreset" aria-label="复位">⟲</button>
+      </div>
+    </div>
+    <p class="hint" id="hint">滚轮或按钮缩放 · 拖动平移 · 点击市县查看地标 · 双击复位</p>
+    <div class="tip" id="tip"></div>
+  </div>
+  <div id="amap"></div>
+
+  <!-- 第 3 级：租房需求登记（点击任意乡镇自动带入镇名） -->
+  <div class="lead" id="lead" role="dialog" aria-modal="true" aria-labelledby="leadTitle">
+    <div class="lead-sheet">
+      <div class="lead-head">
+        <h2 id="leadTitle">【—】租房需求登记</h2>
+        <p id="leadSub">填写后客服会与您联系，信息仅用于匹配房源</p>
+      </div>
+      <p class="lead-done" id="leadDone"></p>
+      <form id="leadForm" novalidate>
+        <div class="q">
+          <h3><i>1</i>户型（单选）</h3>
+          <div class="opts">
+            <label class="opt"><input type="radio" name="layout" value="一室"><span class="tick"></span><span class="txt">一室</span></label>
+            <label class="opt"><input type="radio" name="layout" value="两室"><span class="tick"></span><span class="txt">两室</span></label>
+            <label class="opt"><input type="radio" name="layout" value="三室"><span class="tick"></span><span class="txt">三室</span></label>
+            <label class="opt"><input type="radio" name="layout" value="四室及以上"><span class="tick"></span><span class="txt">四室及以上</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <h3><i>2</i>租住时长（单选）</h3>
+          <div class="opts">
+            <label class="opt"><input type="radio" name="duration" value="短期（1个月内）"><span class="tick"></span><span class="txt">短期（1个月内）</span></label>
+            <label class="opt"><input type="radio" name="duration" value="中期（1–6个月）"><span class="tick"></span><span class="txt">中期（1–6个月）</span></label>
+            <label class="opt"><input type="radio" name="duration" value="长期（6个月以上）"><span class="tick"></span><span class="txt">长期（6个月以上）</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <h3><i>3</i>预算（单选）</h3>
+          <div class="opts">
+            <label class="opt"><input type="radio" name="budget" value="3000以内"><span class="tick"></span><span class="txt">3000以内</span></label>
+            <label class="opt"><input type="radio" name="budget" value="3000–6000"><span class="tick"></span><span class="txt">3000–6000</span></label>
+            <label class="opt"><input type="radio" name="budget" value="6000–10000"><span class="tick"></span><span class="txt">6000–10000</span></label>
+            <label class="opt"><input type="radio" name="budget" value="10000以上"><span class="tick"></span><span class="txt">10000以上</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <h3><i>4</i>配套需求（可多选）</h3>
+          <div class="opts">
+            <label class="opt cb"><input type="checkbox" name="extras" value="带家具家电"><span class="tick"></span><span class="txt">带家具家电</span></label>
+            <label class="opt cb"><input type="checkbox" name="extras" value="可以停车"><span class="tick"></span><span class="txt">可以停车</span></label>
+            <label class="opt cb"><input type="checkbox" name="extras" value="近海"><span class="tick"></span><span class="txt">近海</span></label>
+            <label class="opt cb"><input type="checkbox" name="extras" value="安静适合疗养"><span class="tick"></span><span class="txt">安静适合疗养</span></label>
+            <label class="opt cb"><input type="checkbox" name="extras" value="允许做饭"><span class="tick"></span><span class="txt">允许做饭</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <h3><i>5</i>其他需求</h3>
+          <textarea id="leadNote" rows="3" placeholder="其他需求、想说的内容、特殊要求"></textarea>
+        </div>
+        <p class="lead-err" id="leadErr" hidden>请先选择户型、租住时长和预算</p>
+        <div class="lead-actions">
+          <button type="submit" class="btn-primary" id="leadSubmit">提交</button>
+          <button type="button" class="btn-ghost" id="leadBack">返回乡镇地图</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 在线客服：人工在线优先，离线走关键词自动回复，未命中 AI 兜底 -->
+  <button class="chat-fab" id="chatFab" aria-label="在线客服">客服</button>
+  <div class="chat" id="chat" role="dialog" aria-label="在线客服">
+    <div class="chat-head">
+      <span class="dot off" id="chatDot"></span>
+      <div class="who">
+        <b>在线客服</b>
+        <small id="chatStatus">正在连接…</small>
+      </div>
+      <button id="chatClose" aria-label="关闭">×</button>
+    </div>
+    <div class="chat-body" id="chatBody"></div>
+    <div class="chat-quick" id="chatQuick">
+      <button data-q="预算大概多少？">预算</button>
+      <button data-q="可以预约看房吗？">看房</button>
+      <button data-q="押金和付款方式怎么算？">押金</button>
+      <button data-q="房子带家具家电吗？">配套</button>
+    </div>
+    <div class="chat-input">
+      <input id="chatText" type="text" placeholder="输入您的问题…" autocomplete="off">
+      <button id="chatSend">发送</button>
+    </div>
+  </div>
+
+<script>
+const GEO = {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"adcode":460100,"name":"海口市","center":[110.33119,20.031971],"centroid":[110.422966,19.852113],"childrenNum":4,"level":"city","parent":{"adcode":460000},"subFeatureIndex":0,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[110.106525,20.026851],[110.161895,19.977693],[110.143932,19.889106],[110.186246,19.864193],[110.228283,19.753767],[110.208468,19.716679],[110.222357,19.67974],[110.262449,19.687318],[110.314208,19.697421],[110.340041,19.720625],[110.393373,19.698053],[110.372633,19.654004],[110.401151,19.606626],[110.455687,19.574559],[110.486705,19.593357],[110.519297,19.563341],[110.540223,19.535532],[110.611518,19.526841],[110.641333,19.549122],[110.636148,19.593989],[110.672814,19.647214],[110.623463,19.664109],[110.623,19.735461],[110.670314,19.812776],[110.704665,19.805992],[110.699573,19.861512],[110.676147,19.860092],[110.675314,19.907868],[110.634666,19.965401],[110.598,19.98305],[110.526612,20.075206],[110.495039,20.077253],[110.387355,20.11347],[110.318467,20.109061],[110.293282,20.059614],[110.24319,20.077568],[110.144395,20.074418],[110.106525,20.026851]]]]}},{"type":"Feature","properties":{"adcode":460200,"name":"三亚市","center":[109.508268,18.247872],"centroid":[109.421656,18.362263],"childrenNum":4,"level":"city","parent":{"adcode":460000},"subFeatureIndex":1,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[108.932374,18.335288],[108.956448,18.307433],[109.006632,18.323032],[109.108298,18.323828],[109.138668,18.267791],[109.174686,18.260149],[109.28811,18.264925],[109.355887,18.214922],[109.441349,18.199153],[109.4632,18.177171],[109.527366,18.169046],[109.561718,18.143554],[109.63792,18.171595],[109.72616,18.177808],[109.749863,18.19326],[109.783381,18.337516],[109.805418,18.347543],[109.785048,18.426622],[109.809955,18.459388],[109.781159,18.51107],[109.725234,18.493102],[109.710882,18.426462],[109.665883,18.391462],[109.539866,18.396713],[109.515607,18.429008],[109.536996,18.490717],[109.535237,18.53142],[109.506163,18.551291],[109.423386,18.574657],[109.405146,18.623443],[109.332832,18.575451],[109.313295,18.517429],[109.246537,18.558921],[109.203574,18.553517],[109.185056,18.507095],[109.195148,18.469407],[109.072557,18.452231],[109.015243,18.422645],[108.932374,18.335288]]]]}},{"type":"Feature","properties":{"adcode":460400,"name":"儋州市","center":[109.576782,19.517486],"centroid":[109.390059,19.579264],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":3,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[108.928671,19.524313],[108.939596,19.497287],[108.982744,19.477213],[108.997373,19.431522],[109.04478,19.430415],[109.051447,19.487803],[109.117557,19.46757],[109.13052,19.479584],[109.178389,19.399262],[109.26774,19.376803],[109.318943,19.398155],[109.384035,19.355448],[109.424405,19.354815],[109.457275,19.39942],[109.483848,19.406063],[109.506348,19.359561],[109.468386,19.301178],[109.541625,19.311939],[109.587365,19.243249],[109.611995,19.252589],[109.634031,19.20256],[109.673105,19.207627],[109.686994,19.178965],[109.706808,19.22156],[109.697271,19.271267],[109.713382,19.309881],[109.700234,19.349436],[109.647272,19.357505],[109.646439,19.402425],[109.737734,19.407486],[109.751993,19.416974],[109.728197,19.496023],[109.760048,19.528895],[109.7694,19.578508],[109.709308,19.57756],[109.659402,19.611048],[109.664216,19.629685],[109.582921,19.637581],[109.557366,19.697421],[109.599402,19.730726],[109.569218,19.797947],[109.564588,19.854888],[109.498663,19.873339],[109.410794,19.895256],[109.349591,19.898724],[109.30811,19.9178],[109.264592,19.90503],[109.255611,19.867189],[109.218574,19.855834],[109.15913,19.790689],[109.169501,19.736724],[109.147649,19.704998],[109.093668,19.689844],[109.048576,19.620051],[108.993392,19.586723],[108.928671,19.524313]]]]}},{"type":"Feature","properties":{"adcode":469001,"name":"五指山市","center":[109.516662,18.776921],"centroid":[109.511892,18.824035],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":4,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[109.715419,18.833686],[109.699123,18.889379],[109.730512,18.913649],[109.676531,18.925862],[109.601532,18.910318],[109.55357,18.946321],[109.524033,19.030986],[109.468386,19.032254],[109.456349,18.995635],[109.424775,18.990403],[109.367739,18.936171],[109.34848,18.946321],[109.32635,18.926338],[109.343109,18.877163],[109.374591,18.853998],[109.353387,18.812896],[109.356628,18.710653],[109.398109,18.671104],[109.408016,18.627733],[109.448293,18.655378],[109.48857,18.64664],[109.539866,18.659508],[109.533662,18.694295],[109.576717,18.714782],[109.619865,18.678252],[109.641809,18.72304],[109.703012,18.721769],[109.681531,18.786071],[109.689216,18.830036],[109.715419,18.833686]]]]}},{"type":"Feature","properties":{"adcode":469002,"name":"琼海市","center":[110.466785,19.246011],"centroid":[110.421962,19.210377],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":5,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[110.610593,19.084394],[110.619296,19.152041],[110.676703,19.286302],[110.706517,19.320167],[110.730035,19.378859],[110.633555,19.391354],[110.604574,19.350386],[110.584111,19.367787],[110.581426,19.419504],[110.546242,19.46836],[110.504853,19.46836],[110.484761,19.443223],[110.450317,19.447492],[110.423928,19.413495],[110.368744,19.391829],[110.327356,19.315261],[110.3593,19.298646],[110.344392,19.228368],[110.300226,19.21586],[110.224857,19.221718],[110.170598,19.191317],[110.150876,19.208419],[110.115229,19.133191],[110.124118,19.04747],[110.158562,18.99944],[110.229579,19.002452],[110.249949,18.976292],[110.465039,19.074411],[110.477539,19.096912],[110.521797,19.102932],[110.610593,19.084394]]]]}},{"type":"Feature","properties":{"adcode":469005,"name":"文昌市","center":[110.753975,19.612986],"centroid":[110.788535,19.747363],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":6,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[110.730035,19.378859],[110.781053,19.395783],[110.844015,19.450179],[110.920774,19.552598],[111.008921,19.60394],[111.071327,19.628895],[111.044013,19.763551],[111.013643,19.850472],[110.969569,20.010151],[110.940959,20.028583],[110.871515,20.011569],[110.808738,20.035672],[110.778368,20.068276],[110.744665,20.073946],[110.717258,20.148734],[110.687073,20.16353],[110.655685,20.134409],[110.56226,20.109691],[110.526612,20.075206],[110.598,19.98305],[110.634666,19.965401],[110.675314,19.907868],[110.676147,19.860092],[110.699573,19.861512],[110.704665,19.805992],[110.670314,19.812776],[110.623,19.735461],[110.623463,19.664109],[110.672814,19.647214],[110.636148,19.593989],[110.641333,19.549122],[110.611518,19.526841],[110.540223,19.535532],[110.519297,19.563341],[110.469854,19.531424],[110.485779,19.502345],[110.520594,19.509931],[110.546242,19.46836],[110.581426,19.419504],[110.584111,19.367787],[110.604574,19.350386],[110.633555,19.391354],[110.730035,19.378859]]]]}},{"type":"Feature","properties":{"adcode":469006,"name":"万宁市","center":[110.388793,18.796216],"centroid":[110.324496,18.830445],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":7,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[110.158562,18.99944],[110.108284,18.944577],[110.097729,18.911746],[110.045322,18.884778],[110.095785,18.811467],[110.057267,18.758448],[110.014952,18.732885],[110.020786,18.658873],[110.115877,18.592774],[110.137543,18.606123],[110.213931,18.578789],[110.246246,18.609619],[110.329393,18.642509],[110.36754,18.632182],[110.495316,18.649976],[110.500779,18.752732],[110.577908,18.784642],[110.590593,18.839082],[110.585871,18.897786],[110.610593,19.084394],[110.521797,19.102932],[110.477539,19.096912],[110.465039,19.074411],[110.249949,18.976292],[110.229579,19.002452],[110.158562,18.99944]]]]}},{"type":"Feature","properties":{"adcode":469007,"name":"东方市","center":[108.653789,19.10198],"centroid":[108.818801,18.996184],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":8,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[109.125242,18.878432],[109.089779,18.909842],[109.113668,18.969949],[109.098853,19.028291],[109.008762,19.050005],[109.022929,19.107052],[108.99191,19.13034],[108.954874,19.218869],[108.916171,19.218552],[108.833209,19.25987],[108.783765,19.244674],[108.704136,19.262719],[108.644785,19.349278],[108.605712,19.264619],[108.591082,19.141587],[108.598305,19.055869],[108.630434,19.003086],[108.637841,18.924593],[108.595619,18.872086],[108.593212,18.809404],[108.659785,18.716846],[108.761543,18.732091],[108.81145,18.720022],[108.844412,18.750827],[108.928578,18.790198],[108.987003,18.786547],[109.015151,18.808928],[109.071076,18.807499],[109.094965,18.857012],[109.125242,18.878432]]]]}},{"type":"Feature","properties":{"adcode":469021,"name":"定安县","center":[110.349235,19.684966],"centroid":[110.312936,19.483405],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":9,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[110.224857,19.221718],[110.300226,19.21586],[110.344392,19.228368],[110.3593,19.298646],[110.327356,19.315261],[110.368744,19.391829],[110.423928,19.413495],[110.450317,19.447492],[110.484761,19.443223],[110.504853,19.46836],[110.546242,19.46836],[110.520594,19.509931],[110.485779,19.502345],[110.469854,19.531424],[110.519297,19.563341],[110.486705,19.593357],[110.455687,19.574559],[110.401151,19.606626],[110.372633,19.654004],[110.393373,19.698053],[110.340041,19.720625],[110.314208,19.697421],[110.262449,19.687318],[110.221616,19.629843],[110.186524,19.636791],[110.160784,19.67153],[110.13134,19.648003],[110.137266,19.56034],[110.192172,19.58925],[110.196339,19.535374],[110.243005,19.517675],[110.227727,19.450654],[110.194024,19.455871],[110.164487,19.426146],[110.165691,19.361459],[110.188283,19.306242],[110.228098,19.301969],[110.224857,19.221718]]]]}},{"type":"Feature","properties":{"adcode":469022,"name":"屯昌县","center":[110.102773,19.362916],"centroid":[110.055723,19.342208],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":10,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[110.115229,19.133191],[110.150876,19.208419],[110.170598,19.191317],[110.224857,19.221718],[110.228098,19.301969],[110.188283,19.306242],[110.165691,19.361459],[110.164487,19.426146],[110.194024,19.455871],[110.227727,19.450654],[110.243005,19.517675],[110.196339,19.535374],[110.192172,19.58925],[110.137266,19.56034],[110.101803,19.54928],[110.119488,19.503293],[110.072081,19.492071],[110.045785,19.456029],[110.020508,19.485432],[109.938287,19.485749],[109.94699,19.468044],[109.914583,19.42409],[109.912917,19.391671],[109.876436,19.386926],[109.826436,19.343108],[109.822733,19.289626],[109.923565,19.239608],[109.957638,19.188625],[110.026526,19.17564],[110.057267,19.134617],[110.115229,19.133191]]]]}},{"type":"Feature","properties":{"adcode":469023,"name":"澄迈县","center":[110.007147,19.737095],"centroid":[109.990417,19.700201],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":11,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[110.137266,19.56034],[110.13134,19.648003],[110.160784,19.67153],[110.186524,19.636791],[110.221616,19.629843],[110.262449,19.687318],[110.222357,19.67974],[110.208468,19.716679],[110.228283,19.753767],[110.186246,19.864193],[110.143932,19.889106],[110.161895,19.977693],[110.106525,20.026851],[109.997638,19.979899],[109.965231,19.993608],[109.855047,19.984153],[109.879491,19.885322],[109.842269,19.871446],[109.884121,19.853311],[109.874306,19.799524],[109.897084,19.77933],[109.852732,19.652582],[109.786437,19.608047],[109.7694,19.578508],[109.760048,19.528895],[109.728197,19.496023],[109.751993,19.416974],[109.737734,19.407486],[109.793474,19.379966],[109.857269,19.412388],[109.876436,19.386926],[109.912917,19.391671],[109.914583,19.42409],[109.94699,19.468044],[109.938287,19.485749],[110.020508,19.485432],[110.045785,19.456029],[110.072081,19.492071],[110.119488,19.503293],[110.101803,19.54928],[110.137266,19.56034]]]]}},{"type":"Feature","properties":{"adcode":469024,"name":"临高县","center":[109.687697,19.908293],"centroid":[109.71548,19.809704],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":12,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[109.855047,19.984153],[109.814307,19.992977],[109.761715,19.981317],[109.712271,20.017398],[109.585328,19.98825],[109.526626,19.943494],[109.498663,19.873339],[109.564588,19.854888],[109.569218,19.797947],[109.599402,19.730726],[109.557366,19.697421],[109.582921,19.637581],[109.664216,19.629685],[109.659402,19.611048],[109.709308,19.57756],[109.7694,19.578508],[109.786437,19.608047],[109.852732,19.652582],[109.897084,19.77933],[109.874306,19.799524],[109.884121,19.853311],[109.842269,19.871446],[109.879491,19.885322],[109.855047,19.984153]]]]}},{"type":"Feature","properties":{"adcode":469025,"name":"白沙黎族自治县","center":[109.452606,19.224584],"centroid":[109.351743,19.20989],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":13,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[109.298203,18.960911],[109.34848,18.946321],[109.367739,18.936171],[109.424775,18.990403],[109.456349,18.995635],[109.468386,19.032254],[109.524033,19.030986],[109.561347,19.072668],[109.601439,19.053492],[109.613569,19.086454],[109.687734,19.118775],[109.686994,19.178965],[109.673105,19.207627],[109.634031,19.20256],[109.611995,19.252589],[109.587365,19.243249],[109.541625,19.311939],[109.468386,19.301178],[109.506348,19.359561],[109.483848,19.406063],[109.457275,19.39942],[109.424405,19.354815],[109.384035,19.355448],[109.318943,19.398155],[109.26774,19.376803],[109.178389,19.399262],[109.13052,19.479584],[109.117557,19.46757],[109.051447,19.487803],[109.04478,19.430415],[109.043669,19.342792],[109.08265,19.328869],[109.142834,19.265727],[109.120242,19.203985],[109.163667,19.14222],[109.177093,19.083443],[109.271166,19.067438],[109.298203,18.960911]]]]}},{"type":"Feature","properties":{"adcode":469026,"name":"昌江黎族自治县","center":[109.053351,19.260968],"centroid":[108.993675,19.226048],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":14,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[109.04478,19.430415],[108.997373,19.431522],[108.982744,19.477213],[108.939596,19.497287],[108.928671,19.524313],[108.887004,19.4897],[108.806357,19.450654],[108.747654,19.391671],[108.694137,19.387084],[108.644785,19.349278],[108.704136,19.262719],[108.783765,19.244674],[108.833209,19.25987],[108.916171,19.218552],[108.954874,19.218869],[108.99191,19.13034],[109.022929,19.107052],[109.008762,19.050005],[109.098853,19.028291],[109.113668,18.969949],[109.089779,18.909842],[109.125242,18.878432],[109.141816,18.904449],[109.206722,18.894772],[109.265518,18.905877],[109.298203,18.960911],[109.271166,19.067438],[109.177093,19.083443],[109.163667,19.14222],[109.120242,19.203985],[109.142834,19.265727],[109.08265,19.328869],[109.043669,19.342792],[109.04478,19.430415]]]]}},{"type":"Feature","properties":{"adcode":469027,"name":"乐东黎族自治县","center":[109.175444,18.74758],"centroid":[109.029671,18.639822],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":15,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[109.405146,18.623443],[109.408016,18.627733],[109.398109,18.671104],[109.356628,18.710653],[109.353387,18.812896],[109.374591,18.853998],[109.343109,18.877163],[109.32635,18.926338],[109.34848,18.946321],[109.298203,18.960911],[109.265518,18.905877],[109.206722,18.894772],[109.141816,18.904449],[109.125242,18.878432],[109.094965,18.857012],[109.071076,18.807499],[109.015151,18.808928],[108.987003,18.786547],[108.928578,18.790198],[108.844412,18.750827],[108.81145,18.720022],[108.761543,18.732091],[108.659785,18.716846],[108.664137,18.673328],[108.641082,18.565279],[108.644971,18.486741],[108.658304,18.462728],[108.70997,18.444119],[108.776728,18.442051],[108.881264,18.416599],[108.932374,18.335288],[109.015243,18.422645],[109.072557,18.452231],[109.195148,18.469407],[109.185056,18.507095],[109.203574,18.553517],[109.246537,18.558921],[109.313295,18.517429],[109.332832,18.575451],[109.405146,18.623443]]]]}},{"type":"Feature","properties":{"adcode":469028,"name":"陵水黎族自治县","center":[110.037218,18.505006],"centroid":[109.951436,18.549546],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":16,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[110.014952,18.732885],[109.980416,18.76718],[109.94412,18.771942],[109.902361,18.739395],[109.891065,18.754479],[109.830696,18.728597],[109.773474,18.809404],[109.756159,18.788928],[109.771993,18.723675],[109.802177,18.725263],[109.839677,18.67857],[109.804677,18.594364],[109.846621,18.57116],[109.828751,18.511229],[109.781159,18.51107],[109.809955,18.459388],[109.785048,18.426622],[109.805418,18.347543],[109.919676,18.375551],[109.999767,18.359797],[110.070785,18.376187],[110.090507,18.399258],[110.116618,18.506618],[110.213931,18.578789],[110.137543,18.606123],[110.115877,18.592774],[110.020786,18.658873],[110.014952,18.732885]]]]}},{"type":"Feature","properties":{"adcode":469029,"name":"保亭黎族苗族自治县","center":[109.70245,18.636371],"centroid":[109.650759,18.589686],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":17,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[109.715419,18.833686],[109.689216,18.830036],[109.681531,18.786071],[109.703012,18.721769],[109.641809,18.72304],[109.619865,18.678252],[109.576717,18.714782],[109.533662,18.694295],[109.539866,18.659508],[109.48857,18.64664],[109.448293,18.655378],[109.408016,18.627733],[109.405146,18.623443],[109.423386,18.574657],[109.506163,18.551291],[109.535237,18.53142],[109.536996,18.490717],[109.515607,18.429008],[109.539866,18.396713],[109.665883,18.391462],[109.710882,18.426462],[109.725234,18.493102],[109.781159,18.51107],[109.828751,18.511229],[109.846621,18.57116],[109.804677,18.594364],[109.839677,18.67857],[109.802177,18.725263],[109.771993,18.723675],[109.756159,18.788928],[109.773474,18.809404],[109.715419,18.833686]]]]}},{"type":"Feature","properties":{"adcode":469030,"name":"琼中黎族苗族自治县","center":[109.839996,19.03557],"centroid":[109.854584,19.033919],"childrenNum":0,"level":"city","parent":{"adcode":460000},"subFeatureIndex":18,"acroutes":[100000,460000]},"geometry":{"type":"MultiPolygon","coordinates":[[[[109.876436,19.386926],[109.857269,19.412388],[109.793474,19.379966],[109.737734,19.407486],[109.646439,19.402425],[109.647272,19.357505],[109.700234,19.349436],[109.713382,19.309881],[109.697271,19.271267],[109.706808,19.22156],[109.686994,19.178965],[109.687734,19.118775],[109.613569,19.086454],[109.601439,19.053492],[109.561347,19.072668],[109.524033,19.030986],[109.55357,18.946321],[109.601532,18.910318],[109.676531,18.925862],[109.730512,18.913649],[109.699123,18.889379],[109.715419,18.833686],[109.773474,18.809404],[109.830696,18.728597],[109.891065,18.754479],[109.902361,18.739395],[109.94412,18.771942],[109.980416,18.76718],[110.014952,18.732885],[110.057267,18.758448],[110.095785,18.811467],[110.045322,18.884778],[110.097729,18.911746],[110.108284,18.944577],[110.158562,18.99944],[110.124118,19.04747],[110.115229,19.133191],[110.057267,19.134617],[110.026526,19.17564],[109.957638,19.188625],[109.923565,19.239608],[109.822733,19.289626],[109.826436,19.343108],[109.876436,19.386926]]]]}}]};
+
+(function () {
+  const PAD = 46;
+  const W = 1000;
+  const toRad = d => d * Math.PI / 180;
+  const mercY = lat => Math.log(Math.tan(Math.PI / 4 + toRad(lat) / 2));
+
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  GEO.features.forEach(f => f.geometry.coordinates.forEach(poly => poly.forEach(ring =>
+    ring.forEach(([lon, lat]) => {
+      const px = toRad(lon);
+      const py = mercY(lat);
+      if (px < minX) minX = px;
+      if (px > maxX) maxX = px;
+      if (py < minY) minY = py;
+      if (py > maxY) maxY = py;
+    })
+  )));
+
+  const scale = (W - PAD * 2) / (maxX - minX);
+  const H = Math.round((maxY - minY) * scale + PAD * 2);
+  const x = lon => PAD + (toRad(lon) - minX) * scale;
+  const y = lat => PAD + (maxY - mercY(lat)) * scale;
+
+  const svg = document.getElementById('map');
+  const group = document.getElementById('regions');
+  const labelsG = document.getElementById('labels');
+  const airportsG = document.getElementById('airports');
+  const stage = document.querySelector('.stage');
+  const backBtn = document.getElementById('back');
+  const backTxt = document.getElementById('backTxt');
+  const tip = document.getElementById('tip');
+
+  // 基准视野 = 省界包围盒 + 少量边距；再按窗口宽高比扩展成 fit，整屏铺满、两侧不露边
+  const M = 26;
+  const base = { x: PAD - M, y: PAD - M, w: W - 2 * (PAD - M), h: H - 2 * (PAD - M) };
+  const fit = { ...base };
+  let RATIO = base.h / base.w;
+  const sea = document.getElementById('sea');
+  const seaGrad = document.getElementById('seaGrad');
+
+  function fitToWindow() {
+    const aspect = innerWidth / innerHeight;
+    let { x, y, w, h } = base;
+    if (w / h < aspect) { const nw = h * aspect; x -= (nw - w) / 2; w = nw; }
+    else { const nh = w / aspect; y -= (nh - h) / 2; h = nh; }
+    Object.assign(fit, { x, y, w, h });
+    RATIO = h / w;
+    sea.setAttribute('x', x);
+    sea.setAttribute('y', y);
+    sea.setAttribute('width', w);
+    sea.setAttribute('height', h);
+    seaGrad.setAttribute('x1', x + w / 2);
+    seaGrad.setAttribute('x2', x + w / 2);
+    seaGrad.setAttribute('y1', y);
+    seaGrad.setAttribute('y2', y + h);
+  }
+
+  // 中文 / 英文 / 俄文 地名
+  const LANGS = ['zh', 'en', 'ru'];
+  const NAMES = {
+    460100: ['海口', 'Haikou', 'Хайкоу'],
+    460200: ['三亚', 'Sanya', 'Санья'],
+    460400: ['儋州', 'Danzhou', 'Даньчжоу'],
+    469001: ['五指山', 'Wuzhishan', 'Учжишань'],
+    469002: ['琼海', 'Qionghai', 'Цюнхай'],
+    469005: ['文昌', 'Wenchang', 'Вэньчан'],
+    469006: ['万宁', 'Wanning', 'Ваньнин'],
+    469007: ['东方', 'Dongfang', 'Дунфан'],
+    469021: ['定安', "Ding'an", 'Динъань'],
+    469022: ['屯昌', 'Tunchang', 'Туньчан'],
+    469023: ['澄迈', 'Chengmai', 'Чэнмай'],
+    469024: ['临高', 'Lingao', 'Линьгао'],
+    469025: ['白沙', 'Baisha', 'Байша'],
+    469026: ['昌江', 'Changjiang', 'Чанцзян'],
+    469027: ['乐东', 'Ledong', 'Лэдун'],
+    469028: ['陵水', 'Lingshui', 'Линшуй'],
+    469029: ['保亭', 'Baoting', 'Баотин'],
+    469030: ['琼中', 'Qiongzhong', 'Цюнчжун']
+  };
+
+  // 机场：海口美兰、三亚凤凰
+  const AIRPORTS = [
+    { lon: 110.4589, lat: 19.9345, dy: -22, names: ['海口美兰机场', 'Haikou Meilan Airport', 'Аэропорт Хайкоу-Мэйлань'] },
+    { lon: 109.4123, lat: 18.3029, dy: 26, names: ['三亚凤凰机场', 'Sanya Phoenix Airport', 'Аэропорт Санья-Фэнхуан'] }
+  ];
+
+  // 各市县著名地标/知名地点：经纬度 + 三语名称 + 三语简介
+  const SPOTS = {
+    460100: [
+      { lon: 110.3456, lat: 20.0416, dy: -18, names: ['骑楼老街', 'Qilou Old Street', 'Старые аркады Цилоу'], desc: ['海口最具代表性的南洋风格骑楼建筑群', 'Iconic arcade street of Southeast Asian-style shophouses', 'Знаменитая улица с аркадными домами южноазиатского стиля'] },
+      { lon: 110.3618, lat: 20.0052, names: ['五公祠', 'Five Officials Temple', 'Храм пяти чиновников'], desc: ['纪念唐宋五位贬谪名臣的古建筑群', 'Ancient complex honoring five exiled Tang and Song officials', 'Древний комплекс в честь пяти сосланных сановников эпох Тан и Сун'] },
+      { lon: 110.2130, lat: 19.9260, names: ['火山口地质公园', 'Volcanic Crater Geopark', 'Геопарк вулканических кратеров'], desc: ['马鞍岭火山口，保存完好的万年火山遗迹', 'Well-preserved ancient crater of Ma anling Ridge', 'Хорошо сохранившийся древний вулканический кратер'] }
+    ],
+    460200: [
+      { lon: 109.3473, lat: 18.2963, names: ['天涯海角', 'Tianya Haijiao', 'Тянья-Хайцзяо'], desc: ['三亚标志性海滨石刻景观', 'Iconic seaside rock inscriptions of Sanya', 'Знаменитые прибрежные скалы с надписями'] },
+      { lon: 109.1880, lat: 18.3020, names: ['南山海上观音', 'Nanshan Guanyin Statue', 'Статуя Гуаньинь в Наньшань'], desc: ['108米高的海上观音圣像', '108-meter seaside statue of Guanyin', '108-метровая статуя Гуаньинь у моря'] },
+      { lon: 109.6470, lat: 18.2130, names: ['亚龙湾', 'Yalong Bay', 'Бухта Ялунвань'], desc: ['被誉为天下第一湾的滨海海湾', 'Billed as the finest bay under heaven', '«Лучшая бухта Поднебесной»'] },
+      { lon: 109.4980, lat: 18.2230, names: ['鹿回头', 'Luhuitou Park', 'Парк Лухуйтоу'], desc: ['三亚湾畔的爱情传说山岭公园', 'Hilltop park of a local love legend', 'Парк на холме легенды о любви'] }
+    ],
+    460400: [
+      { lon: 109.3520, lat: 19.7470, names: ['东坡书院', 'Dongpo Academy', 'Академия Дунпо'], desc: ['为纪念苏东坡而建的千年书院', 'Millennia-old academy honoring poet Su Dongpo', 'Тысячелетняя академия в честь поэта Су Дунпо'] },
+      { lon: 109.2030, lat: 19.7380, names: ['千年古盐田', 'Ancient Salt Fields', 'Древние солеварни'], desc: ['沿用千年的火山石槽晒盐技艺', 'Thousand-year-old salt drying on volcanic stone', 'Тысячелетняя традиция выпаривания соли на вулканическом камне'] },
+      { lon: 109.4700, lat: 19.4300, names: ['松涛水库', 'Songtao Reservoir', 'Водохранилище Сунтао'], desc: ['海南最大的水库', 'The largest reservoir in Hainan', 'Крупнейшее водохранилище Хайнаня'] }
+    ],
+    469001: [
+      { lon: 109.6750, lat: 18.9020, names: ['五指山主峰', 'Wuzhishan Peak', 'Пик Учжишань'], desc: ['海南最高峰，海拔1867米', 'Highest peak of Hainan at 1,867 m', 'Высочайшая вершина Хайнаня (1867 м)'] },
+      { lon: 109.6520, lat: 18.8750, names: ['水满河热带雨林', 'Shuimanhe Rainforest', 'Лес Шуйманьхэ'], desc: ['热带雨林国家公园核心区域', 'Core area of the tropical rainforest national park', 'Центральная зона нацпарка тропических лесов'] }
+    ],
+    469002: [
+      { lon: 110.5810, lat: 19.1390, dy: -18, names: ['博鳌亚洲论坛永久会址', 'Boao Forum Permanent Site', 'Площадка Боаоского форума'], desc: ['博鳌亚洲论坛年会举办地', 'Permanent venue of the Boao Forum for Asia', 'Постоянная площадка Боаоского азиатского форума'] },
+      { lon: 110.6010, lat: 19.1310, names: ['玉带滩', 'Yudai Beach', 'Пляж Юйдай'], desc: ['分隔万泉河入海口与南海的狭长金色沙滩', 'Narrow golden sandbar between Wanquan River and the sea', 'Узкая песчаная коса между устьем реки Ваньцюань и морем'] },
+      { lon: 110.4780, lat: 19.2360, names: ['红色娘子军纪念园', 'Red Detachment Memorial', 'Мемориал Красного отряда'], desc: ['纪念红色娘子军历史的主题园区', 'Memorial park of the Red Detachment of Women', 'Мемориальный парк Красного женского отряда'] }
+    ],
+    469005: [
+      { lon: 110.9510, lat: 19.6140, names: ['文昌航天发射场', 'Wenchang Space Launch Site', 'Космодром Вэньчан'], desc: ['中国首个滨海航天发射基地', 'First coastal space launch base of China', 'Первый прибрежный космодром Китая'] },
+      { lon: 111.0330, lat: 19.6470, names: ['铜鼓岭', 'Tongguling Ridge', 'Гора Тунгулин'], desc: ['海南最东端的滨海山岭', 'Coastal ridge at the easternmost point of Hainan', 'Прибрежный хребет на восточной оконечности Хайнаня'] },
+      { lon: 110.8300, lat: 19.5560, names: ['东郊椰林', 'Dongjiao Coconut Grove', 'Кокосовая роща Дунцзяо'], desc: ['绵延十余公里的椰林海岸', 'Coconut coastline stretching over ten kilometres', 'Кокосовое побережье длиной более десяти километров'] },
+      { lon: 110.7920, lat: 19.7020, names: ['宋氏祖居', 'Soong Family Ancestral Home', 'Родовой дом семьи Сун'], desc: ['宋庆龄家族的祖居地', 'Ancestral home of the Soong family', 'Родовая усадьба семьи Сун'] }
+    ],
+    469006: [
+      { lon: 110.2960, lat: 18.6610, names: ['石梅湾', 'Shimei Bay', 'Бухта Шимэйвань'], desc: ['青皮林环绕的原生态海湾', 'Unspoiled bay ringed by rare forest', 'Нетронутая бухта в кольце редкого леса'] },
+      { lon: 110.2000, lat: 18.7350, names: ['兴隆热带植物园', 'Xinglong Botanical Garden', 'Ботанический сад Синлун'], desc: ['汇集热带香料饮料作物的科研植物园', 'Botanical garden of tropical spice crops', 'Ботанический сад тропических пряных культур'] },
+      { lon: 110.2430, lat: 18.6360, names: ['日月湾', 'Riyue Bay', 'Бухта Жиюэвань'], desc: ['国内知名的冲浪胜地', 'Well-known surfing bay in China', 'Известная в Китае бухта для сёрфинга'] }
+    ],
+    469007: [
+      { lon: 108.6160, lat: 19.0990, names: ['鱼鳞洲', 'Yulinzhou Cape', 'Мыс Юйлиньчжоу'], desc: ['东方市海滨标志性石山与灯塔', 'Landmark rocky hill and lighthouse of Dongfang', 'Скала с маяком — символ города Дунфан'] },
+      { lon: 108.8800, lat: 18.9500, names: ['大广坝水库', 'Daguangba Reservoir', 'Водохранилище Дагуанба'], desc: ['海南第二大水库', 'Second-largest reservoir of Hainan', 'Второе по величине водохранилище Хайнаня'] },
+      { lon: 109.0400, lat: 18.9900, names: ['俄贤岭', 'Exianling Ridge', 'Хребет Эсяньлин'], desc: ['保存完好的喀斯特原始雨林', 'Well-preserved primeval karst rainforest', 'Нетронутый карстовый тропический лес'] }
+    ],
+    469021: [
+      { lon: 110.3340, lat: 19.6500, names: ['文笔峰', 'Wenbi Peak', 'Пик Вэньби'], desc: ['道教南宗宗坛所在地', 'Site of the southern Taoist lineage altar', 'Место алтаря южной школы даосизма'] },
+      { lon: 110.3230, lat: 19.6810, names: ['定安故城', 'Ding an Old Town', 'Старый город Динъань'], desc: ['保存明清格局的古城遗址', 'Old town preserving Ming and Qing layout', 'Старый город с планировкой эпох Мин и Цин'] },
+      { lon: 110.2700, lat: 19.5600, names: ['南丽湖', 'Nanli Lake', 'Озеро Наньли'], desc: ['琼北最大的淡水湖', 'Largest freshwater lake in northern Hainan', 'Крупнейшее пресное озеро на севере Хайнаня'] }
+    ],
+    469022: [
+      { lon: 110.0200, lat: 19.3700, names: ['木色湖', 'Muse Lake', 'Озеро Мусэ'], desc: ['群山环抱的高山湖泊', 'Mountain lake embraced by hills', 'Горное озеро в окружении холмов'] },
+      { lon: 110.0600, lat: 19.3300, names: ['卧龙山', 'Wolong Mountain', 'Гора Волуншань'], desc: ['形如卧龙的石山景观', 'Rocky ridge like a crouching dragon', 'Скальный хребет в форме лежащего дракона'] }
+    ],
+    469023: [
+      { lon: 109.9230, lat: 19.8550, names: ['福山咖啡风情镇', 'Fushan Coffee Town', 'Кофейный городок Фушань'], desc: ['海南咖啡种植发源地之一', 'One of the birthplaces of Hainan coffee', 'Одна из родин хайнаньского кофе'] },
+      { lon: 110.0400, lat: 19.9800, names: ['永庆寺', 'Yongqing Temple', 'Храм Юнцин'], desc: ['始建于北宋的琼北名刹', 'Renowned temple founded in the Northern Song era', 'Знаменитый храм времён Северной Сун'] },
+      { lon: 109.9900, lat: 19.7900, names: ['美榔双塔', 'Meilang Twin Pagodas', 'Башни-близнецы Мэйлан'], desc: ['海南现存最古老的南宋石塔', 'Oldest stone pagodas of Hainan from the Southern Song', 'Древнейшие каменные пагоды Хайнаня эпохи Южная Сун'] }
+    ],
+    469024: [
+      { lon: 109.7110, lat: 20.0060, names: ['临高角', 'Lingao Cape', 'Мыс Линьгао'], desc: ['1950年渡海登陆作战纪念地', 'Memorial site of the 1950 landing campaign', 'Мемориал десантной операции 1950 года'] },
+      { lon: 109.6830, lat: 19.8900, names: ['百仞滩', 'Bairen Rapids', 'Пороги Байжэнь'], desc: ['文澜江上的奇岩险滩', 'Rocky rapids on the Wenlan River', 'Скалистые пороги на реке Вэньлань'] }
+    ],
+    469025: [
+      { lon: 109.4450, lat: 19.2930, names: ['白沙陨石坑', 'Baisha Crater', 'Кратер Байша'], desc: ['中国罕见的陨石撞击坑', 'Rare meteorite impact crater in China', 'Редкий для Китая метеоритный кратер'] },
+      { lon: 109.5200, lat: 19.0900, names: ['鹦哥岭', 'Yinggeling Ridge', 'Хребет Ингэлин'], desc: ['海南热带雨林核心区之一', 'Core area of the Hainan tropical rainforest', 'Одна из центральных зон тропического леса Хайнаня'] },
+      { lon: 109.3600, lat: 19.4000, names: ['邦溪坡鹿保护区', 'Bangxi Deer Reserve', 'Заповедник Банси'], desc: ['海南坡鹿的重要栖息地', 'Key habitat of the Hainan Eld deer', 'Важная среда обитания хайнаньского оленя Эльда'] }
+    ],
+    469026: [
+      { lon: 108.7200, lat: 19.3650, names: ['棋子湾', 'Qizi Bay', 'Бухта Цицзывань'], desc: ['以彩色礁石闻名的西海岸海湾', 'West-coast bay famed for colorful reefs', 'Бухта западного побережья с цветными рифами'] },
+      { lon: 109.1300, lat: 19.1000, names: ['霸王岭', 'Bawangling Ridge', 'Хребет Баванлин'], desc: ['海南长臂猿的唯一栖息地', 'Sole habitat of the Hainan gibbon', 'Единственная среда обитания хайнаньского гиббона'] }
+    ],
+    469027: [
+      { lon: 109.1900, lat: 18.7400, names: ['尖峰岭', 'Jianfengling Peak', 'Пик Цзяньфэнлин'], desc: ['中国面积最大的原始热带雨林之一', 'One of the largest primeval rainforests in China', 'Один из крупнейших девственных лесов Китая'] },
+      { lon: 108.7100, lat: 18.5100, names: ['莺歌海盐田', 'Yinggehai Salt Fields', 'Солеварни Ингэхай'], desc: ['华南最大的海盐场', 'Largest sea-salt works in South China', 'Крупнейшие солеварни Южного Китая'] },
+      { lon: 108.9300, lat: 18.5100, names: ['龙沐湾', 'Longmu Bay', 'Бухта Лунмувань'], desc: ['以日落景观闻名的西海岸海湾', 'West-coast bay famous for sunsets', 'Бухта, знаменитая закатами'] }
+    ],
+    469028: [
+      { lon: 110.2000, lat: 18.5800, names: ['分界洲岛', 'Fenjiezhou Island', 'Остров Фэньцзечжоу'], desc: ['地处海南气候分界处的小岛', 'Island at the climatic divide of Hainan', 'Остров на климатической границе Хайнаня'] },
+      { lon: 110.0500, lat: 18.4000, names: ['南湾猴岛', 'Nanwan Monkey Island', 'Остров обезьян Наньвань'], desc: ['猕猴自然保护区', 'Macaque nature reserve', 'Заповедник макак'] },
+      { lon: 110.0300, lat: 18.3700, names: ['清水湾', 'Qingshui Bay', 'Бухта Циншуйвань'], desc: ['沙质细腻的会唱歌的沙滩', 'Fine-sand beach known as the singing shore', '«Поющий пляж» с мелким песком'] }
+    ],
+    469029: [
+      { lon: 109.7000, lat: 18.6400, names: ['七仙岭', 'Qixianling Ridge', 'Хребет Цисяньлин'], desc: ['以七座奇峰和温泉闻名', 'Famed for seven peaks and hot springs', 'Известен семью пиками и горячими источниками'] },
+      { lon: 109.7000, lat: 18.4600, names: ['呀诺达雨林', 'Yanoda Rainforest', 'Лес Янода'], desc: ['地处北纬18度的热带雨林', 'Rainforest park at 18 degrees north', 'Тропический лес на 18-й параллели'] }
+    ],
+    469030: [
+      { lon: 109.8400, lat: 19.0600, names: ['百花岭', 'Baihualing Ridge', 'Хребет Байхуалин'], desc: ['以百花瀑布闻名的雨林山岭', 'Rainforest ridge famed for Baihua Waterfall', 'Лесной хребет с водопадом Байхуа'] },
+      { lon: 109.7800, lat: 19.2000, names: ['黎母山', 'Limu Mountain', 'Гора Лимушань'], desc: ['黎族始祖传说的圣山', 'Sacred mountain of Li origin legends', 'Священная гора легенд народа ли'] },
+      { lon: 109.9300, lat: 19.1400, names: ['什寒村', 'Shihan Village', 'Деревня Шихань'], desc: ['海拔约800米的黎族苗族村寨', 'Li and Miao village at about 800 m elevation', 'Деревня ли и мяо на высоте около 800 м'] }
+    ]
+  };
+
+  const TEXTS = {
+    zh: { title: '海南地图', hint: '滚轮或按钮缩放 · 拖动平移 · 点击市县查看地标 · 双击复位', hintCity: '滚轮或按钮缩放 · 拖动平移 · 点击地标看简介 · 左上角返回', back: '返回全省地图' },
+    en: { title: 'Hainan Map', hint: 'Wheel/buttons to zoom · drag to pan · click a region for landmarks · double-click to reset', hintCity: 'Wheel/buttons to zoom · drag to pan · click a landmark for intro · top-left button to go back', back: 'Back to Hainan' },
+    ru: { title: 'Карта Хайнаня', hint: 'Колесо/кнопки — масштаб · перетаскивание — сдвиг · щёлкните регион — объекты · двойной щелчок — сброс', hintCity: 'Колесо/кнопки — масштаб · сдвиг · щёлкните объект — описание · слева вверху — назад', back: 'Назад к карте' }
+  };
+
+  const NS = 'http://www.w3.org/2000/svg';
+  GEO.features.forEach(f => {
+    let d = '';
+    f.geometry.coordinates.forEach(poly => poly.forEach(ring => {
+      ring.forEach(([lon, lat], i) => {
+        d += (i ? 'L' : 'M') + x(lon).toFixed(1) + ' ' + y(lat).toFixed(1);
+      });
+      d += 'Z';
+    }));
+    const path = document.createElementNS(NS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('class', 'region');
+    path.setAttribute('data-name', f.properties.name);
+    path.setAttribute('data-adcode', f.properties.adcode);
+    group.appendChild(path);
+  });
+
+  // 点击事件委托到 svg：通过 elementFromPoint 定位具体市县（兼容浏览器事件命中）
+  svg.addEventListener('click', e => {
+    if (view !== 'province' || dragMoved) { dragMoved = false; return; }
+    dragMoved = false;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const path = el && el.closest ? el.closest('.region') : null;
+    if (!path) return;
+    const adcode = +path.dataset.adcode;
+    const f = GEO.features.find(ft => ft.properties.adcode === adcode);
+    if (f) enterCity(f);
+  });
+
+  // 市县名称常显
+  const labelEls = [];
+  GEO.features.forEach(f => {
+    const c = f.properties.centroid;
+    const t = document.createElementNS(NS, 'text');
+    t.setAttribute('class', 'label');
+    t.setAttribute('x', x(c[0]).toFixed(1));
+    t.setAttribute('y', y(c[1]).toFixed(1));
+    labelsG.appendChild(t);
+    labelEls.push({ el: t, names: NAMES[f.properties.adcode] || [f.properties.name], adcode: f.properties.adcode });
+  });
+
+  // 机场标注
+  const airportLabelEls = [];
+  AIRPORTS.forEach(a => {
+    const cx = x(a.lon);
+    const cy = y(a.lat);
+    const g = document.createElementNS(NS, 'g');
+    g.setAttribute('class', 'airport');
+
+    const ring = document.createElementNS(NS, 'circle');
+    ring.setAttribute('class', 'ap-mark');
+    ring.setAttribute('cx', cx.toFixed(1));
+    ring.setAttribute('cy', cy.toFixed(1));
+    ring.setAttribute('r', 10);
+    g.appendChild(ring);
+
+    const icon = document.createElementNS(NS, 'text');
+    icon.setAttribute('class', 'ap-icon');
+    icon.setAttribute('x', cx.toFixed(1));
+    icon.setAttribute('y', cy.toFixed(1));
+    icon.textContent = '✈';
+    g.appendChild(icon);
+
+    const name = document.createElementNS(NS, 'text');
+    name.setAttribute('class', 'ap-label');
+    name.setAttribute('x', cx.toFixed(1));
+    name.setAttribute('y', (cy + a.dy).toFixed(1));
+    g.appendChild(name);
+
+    airportsG.appendChild(g);
+    airportLabelEls.push({ el: name, names: a.names });
+  });
+
+  // 手动缩放与平移（改 viewBox；缩小下限即当前视图边界，贴边即停）
+  fitToWindow();
+  const vb = { ...fit };
+
+  const applyVB = () => svg.setAttribute('viewBox', vb.x + ' ' + vb.y + ' ' + vb.w + ' ' + vb.h);
+  applyVB();
+
+  // 视图状态：province 全省 / city 市县详情
+  let view = 'province';
+  let currentCity = null;
+  let bounds = fit;
+
+  // 高德地图实例与标记集合
+  let amap = null;
+  let amapOverlays = []; // 边界、遮罩、地标、乡镇等覆盖物
+  let landmarkMarkers = []; // 地标 marker（语言切换时刷新 label）
+  let currentInfoWindow = null; // 当前打开的 InfoWindow（避免堆叠多个）
+
+  const minW = () => base.w / 6;
+
+  function clampVB() {
+    vb.w = Math.min(bounds.w, Math.max(minW(), vb.w));
+    vb.h = vb.w * RATIO;
+    vb.x = Math.min(bounds.x + bounds.w - vb.w, Math.max(bounds.x, vb.x));
+    vb.y = Math.min(bounds.y + bounds.h - vb.h, Math.max(bounds.y, vb.y));
+  }
+
+  function toUser(clientX, clientY) {
+    const r = svg.getBoundingClientRect();
+    const s = Math.min(r.width / vb.w, r.height / vb.h);
+    return {
+      x: vb.x + (clientX - r.left - (r.width - vb.w * s) / 2) / s,
+      y: vb.y + (clientY - r.top - (r.height - vb.h * s) / 2) / s
+    };
+  }
+
+  function zoomAt(factor, clientX, clientY) {
+    const p = toUser(clientX, clientY);
+    const nw = Math.min(bounds.w, Math.max(minW(), vb.w / factor));
+    const k = nw / vb.w;
+    vb.x = p.x - (p.x - vb.x) * k;
+    vb.y = p.y - (p.y - vb.y) * k;
+    vb.w = nw;
+    vb.h = nw * RATIO;
+    clampVB();
+    applyVB();
+  }
+
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoomAt(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX, e.clientY);
+  }, { passive: false });
+
+  // 拖动平移
+  let drag = null;
+  let dragMoved = false;
+  svg.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    drag = { x: e.clientX, y: e.clientY, vx: vb.x, vy: vb.y };
+    dragMoved = false;
+    svg.classList.add('grabbing');
+  });
+  window.addEventListener('mousemove', e => {
+    if (!drag) return;
+    if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 10) {
+      dragMoved = true;
+      const r = svg.getBoundingClientRect();
+      const s = Math.min(r.width / vb.w, r.height / vb.h);
+      vb.x = drag.vx - (e.clientX - drag.x) / s;
+      vb.y = drag.vy - (e.clientY - drag.y) / s;
+      clampVB();
+      applyVB();
+    }
+  });
+  window.addEventListener('mouseup', () => {
+    drag = null;
+    svg.classList.remove('grabbing');
+  });
+
+  svg.addEventListener('dblclick', () => {
+    Object.assign(vb, bounds);
+    applyVB();
+  });
+
+  // 缩放按钮：以画布中心为锚点
+  const svgCenter = () => {
+    const r = svg.getBoundingClientRect();
+    return [r.left + r.width / 2, r.top + r.height / 2];
+  };
+  document.getElementById('zin').addEventListener('click', () => {
+    const [cx, cy] = svgCenter();
+    zoomAt(1.35, cx, cy);
+  });
+  document.getElementById('zout').addEventListener('click', () => {
+    const [cx, cy] = svgCenter();
+    zoomAt(1 / 1.35, cx, cy);
+  });
+  document.getElementById('zreset').addEventListener('click', () => {
+    Object.assign(vb, bounds);
+    applyVB();
+  });
+
+  // 窗口尺寸变化：重算整屏视野；若当前处于最小缩放则跟随贴边
+  window.addEventListener('resize', () => {
+    const atMin = vb.w >= bounds.w - 0.5;
+    fitToWindow();
+    bounds = fit;
+    if (atMin) Object.assign(vb, bounds);
+    clampVB();
+    applyVB();
+    if (amap) amap.resize();
+  });
+
+  // 触屏双指缩放
+  let pinch = 0;
+  svg.addEventListener('touchstart', e => {
+    if (e.touches.length === 2) {
+      pinch = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+    }
+  }, { passive: true });
+
+  svg.addEventListener('touchmove', e => {
+    if (e.touches.length !== 2 || !pinch) return;
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    if (d > 0) zoomAt(d / pinch, (a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2);
+    pinch = d;
+  }, { passive: false });
+
+  svg.addEventListener('touchend', e => {
+    if (e.touches.length < 2) pinch = 0;
+  }, { passive: true });
+
+  // 语言切换
+  const hintEl = document.getElementById('hint');
+  const langBtns = document.querySelectorAll('.lang button');
+  let langIdx = 0;
+
+  function setLang(code) {
+    langIdx = Math.max(0, LANGS.indexOf(code));
+    const t = TEXTS[LANGS[langIdx]];
+    document.documentElement.lang = langIdx === 0 ? 'zh-CN' : LANGS[langIdx];
+    document.title = t.title;
+    hintEl.textContent = view === 'city' ? t.hintCity : t.hint;
+    backTxt.textContent = t.back;
+    langBtns.forEach(b => b.classList.toggle('on', b.dataset.lang === LANGS[langIdx]));
+    svg.classList.toggle('lang-en', langIdx === 1);
+    svg.classList.toggle('lang-ru', langIdx === 2);
+    labelEls.forEach(o => { o.el.textContent = o.names[langIdx] || o.names[0]; });
+    airportLabelEls.forEach(o => { o.el.textContent = o.names[langIdx] || o.names[0]; });
+    // 市县详情视图中刷新地标 marker 的 label 文本
+    landmarkMarkers.forEach(o => {
+      if (o.marker.getLabel) {
+        const lb = o.marker.getLabel();
+        if (lb) lb.setContent(o.spot.names[langIdx] || o.spot.names[0]);
+      }
+    });
+  }
+
+  setLang('zh');
+  langBtns.forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
+
+  // 嵌入模式（主站 /rent 页用 iframe 内嵌时）：隐藏页内语言切换，接受主站顶栏的语种指令
+  const EMBED = /[?&]embed=1/.test(location.search);
+  if (EMBED) {
+    document.body.classList.add('embed-mode');
+    window.addEventListener('message', e => {
+      if (e.origin !== location.origin) return;
+      if (e.data && e.data.type === 'beisu:set-lang') setLang(e.data.lang);
+    });
+    try {
+      if (window.parent !== window) window.parent.postMessage({ type: 'beisu:lang-ready' }, location.origin);
+    } catch (e) { /* 忽略跨域异常 */ }
+  }
+
+  // ===== 市县详情视图（高德地图） =====
+
+  const AMAP_KEY = '5a0be1cc96fe2dae7127cf662dc4bee9';
+
+  // 动态加载高德 JS API（带 DistrictSearch、Scale 插件）
+  let amapLoadPromise = null;
+  function loadAmap() {
+    if (window.AMap) return Promise.resolve(window.AMap);
+    if (amapLoadPromise) return amapLoadPromise;
+    amapLoadPromise = new Promise((resolve, reject) => {
+      window._AMapSecurityConfig = { securityJsCode: '' };
+      const s = document.createElement('script');
+      s.src = 'https://webapi.amap.com/maps?v=2.0&key=' + AMAP_KEY +
+        '&plugin=AMap.Scale';
+      s.onload = () => {
+        if (window.AMap) resolve(window.AMap);
+        else reject(new Error('AMap 未定义'));
+      };
+      s.onerror = () => reject(new Error('高德地图脚本加载失败'));
+      document.head.appendChild(s);
+    });
+    return amapLoadPromise;
+  }
+
+  // 把当前市所有外边界环取出（GeoJSON MultiPolygon → 多个外环数组）
+  function cityOuterRings(f) {
+    const rings = [];
+    f.geometry.coordinates.forEach(poly => {
+      if (poly && poly.length) rings.push(poly[0].map(p => [p[0], p[1]]));
+    });
+    return rings;
+  }
+
+  // 计算城市边界的经纬度包围盒，用于设置地图视野
+  function cityLngLatBounds(f) {
+    let minLng = Infinity, maxLng = -Infinity, minLat = Infinity, maxLat = -Infinity;
+    f.geometry.coordinates.forEach(poly => poly.forEach(ring => ring.forEach(([lo, la]) => {
+      if (lo < minLng) minLng = lo;
+      if (lo > maxLng) maxLng = lo;
+      if (la < minLat) minLat = la;
+      if (la > maxLat) maxLat = la;
+    })));
+    (SPOTS[f.properties.adcode] || []).forEach(s => {
+      minLng = Math.min(minLng, s.lon); maxLng = Math.max(maxLng, s.lon);
+      minLat = Math.min(minLat, s.lat); maxLat = Math.max(maxLat, s.lat);
+    });
+    return new AMap.Bounds([minLng, minLat], [maxLng, maxLat]);
+  }
+
+  // 绘制外部遮罩：一个大矩形 + 各市界外环作为 hole，只露出该市
+  function buildMask(f) {
+    // 覆盖海南岛及周边的足够大的矩形
+    const outer = [[108.0, 17.0], [112.0, 17.0], [112.0, 21.5], [108.0, 21.5]];
+    const rings = [outer].concat(cityOuterRings(f));
+    const mask = new AMap.Polygon({
+      path: rings,
+      strokeColor: '#7fb3d5',
+      strokeWeight: 0,
+      fillColor: '#c6e2f7',
+      fillOpacity: 0.96,
+      zIndex: 60,
+      clickable: false,
+      bubble: true
+    });
+    mask.setMap(amap);
+    amapOverlays.push(mask);
+  }
+
+  // 绘制市界（用 Polyline 只描边：fillOpacity:0 的 Polygon 会遮挡下层乡镇区块的鼠标拾取）
+  function buildCityBoundary(f) {
+    cityOuterRings(f).forEach(ring => {
+      const line = new AMap.Polyline({
+        path: ring,
+        strokeColor: '#2b7bb8',
+        strokeWeight: 2.5,
+        strokeOpacity: 0.95,
+        zIndex: 78,
+        clickable: false,
+        bubble: true
+      });
+      line.setMap(amap);
+      amapOverlays.push(line);
+    });
+  }
+
+  // 地标 marker：橙色圆点 + 常显名称 label，点击弹 InfoWindow
+  function addLandmarks(adcode) {
+    const spots = SPOTS[adcode] || [];
+    spots.forEach(s => {
+      const marker = new AMap.Marker({
+        position: [s.lon, s.lat],
+        content: '<div class="landmark-dot"></div>',
+        offset: new AMap.Pixel(-8, -8),
+        zIndex: 110,
+        anchor: 'bottom-center',
+        label: {
+          content: s.names[langIdx] || s.names[0],
+          direction: 'top',
+          offset: new AMap.Pixel(0, -6)
+        }
+      });
+      marker.setMap(amap);
+      amapOverlays.push(marker);
+      landmarkMarkers.push({ marker, spot: s });
+
+      marker.on('click', () => {
+        if (currentInfoWindow) { currentInfoWindow.close(); currentInfoWindow = null; }
+        currentInfoWindow = new AMap.InfoWindow({
+          content: '<div class="amap-info-content"><b>' +
+            (s.names[langIdx] || s.names[0]) + '</b><br>' +
+            (s.desc[langIdx] || s.desc[0]) + '</div>',
+          offset: new AMap.Pixel(0, -14)
+        });
+        currentInfoWindow.open(amap, [s.lon, s.lat]);
+      });
+    });
+  }
+
+  // 半平面裁剪：保留相比站点 b 更靠近站点 a 的一侧（Sutherland–Hodgman）
+  function clipByBisector(ring, a, b) {
+    const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+    const nx = b[0] - a[0], ny = b[1] - a[1];
+    const side = p => (p[0] - mx) * nx + (p[1] - my) * ny;
+    const out = [];
+    for (let i = 0; i < ring.length; i++) {
+      const p = ring[i], q = ring[(i + 1) % ring.length];
+      const sp = side(p), sq = side(q);
+      if (sp <= 0) out.push(p);
+      if ((sp < 0 && sq > 0) || (sp > 0 && sq < 0)) {
+        const t = sp / (sp - sq);
+        out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+      }
+    }
+    return out;
+  }
+
+  // 以乡镇驻地为站点，把市界切成泰森多边形，得到每个乡镇的独立区块
+  function voronoiCells(rings, sites) {
+    return sites.map((site, i) => {
+      const cells = [];
+      rings.forEach(ring => {
+        let poly = ring.map(p => [p[0], p[1]]);
+        for (let j = 0; j < sites.length && poly.length >= 3; j++) {
+          if (j === i) continue;
+          poly = clipByBisector(poly, site.center, sites[j].center);
+        }
+        if (poly.length >= 3) cells.push(poly);
+      });
+      return cells;
+    });
+  }
+
+  const TOWN_COLORS = ['#e3f1fb', '#e6f5ea', '#fdf2dd', '#eae8fa', '#e1f4f6', '#fbe9e6', '#f0e6f6', '#e8f0d8'];
+
+  // 手绘乡镇边界 GeoJSON（对高德网页版行政区划轮廓描边导出；同名 .geojson 文件已随页面导出）
+  // 屯昌县 8 镇：西昌/南坤/屯城/坡心/南吕/枫木/乌坡/新兴，闭合不重叠
+  const TOWN_SOURCES = { 469022: 'tunchang-towns.geojson' };
+  const TOWN_GEOJSON = {
+    469022: {"type":"FeatureCollection","features":[{"type":"Feature","properties":{"name":"新兴镇","county":"屯昌县","label":[110.1362,19.559]},"geometry":{"type":"Polygon","coordinates":[[[110.165,19.398],[110.164487,19.426146],[110.194024,19.455871],[110.227727,19.450654],[110.243005,19.517675],[110.196339,19.535374],[110.192172,19.58925],[110.137266,19.56034],[110.101803,19.54928],[110.119488,19.503293],[110.072081,19.492071],[110.058,19.472],[110.085,19.437],[110.115,19.425],[110.135,19.42],[110.165,19.398]]]}},{"type":"Feature","properties":{"name":"西昌镇","county":"屯昌县","label":[109.9539,19.4154]},"geometry":{"type":"Polygon","coordinates":[[[110.058,19.472],[110.045785,19.456029],[110.020508,19.485432],[109.938287,19.485749],[109.94699,19.468044],[109.914583,19.42409],[109.912917,19.391671],[109.876436,19.386926],[109.86,19.372],[109.945,19.38],[109.97,19.415],[110.01,19.45],[110.058,19.472]]]}},{"type":"Feature","properties":{"name":"南坤镇","county":"屯昌县","label":[109.9487,19.3186]},"geometry":{"type":"Polygon","coordinates":[[[109.86,19.372],[109.826436,19.343108],[109.822733,19.289626],[109.87,19.265],[109.94,19.245],[110,19.25],[110.03,19.27],[110.065,19.285],[110.075,19.305],[110.08,19.335],[110.072,19.37],[110.075,19.4],[110.085,19.437],[110.058,19.472],[110.01,19.45],[109.97,19.415],[109.945,19.38],[109.86,19.372]]]}},{"type":"Feature","properties":{"name":"屯城镇","county":"屯昌县","label":[110.1806,19.3199]},"geometry":{"type":"Polygon","coordinates":[[[110.085,19.437],[110.075,19.4],[110.072,19.37],[110.08,19.335],[110.075,19.305],[110.065,19.285],[110.11,19.28],[110.155,19.29],[110.185,19.3],[110.195,19.33],[110.19,19.355],[110.165,19.39],[110.135,19.42],[110.115,19.425],[110.085,19.437]]]}},{"type":"Feature","properties":{"name":"坡心镇","county":"屯昌县","label":[110.202,19.288]},"geometry":{"type":"Polygon","coordinates":[[[110.162,19.198],[110.170598,19.191317],[110.224857,19.221718],[110.228098,19.301969],[110.188283,19.306242],[110.165691,19.361459],[110.165,19.398],[110.135,19.42],[110.165,19.39],[110.19,19.355],[110.195,19.33],[110.185,19.3],[110.155,19.29],[110.17,19.255],[110.172,19.225],[110.162,19.198]]]}},{"type":"Feature","properties":{"name":"南吕镇","county":"屯昌县","label":[110.043,19.2682]},"geometry":{"type":"Polygon","coordinates":[[[110.065,19.285],[110.03,19.27],[110,19.25],[110.02,19.235],[110.035,19.222],[110.09,19.212],[110.13,19.215],[110.172,19.225],[110.17,19.255],[110.155,19.29],[110.11,19.28],[110.065,19.285]]]}},{"type":"Feature","properties":{"name":"乌坡镇","county":"屯昌县","label":[110.0833,19.2067]},"geometry":{"type":"Polygon","coordinates":[[[110.042,19.155],[110.057267,19.134617],[110.115229,19.133191],[110.150876,19.208419],[110.162,19.198],[110.172,19.225],[110.13,19.215],[110.09,19.212],[110.035,19.222],[110.035,19.185],[110.042,19.155]]]}},{"type":"Feature","properties":{"name":"枫木镇","county":"屯昌县","label":[110.0195,19.2142]},"geometry":{"type":"Polygon","coordinates":[[[109.87,19.265],[109.923565,19.239608],[109.957638,19.188625],[110.026526,19.17564],[110.042,19.155],[110.035,19.185],[110.035,19.222],[110.02,19.235],[110,19.25],[109.94,19.245],[109.87,19.265]]]}}]}
+  };
+
+  // 加载手绘乡镇 GeoJSON：优先取同名 .geojson 文件，失败退回内嵌数据
+  function loadTownFeatures(adcode) {
+    if (!TOWN_SOURCES[adcode]) return Promise.resolve(null);
+    return fetch(TOWN_SOURCES[adcode])
+      .then(r => { if (!r.ok) throw 0; return r.json(); })
+      .then(fc => (fc && fc.features) || null)
+      .catch(() => (TOWN_GEOJSON[adcode] && TOWN_GEOJSON[adcode].features) || null);
+  }
+
+  // 绘制一个乡镇色块 + 名称标注 + hover 高亮 + 点击归属
+  function drawTownBlock(map, countyName, name, labelPos, rings, baseFill) {
+    const poly = new AMap.Polygon({
+      path: rings,
+      strokeColor: '#5f9bbf',
+      strokeWeight: 1.2,
+      strokeOpacity: 0.9,
+      fillColor: baseFill,
+      fillOpacity: 0.8,
+      zIndex: 66,
+      clickable: true,
+      bubble: true
+    });
+    poly.setMap(map);
+    amapOverlays.push(poly);
+    (window._townPolys = window._townPolys || []).push({ name: name, poly: poly });
+
+    // hover 只高亮当前乡镇
+    poly.on('mouseover', () => poly.setOptions({
+      fillColor: '#ffc46b', fillOpacity: 0.98,
+      strokeColor: '#d97a10', strokeWeight: 2.6, zIndex: 82
+    }));
+    poly.on('mouseout', () => poly.setOptions({
+      fillColor: baseFill, fillOpacity: 0.8,
+      strokeColor: '#5f9bbf', strokeWeight: 1.2, zIndex: 66
+    }));
+
+    // 点击乡镇 → 第 3 级租房需求登记（自动带入镇名）
+    poly.on('click', () => {
+      if (currentInfoWindow) { currentInfoWindow.close(); currentInfoWindow = null; }
+      openLead(name, countyName, currentCity);
+    });
+
+    // 名称标注：自建 div（pointer-events:none），避免 AMap.Text 的 marker 容器拦截色块点击
+    const label = document.createElement('div');
+    label.className = 'town-label';
+    label.textContent = name;
+    document.getElementById('amap').appendChild(label);
+    const syncLabel = () => {
+      if (!map || map !== amap) return;
+      const px = map.lngLatToContainer(new AMap.LngLat(labelPos[0], labelPos[1]));
+      label.style.transform = 'translate(-50%,-50%) translate(' + px.getX() + 'px,' + px.getY() + 'px)';
+    };
+    map.on('moving', syncLabel);
+    map.on('zooming', syncLabel);
+    map.on('moveend', syncLabel);
+    map.on('zoomend', syncLabel);
+    map.on('resize', syncLabel);
+    syncLabel();
+  }
+
+  // 乡镇区块：每个乡镇一块独立多边形，hover 只高亮当前乡镇，点击弹归属
+  function addTownPolygons(f) {
+    const map = amap;
+    const adcode = f.properties.adcode;
+    const countyName = f.properties.name || '';
+
+    // 有手绘边界（如屯昌县）→ 直接按 GeoJSON 渲染
+    loadTownFeatures(adcode).then(features => {
+      if (!map || map !== amap) return;
+      if (features && features.length) {
+        features.forEach((ft, i) => {
+          const p = ft.properties || {};
+          const rings = (ft.geometry.coordinates || []).map(r => r.map(pt => [pt[0], pt[1]]));
+          if (!rings.length || !p.name || !p.label) return;
+          drawTownBlock(map, p.county || countyName, p.name, p.label, rings, TOWN_COLORS[i % TOWN_COLORS.length]);
+        });
+        return;
+      }
+      voronoiTowns(map, f, adcode, countyName);
+    });
+  }
+
+  // 无手绘边界的市县：按乡镇驻地做 Voronoi 切分
+  function voronoiTowns(map, f, adcode, countyName) {
+    const url = 'https://restapi.amap.com/v3/config/district?key=' + AMAP_KEY +
+      '&keywords=' + encodeURIComponent(String(adcode)) + '&subdistrict=2&extensions=base';
+
+    fetch(url).then(r => r.json()).then(data => {
+      if (!map || map !== amap) return;
+      const city = (data && data.districts && data.districts[0]) || null;
+      if (!city) return;
+
+      const byLevel = { district: [], street: [] };
+      const collect = node => (node.districts || []).forEach(d => {
+        if (d.center && byLevel[d.level]) {
+          const parts = String(d.center).split(',');
+          const lng = parseFloat(parts[0]), lat = parseFloat(parts[1]);
+          if (!isNaN(lng) && !isNaN(lat)) byLevel[d.level].push({ name: d.name, center: [lng, lat] });
+        }
+        collect(d);
+      });
+      collect(city);
+
+      // 优先乡镇/街道级；地级市若只有"XX区直辖"占位名，则退回区级
+      let sites = byLevel.street.filter(s => !/直辖$/.test(s.name));
+      if (sites.length < 2) sites = byLevel.district.length >= 2 ? byLevel.district : byLevel.street;
+      if (sites.length < 2) return;
+
+      const cells = voronoiCells(cityOuterRings(f), sites);
+
+      cells.forEach((cellRings, i) => {
+        if (!cellRings.length) return;
+        drawTownBlock(map, countyName, sites[i].name, sites[i].center, cellRings, TOWN_COLORS[i % TOWN_COLORS.length]);
+      });
+    }).catch(() => { /* 静默失败：乡镇区块非核心功能 */ });
+  }
+
+  // 城市中心点（市县政府驻地）标注
+  function addCityCenter(f) {
+    const c = f.properties.center || f.properties.centroid;
+    if (!c) return;
+    const marker = new AMap.Marker({
+      position: [c[0], c[1]],
+      content: '<div style="width:14px;height:14px;border-radius:50%;background:#c0392b;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
+      offset: new AMap.Pixel(-7, -7),
+      zIndex: 120,
+      anchor: 'bottom-center',
+      label: {
+        content: f.properties.name,
+        direction: 'top',
+        offset: new AMap.Pixel(0, -8)
+      }
+    });
+    marker.setMap(amap);
+    amapOverlays.push(marker);
+  }
+
+  async function enterCity(f) {
+    view = 'city';
+    currentCity = f.properties.adcode;
+    backBtn.classList.add('show');
+    hintEl.textContent = TEXTS[LANGS[langIdx]].hintCity;
+
+    // 隐藏全省 SVG，显示高德容器
+    stage.style.display = 'none';
+    const amapEl = document.getElementById('amap');
+    amapEl.classList.add('amap-show');
+
+    try {
+      await loadAmap();
+    } catch (err) {
+      amapEl.innerHTML = '<div style="padding:40px;color:#8a4d12;text-align:center">高德地图加载失败：' +
+        (err && err.message ? err.message : '未知错误') + '</div>';
+      return;
+    }
+
+    // 清理旧实例
+    if (amap) { amap.destroy(); amap = null; }
+    amapOverlays = [];
+    landmarkMarkers = [];
+    window._townPolys = []; // 测试钩子：乡镇色块引用
+
+    const center = f.properties.centroid || f.properties.center;
+    amap = new AMap.Map('amap', {
+      center: center,
+      zoom: 11,
+      viewMode: '2D',
+      mapStyle: 'amap://styles/whitesmoke',
+      features: ['bg', 'road', 'building'],
+      zoomEnable: true,
+      dragEnable: true
+    });
+    window._amap = amap; // 测试钩子
+    amap.addControl(new AMap.Scale());
+
+    buildCityBoundary(f);
+    buildMask(f);
+    addCityCenter(f);
+    addTownPolygons(f);
+    addLandmarks(f.properties.adcode);
+
+    // 视野适配到该市边界（含地标）
+    try {
+      const b = cityLngLatBounds(f);
+      amap.setBounds(b, false, [60, 60, 60, 60]);
+    } catch (e) { /* ignore */ }
+
+    amap.on('click', () => { /* 点击地图本身不做处理 */ });
+  }
+
+  function exitCity() {
+    view = 'province';
+    currentCity = null;
+    currentInfoWindow = null;
+    if (amap) { amap.destroy(); amap = null; }
+    amapOverlays = [];
+    landmarkMarkers = [];
+    window._amap = null;
+    window._townPolys = [];
+    const amapEl = document.getElementById('amap');
+    amapEl.classList.remove('amap-show');
+    amapEl.innerHTML = '';
+    stage.style.display = '';
+    backBtn.classList.remove('show');
+    hintEl.textContent = TEXTS[LANGS[langIdx]].hint;
+    Object.assign(vb, fit);
+    applyVB();
+  }
+
+  backBtn.addEventListener('click', exitCity);
+
+  // ===== 第 3 级：租房需求登记表单 =====
+  const leadEl = document.getElementById('lead');
+  const leadTitle = document.getElementById('leadTitle');
+  const leadSub = document.getElementById('leadSub');
+  const leadForm = document.getElementById('leadForm');
+  const leadDone = document.getElementById('leadDone');
+  const leadErr = document.getElementById('leadErr');
+  const leadSubmit = document.getElementById('leadSubmit');
+  const leadBack = document.getElementById('leadBack');
+  const leadNote = document.getElementById('leadNote');
+  let leadCtx = null; // {town, county, adcode}
+
+  // 选项选中态（不依赖 :has，兼容旧浏览器）
+  function syncOptStates() {
+    leadForm.querySelectorAll('.opt').forEach(lb => {
+      const inp = lb.querySelector('input');
+      lb.classList.toggle('on', !!(inp && inp.checked));
+    });
+  }
+  leadForm.addEventListener('change', syncOptStates);
+
+  function openLead(town, county, adcode) {
+    leadCtx = { town: town, county: county || '', adcode: adcode || null };
+    leadTitle.textContent = '【' + town + '】租房需求登记';
+    leadSub.textContent = (county ? county + ' · ' : '') + '填写后客服会与您联系，信息仅用于匹配房源';
+    leadBack.textContent = '返回' + (county ? '【' + county + '】' : '') + '乡镇地图';
+    leadForm.reset();
+    syncOptStates();
+    leadDone.classList.remove('show');
+    leadErr.hidden = true;
+    leadSubmit.disabled = false;
+    leadSubmit.textContent = '提交';
+    leadEl.scrollTop = 0;
+    hintEl.style.display = 'none';
+    leadEl.classList.add('show');
+  }
+
+  function closeLead() {
+    leadEl.classList.remove('show', 'with-chat');
+    hintEl.style.display = '';
+  }
+
+  leadBack.addEventListener('click', closeLead);
+
+  // 提交：推送客服后台；失败时暂存本地
+  async function saveLead(payload) {
+    try {
+      const r = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return await r.json();
+    } catch (err) {
+      try {
+        const q = JSON.parse(localStorage.getItem('hk_leads') || '[]');
+        q.push(payload);
+        localStorage.setItem('hk_leads', JSON.stringify(q.slice(-50)));
+      } catch (e) { /* 忽略本地存储异常 */ }
+      return { ok: true, queued: true };
+    }
+  }
+
+  leadForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    if (!leadCtx) return;
+    const fd = new FormData(leadForm);
+    const layout = fd.get('layout');
+    const duration = fd.get('duration');
+    const budget = fd.get('budget');
+    if (!layout || !duration || !budget) {
+      leadErr.hidden = false;
+      leadErr.textContent = '请先选择户型、租住时长和预算';
+      return;
+    }
+    leadErr.hidden = true;
+    const payload = {
+      town: leadCtx.town,
+      county: leadCtx.county,
+      adcode: leadCtx.adcode,
+      layout: layout,
+      duration: duration,
+      budget: budget,
+      extras: fd.getAll('extras'),
+      note: (leadNote.value || '').trim(),
+      page: 'rental-form',
+      ts: new Date().toISOString(),
+      sessionId: chatSessionId(),
+      ua: navigator.userAgent
+    };
+    leadSubmit.disabled = true;
+    leadSubmit.textContent = '提交中…';
+    const res = await saveLead(payload);
+    leadSubmit.textContent = '已提交';
+    leadDone.textContent = res && res.queued
+      ? '已提交（网络暂不可用，已暂存本地，客服上线后会同步）'
+      : '已提交，正在为您转接客服…';
+    leadDone.classList.add('show');
+    openChat(payload);
+  });
+
+  // ===== 在线客服：人工优先 → 关键词 → AI 兜底 =====
+  const chatEl = document.getElementById('chat');
+  const chatBody = document.getElementById('chatBody');
+  const chatText = document.getElementById('chatText');
+  const chatSendBtn = document.getElementById('chatSend');
+  const chatStatus = document.getElementById('chatStatus');
+  const chatDot = document.getElementById('chatDot');
+  const chatFab = document.getElementById('chatFab');
+  let chatOnline = false;
+  let chatBusy = false;
+  let chatStarted = false;
+  let chatCtx = null;
+
+  const LOCAL_RULES = [
+    [/(户型|几室|一室|两室|三室|四室)/, '我们有一室到四室及以上的房源，您可以在登记表里勾选户型，客服会按您选的户型匹配房源。'],
+    [/(预算|价格|租金|多少钱|贵)/, '租金按乡镇和户型差异较大，3000以内到10000以上都有覆盖；提交需求后客服会给您具体报价。'],
+    [/(时长|短租|长租|几个月|一个月|半年)/, '支持短期（1个月内）、中期（1–6个月）、长期（6个月以上），长租通常价格更优。'],
+    [/(押金|付款|月付|季付|付几)/, '常规是押一付三，也可与房东协商月付/季付，具体以房源为准。'],
+    [/(看房|视频|实地)/, '可以预约实地看房，也可以先视频看房，客服会按您登记的乡镇安排时间。'],
+    [/(家具|家电|停车|近海|做饭|疗养|安静)/, '您的配套需求（家具家电、停车、近海、安静疗养、可做饭）已记录，客服会按优先级匹配。'],
+    [/(宠物|养狗|养猫)/, '部分房源可养宠物，可在“其他需求”里注明，客服帮您筛可养宠物的房源。'],
+    [/(人工|客服|电话|微信|联系)/, '已记录您的需求，人工客服在线时会立即接入；离线时上线后第一时间联系您。']
+  ];
+
+  function localReply(text) {
+    for (let i = 0; i < LOCAL_RULES.length; i++) {
+      if (LOCAL_RULES[i][0].test(text)) return LOCAL_RULES[i][1];
+    }
+    return '这个问题我先记下了，客服上线后会结合您的登记信息回复您。您也可以补充预算、户型和租住时长，我帮您先匹配。';
+  }
+
+  function chatSessionId() {
+    let id = sessionStorage.getItem('hk_chat_sid');
+    if (!id) {
+      id = 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      sessionStorage.setItem('hk_chat_sid', id);
+    }
+    return id;
+  }
+
+  function addBubble(text, kind) {
+    const b = document.createElement('div');
+    b.className = 'bubble ' + kind;
+    b.textContent = text;
+    chatBody.appendChild(b);
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }
+
+  function setChatStatus(online) {
+    chatOnline = online;
+    chatDot.classList.toggle('off', !online);
+    chatStatus.textContent = online ? '人工客服在线' : '智能助手 · 人工离线';
+  }
+
+  async function checkCs() {
+    try {
+      const r = await fetch('/api/cs/status');
+      if (!r.ok) throw 0;
+      const d = await r.json();
+      setChatStatus(!!d.online);
+    } catch (e) {
+      const h = new Date().getHours();
+      setChatStatus(h >= 9 && h < 22); // 接口不可用时按本地时间兜底
+    }
+  }
+
+  async function openChat(lead) {
+    if (lead) chatCtx = lead;
+    chatEl.classList.add('show');
+    chatFab.classList.remove('show');
+    if (leadEl.classList.contains('show')) leadEl.classList.add('with-chat');
+    await checkCs();
+    if (!chatStarted) {
+      chatStarted = true;
+      addBubble('您好，这里是海南租房客服，有任何租房问题都可以问我。', 'bot');
+    }
+    if (lead) {
+      const parts = [lead.town + '租房登记', lead.layout, lead.duration, lead.budget];
+      if (lead.extras && lead.extras.length) parts.push(lead.extras.join('、'));
+      addBubble('已收到您的登记：' + parts.join(' · '), 'sys');
+      addBubble(chatOnline
+        ? '人工客服已收到您的需求，正在接入，请稍候…'
+        : '客服当前不在线，我先为您解答常见问题；上线后会第一时间联系您。', 'bot');
+    }
+    chatText.focus();
+  }
+
+  async function sendChat(text) {
+    const msg = (text || '').trim();
+    if (!msg || chatBusy) return;
+    addBubble(msg, 'me');
+    chatText.value = '';
+    chatBusy = true;
+    chatSendBtn.disabled = true;
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: chatSessionId(), message: msg, context: chatCtx })
+      });
+      if (!r.ok) throw 0;
+      const d = await r.json();
+      if (typeof d.online === 'boolean') setChatStatus(d.online);
+      addBubble(d.reply || '（暂未收到回复）', d.mode === 'human' ? 'sys' : 'bot');
+    } catch (e) {
+      addBubble(localReply(msg), 'bot');
+    }
+    chatBusy = false;
+    chatSendBtn.disabled = false;
+    chatText.focus();
+  }
+
+  document.getElementById('chatClose').addEventListener('click', () => {
+    chatEl.classList.remove('show');
+    chatFab.classList.add('show');
+    leadEl.classList.remove('with-chat');
+  });
+  chatFab.addEventListener('click', () => openChat(null));
+  chatSendBtn.addEventListener('click', () => sendChat(chatText.value));
+  chatText.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); sendChat(chatText.value); }
+  });
+  document.getElementById('chatQuick').addEventListener('click', e => {
+    const b = e.target.closest('button[data-q]');
+    if (b) sendChat(b.dataset.q);
+  });
+  chatFab.classList.add('show');
+
+  window.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (chatEl.classList.contains('show')) {
+      chatEl.classList.remove('show');
+      chatFab.classList.add('show');
+      return;
+    }
+    if (leadEl.classList.contains('show')) { closeLead(); return; }
+    if (view === 'city') exitCity();
+  });
+})();
+</script>
+</body>
+</html>
