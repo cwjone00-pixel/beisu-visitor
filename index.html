@@ -4,6 +4,18 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>beisuas · 游客端</title>
+<script>
+/* 设备识别提前到 <head>：解析 body 之前就定好「电脑端 / 手机端」，
+   首屏直接按手机布局绘制，不会先闪一帧电脑布局再跳变。
+   判定口径与下方 detectViewMode() 完全一致，结果存在 window.__viewMode。 */
+(function () {
+  var ua = navigator.userAgent || '';
+  var mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|BlackBerry|Opera Mini|IEMobile|Mobile/i.test(ua);
+  var narrow = (window.innerWidth || 9999) <= 820;
+  window.__viewMode = (mobileUA || narrow) ? 'mobile' : 'desktop';
+  if (window.__viewMode === 'mobile') document.documentElement.classList.add('view-mobile');
+})();
+</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3CradialGradient id='g' cx='35%25' cy='30%25' r='80%25'%3E%3Cstop offset='0' stop-color='%239fd0ff'/%3E%3Cstop offset='.55' stop-color='%234f97f8'/%3E%3Cstop offset='1' stop-color='%231e4fc4'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='16' cy='16' r='14' fill='url(%23g)'/%3E%3C/svg%3E">
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -645,6 +657,14 @@
 
 <!-- ================= macOS 模拟窗口 ================= -->
 <div class="mac-window" id="macWindow">
+<script>
+/* 窗口元素刚解析出来就套用前面判定好的视图模式（手机端直接带 mode-mobile），
+   后续所有子节点都在手机布局里解析，首屏不会出现电脑端样式。 */
+(function () {
+  var w = document.getElementById('macWindow');
+  if (w && window.__viewMode === 'mobile') w.classList.add('mode-mobile');
+})();
+</script>
   <div class="win-title" data-i18n="brandTitle">beisuas</div>
 
   <!-- 视图由设备自动识别：电脑 → 桌面端，手机 → 移动端（无手动切换入口） -->
@@ -1316,6 +1336,8 @@ win.addEventListener('click', () => { if (win.classList.contains('minimized')) w
 function syncDrawer(open){ win.classList.toggle('drawer-open', !!open); }
 /* 打开时自动识别设备：手机访问 → 移动端视图；电脑访问 → 桌面端视图（无需手动切换） */
 function detectViewMode(){
+  /* head 里的预判结果优先：保证「首屏渲染」与「初始化」用的是同一个结论 */
+  if (window.__viewMode) return window.__viewMode;
   const ua = navigator.userAgent || '';
   /* 手机/平板 UA，或窄屏（涵盖 iPadOS 的桌面级 UA）一律按移动端 */
   const mobileUA = /Android|iPhone|iPad|iPod|Windows Phone|BlackBerry|Opera Mini|IEMobile|Mobile/i.test(ua);
