@@ -76,6 +76,16 @@ window.HainanMap = (function () {
     return regionName(raw, lg) + (REGION_SUFFIX[lg] || REGION_SUFFIX.zh);
   }
 
+  /* 是否「移动端窄屏」：手机 / 平板竖屏用 map 的容器宽度也小，
+     统一按视口宽度判定（桌面浏览器与内容管理页都走不到这里）。 */
+  function isCompactView() {
+    try {
+      return window.matchMedia('(max-width: 900px)').matches;
+    } catch (e) {
+      return (window.innerWidth || 0) <= 900;
+    }
+  }
+
   var COARSE_PX  = 40;              /* 密集聚合半径(px)：比它近的点位合并成气泡 */
   var COARSE_TOL = 0.02;            /* 比例尺未算出时的兜底聚合容差（度） */
   var COARSE_MAX = 0.08;            /* 聚合的「真实距离」上限（度，约 8.8km）：
@@ -168,6 +178,10 @@ window.HainanMap = (function () {
        'hover' —— 只有地标里标了常显的地名（城市）常显，其余点位名称鼠标悬浮才出现。
        游客露营页用 'hover'：城市地名常显，营地与机场的名称悬浮才显示。 */
     var hoverLabels  = cfg.labelMode === 'hover';
+    /* 移动端（窄屏 / 触屏）不在地图上写景点名称：手机屏幕小，十几个地名挤在一起
+       既看不清又互相遮挡。此时只保留点位图标，名称交给页面底部弹卡展示。
+       桌面端完全保持原有逻辑。cfg.mobileNoLabels 打开后按屏宽自动判定。 */
+    var mobileNoLabels = !!cfg.mobileNoLabels && isCompactView();
     var routesVisible = true;           /* 驾车路线层显隐 */
     var hoveredRoute = null;            /* 鼠标当前悬停的路线下标（null=未悬停） */
     /* 可点击引导光晕：给某几类里「每个独立显示的点位」叠一圈缓慢呼吸的光环，
@@ -512,15 +526,22 @@ window.HainanMap = (function () {
     /* ---------- 组装渲染计划 ---------- */
     function buildPlan() {
       var markers = [], labels = [];
+      /* 移动端：景点名称一律不画在地图上（只留图标），名称在页面底部弹卡里展示。
+         桌面端 labels 照旧参与避让排版。 */
+      var spotLabels = !mobileNoLabels;
+      /* 移动端用一个「丢弃式」收集器替代真正的标签数组：
+         各处 push 的景点名称直接丢掉，其余渲染逻辑与桌面端完全一致。 */
+      var sink = spotLabels ? labels : { push: function () {} };
       coarseGroups().forEach(function (g) {
         var dense = g.points.length >= 2 && !sameSpot(g.points);
-        if (dense && !expanded[g.key])    return void pushBubble(g, markers, labels);
-        if (dense && expanded[g.key])     return void pushSpider(g, markers, labels);
-        pushSpotways(g.points, markers, labels);
+        if (dense && !expanded[g.key])    return void pushBubble(g, markers, sink);
+        if (dense && expanded[g.key])     return void pushSpider(g, markers, sink);
+        pushSpotways(g.points, markers, sink);
       });
       /* 地标标签：只有「常显型」地标（城市）在这里出常显地名，和营地标签一起参与避让；
-         「悬浮型」地标（机场）的名称由标记自己的 emphasis 负责，默认不占版面。 */
-      landmarks.forEach(function (g) {
+         「悬浮型」地标（机场）的名称由标记自己的 emphasis 负责，默认不占版面。
+         移动端同样不出——地名在手机上会把图面糊满。 */
+      if (spotLabels) landmarks.forEach(function (g) {
         if (g.labelMode === 'hover') return;
         (g.points || []).forEach(function (p) {
           if (!p.name) return;
@@ -1195,6 +1216,9 @@ window.HainanMap = (function () {
       chart.setOption({
         backgroundColor: 'transparent',
         tooltip: {
+          /* 移动端不弹地图浮层：景点名称/坐标一律不显示在图面上，
+             名称与详情交给页面底部弹卡。桌面端行为保持不变。 */
+          show: !mobileNoLabels,
           trigger: 'item',
           borderWidth: 0,
           padding: [8, 10],
@@ -1245,9 +1269,9 @@ window.HainanMap = (function () {
           itemStyle: { areaColor: '#e9f1fb', borderColor: '#9cb8dd', borderWidth: 1 },
           emphasis: {
             itemStyle: { areaColor: '#d6e6fb' },
-            /* 悬浮时区域内浮现的地名同样跟随语种 */
+            /* 悬浮时区域内浮现的地名同样跟随语种；移动端不浮现，保持图面干净 */
             label: {
-              show: true, color: '#1f2d3d', fontSize: 12,
+              show: !mobileNoLabels, color: '#1f2d3d', fontSize: 12,
               formatter: function (p) { return regionName(p.name, lang); }
             }
           },
@@ -1280,6 +1304,9 @@ window.HainanMap = (function () {
     /* 容器尺寸变化会改变比例尺，需重新换算像素容差 */
     window.addEventListener('resize', function () {
       scaleKnown = false;
+      /* 窗口在「移动端宽度」与「桌面宽度」之间变化时，
+         名称显隐规则随之切换（横竖屏切换也会走到这里） */
+      if (cfg.mobileNoLabels) mobileNoLabels = isCompactView();
       chart.resize();
       draw();
     });
