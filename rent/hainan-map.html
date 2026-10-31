@@ -1522,24 +1522,37 @@ const GEO = {"type":"FeatureCollection","features":[{"type":"Feature","propertie
 
   leadBack.addEventListener('click', closeLead);
 
-  // 提交：推送客服后台；失败时暂存本地
-  async function saveLead(payload) {
-    try {
-      const r = await fetch('/api/leads', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      return await r.json();
-    } catch (err) {
-      try {
-        const q = JSON.parse(localStorage.getItem('hk_leads') || '[]');
-        q.push(payload);
-        localStorage.setItem('hk_leads', JSON.stringify(q.slice(-50)));
-      } catch (e) { /* 忽略本地存储异常 */ }
-      return { ok: true, queued: true };
+  // 主站会话 ID：与当前标签页的首页聊天共用（iframe 与首页同源同标签，sessionStorage 同步）
+  function beisuSid() {
+    let id = '';
+    try { id = sessionStorage.getItem('beisu_sid') || ''; } catch (e) {}
+    if (!id || !/^[A-Za-z0-9_-]{1,64}$/.test(id)) {
+      id = (window.crypto && crypto.randomUUID)
+        ? crypto.randomUUID()
+        : ('s_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 9));
+      try { sessionStorage.setItem('beisu_sid', id); } catch (e) {}
     }
+    return id;
+  }
+
+  // 提交成功后回到首页原生聊天页（地图在 iframe 内，需导航顶层页面）
+  function goHomeChat() {
+    try { sessionStorage.setItem('beisu_pace', '1'); } catch (e) {}
+    try {
+      if (window.top && window.top !== window) { window.top.location.href = '/'; return; }
+    } catch (e) { /* 跨域时忽略，退回当前窗口跳转 */ }
+    location.href = '/';
+  }
+
+  // 提交：推送客服后台（同时写入首页会话，成功后跳回首页对话）
+  async function saveLead(payload) {
+    const r = await fetch('/api/leads', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return await r.json();
   }
 
   leadForm.addEventListener('submit', async e => {
@@ -1566,18 +1579,27 @@ const GEO = {"type":"FeatureCollection","features":[{"type":"Feature","propertie
       note: (leadNote.value || '').trim(),
       page: 'rental-form',
       ts: new Date().toISOString(),
-      sessionId: chatSessionId(),
+      lang: LANGS[langIdx],
+      sessionId: beisuSid(),
       ua: navigator.userAgent
     };
     leadSubmit.disabled = true;
     leadSubmit.textContent = '提交中…';
-    const res = await saveLead(payload);
-    leadSubmit.textContent = '已提交';
-    leadDone.textContent = res && res.queued
-      ? '已提交（网络暂不可用，已暂存本地，客服上线后会同步）'
-      : '已提交，正在为您转接客服…';
-    leadDone.classList.add('show');
-    openChat(payload);
+    let res = null;
+    try {
+      res = await saveLead(payload);
+    } catch (err) {
+      leadSubmit.disabled = false;
+      leadSubmit.textContent = '提交';
+      leadErr.hidden = false;
+      leadErr.textContent = '网络异常，提交失败，请重试';
+      return;
+    }
+    if (res && res.sid) {
+      try { sessionStorage.setItem('beisu_sid', res.sid); } catch (e) {}
+    }
+    leadSubmit.textContent = '正在进入客服对话…';
+    goHomeChat();
   });
 
   // ===== 在线客服：人工优先 → 关键词 → AI 兜底 =====

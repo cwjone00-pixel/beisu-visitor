@@ -2183,6 +2183,17 @@ function rentFallbackReply(context) {
   return '这个问题我先记下了' + town + '，客服上线后会结合您的登记信息回复您。您也可以补充预算、户型和租住时长，我帮您先匹配。';
 }
 
+/* 租房登记摘要：表单提交后写入主站会话，作为一条访客消息带入对话上下文 */
+function rentLeadSummary(d) {
+  const parts = ['【租房需求登记】' + (d.town || '') + (d.county ? '（' + d.county + '）' : '')];
+  if (d.layout) parts.push('户型：' + d.layout);
+  if (d.duration) parts.push('租期：' + d.duration);
+  if (d.budget) parts.push('预算：' + d.budget + ' 元/月');
+  if (Array.isArray(d.extras) && d.extras.length) parts.push('配套：' + d.extras.join('、'));
+  if (d.note) parts.push('备注：' + d.note);
+  return parts.join('｜');
+}
+
 /* ---------------- 路由 ---------------- */
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
@@ -2240,7 +2251,22 @@ const server = http.createServer(async (req, res) => {
     const id = 'L' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     appendRentJsonl('rent-leads.jsonl', Object.assign({ id, receivedAt: new Date().toISOString() }, body));
     console.log('[rent lead] ' + (body.town || '?') + ' / ' + (body.layout || '?') + ' / ' + (body.budget || '?'));
-    return send(res, 200, { ok: true, id });
+    /* 同时写入主站聊天会话：登记信息成为一条访客消息，页面跳回首页后对话上下文里直接可见 */
+    let sid = String(body.sessionId || '').trim().slice(0, 64);
+    if (sid && loadChats().sessions[sid] && loadChats().sessions[sid].ended) sid = crypto.randomUUID();
+    if (!sid) sid = crypto.randomUUID();
+    const sess = getSession(sid);
+    sess.lang = ['zh', 'en', 'ru'].indexOf(body.lang) >= 0 ? body.lang : 'zh';
+    addMsg(sid, {
+      role: 'visitor',
+      text: rentLeadSummary(body),
+      rent: {
+        leadId: id, town: body.town || '', county: body.county || '',
+        layout: body.layout || '', duration: body.duration || '', budget: body.budget || '',
+        extras: Array.isArray(body.extras) ? body.extras : [], note: body.note || ''
+      }
+    }, { skipMatch: true });
+    return send(res, 200, { ok: true, id, sid });
   }
 
   /* 客服后台读取租房登记（该 GET 不在白名单内，需登录 token） */
