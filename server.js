@@ -26,7 +26,7 @@ const DATA_FILE = path.join(ROOT, 'data', 'rules.json');
 /* 全岛游地图（露营点 / 打卡点 / 地标）独立成一份数据，与聊天配置互不影响 */
 const MAP_FILE = path.join(ROOT, 'data', 'map.json');
 /* 邮件里激活链接的对外基础地址：固定为线上域名，避免本地联调时邮件指向 localhost；可用环境变量 PUBLIC_BASE_URL 覆盖 */
-const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || 'https://beisu-visitor.onrender.com').trim().replace(/\/+$/, '');
+const PUBLIC_BASE_URL = String(process.env.PUBLIC_BASE_URL || 'https://beisuas.com').trim().replace(/\/+$/, '');
 
 /* ---------------- 云存储（MongoDB Atlas 免费集群） ----------------
    配置 MONGODB_URI（环境变量或 secrets.json 的 mongo.uri）后，
@@ -1054,6 +1054,52 @@ function normEvent(input){
    前台页面默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容，
    也可通过 ?lang=zh|en|ru 切换到对应语种；所选语种无内容时回退到俄语。 */
 function articlePath(a){ return '/article/' + a.slug; }
+/* ---------------- 文章入库播种（仓库内 articles/*.json → 文章库） ----------------
+   每篇文章一个 JSON 文件随仓库发布：部署启动时自动写入文章库（按 slug 合并，保留后台已有 id/创建时间），
+   因此新文章只要提交文件就会出现在 /article/<slug>、/articles 列表页、首页最新文章和 sitemap.xml。
+   正文以仓库文件为准（重新部署即覆盖），后台仍可单独编辑封面、绑定项目等字段。 */
+const ARTICLES_DIR = path.join(ROOT, 'articles');
+function seedArticles(){
+  let files;
+  try { files = fs.readdirSync(ARTICLES_DIR).filter(f => /\.json$/i.test(f)); } catch(e){ return 0; }
+  if (!files.length) return 0;
+  const d = loadData();
+  const all = d.articles || [];
+  all.forEach(a => { if (a && !Array.isArray(a.prevSlugs)) a.prevSlugs = []; });
+  let changed = 0;
+  for (const f of files){
+    let raw;
+    try { raw = JSON.parse(fs.readFileSync(path.join(ARTICLES_DIR, f), 'utf-8')); }
+    catch(e){ console.error('[articles] 读取失败 ' + f + ':', e.message); continue; }
+    const slugIn = slugify(raw.slug);
+    const i18n = normArtI18n(raw);
+    if (!slugIn || !artHasTitle({ i18n })) { console.error('[articles] 跳过（缺少 slug 或标题）: ' + f); continue; }
+    const exist = all.find(a => a.slug === slugIn);
+    const now = raw.updatedAt || Date.now();
+    const item = normArticle(Object.assign({}, raw, {
+      slug: slugIn,
+      id: exist ? exist.id : (raw.id || ('art-' + slugIn)),
+      prevSlugs: exist ? exist.prevSlugs : [],
+      status: 'published',
+      createdAt: exist ? exist.createdAt : (raw.createdAt || now),
+      updatedAt: now,
+      publishedAt: exist ? (exist.publishedAt || raw.publishedAt || now) : (raw.publishedAt || now),
+    }), all.filter(a => !exist || a.id !== exist.id));
+    if (exist){
+      const keepId = exist.id, keepPrev = exist.prevSlugs;
+      Object.assign(exist, item, { id: keepId, prevSlugs: keepPrev });
+    } else {
+      all.push(item);
+    }
+    changed++;
+  }
+  if (changed){
+    d.articles = all;
+    saveData(d);
+    console.log('[articles] 已从仓库文件同步 ' + changed + ' 篇文章');
+  }
+  return changed;
+}
 /* 某语种是否录入了内容 */
 function artHasContent(i18n, l){
   const v = (i18n && i18n[l]) || {};
@@ -1164,9 +1210,8 @@ function sendMaybeGzip(req, res, status, headers, body){
     res.end(gz);
   });
 }
-function sendHtml(req, res, status, html, varyUA){
+function sendHtml(req, res, status, html){
   const h = { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff' };
-  if (varyUA) h['Vary'] = 'User-Agent';   // 文章页内容随 UA 变化（Yandex 定向俄语），需声明 Vary 避免中间缓存串内容
   sendMaybeGzip(req, res, status, h, html);
 }
 const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",Roboto,sans-serif;line-height:1.75}'
@@ -1174,6 +1219,9 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.back{display:inline-block;margin-bottom:18px;font-size:13px;color:#2f7cf6;text-decoration:none}'
   + 'h1{font-size:26px;line-height:1.35;margin:0 0 10px}'
   + '.meta{color:#8b94a0;font-size:13px;margin-bottom:20px}'
+  + '.langs{display:flex;gap:8px;margin:0 0 20px}'
+  + '.lang{display:inline-block;padding:6px 14px;border-radius:8px;background:#f1f4f9;color:#4a5260;font-size:13px;text-decoration:none}'
+  + '.lang.on{background:#2f7cf6;color:#fff}'
   + '.cover{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin:0 0 24px}'
   + 'article p{margin:0 0 16px;font-size:16px}'
   + '.acts{display:flex;gap:10px;margin-top:34px;padding-top:22px;border-top:1px solid #eef2f7}'
@@ -1182,6 +1230,12 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.act-consult:hover{background:#e3e9f2}'
   + '.act-book{background:#2f7cf6;color:#fff}'
   + '.act-book:hover{background:#1e66e0}'
+  + '.more{margin-top:34px;padding-top:22px;border-top:1px solid #eef2f7}'
+  + '.more h2{font-size:16px;margin:0 0 12px}'
+  + '.more ul{list-style:none;margin:0;padding:0}'
+  + '.more li{margin:0 0 10px}'
+  + '.more a{color:#1a4f9c;text-decoration:none;font-size:15px}'
+  + '.more a:hover{text-decoration:underline}'
   + '@media (max-width:420px){.acts{flex-direction:column}.act{width:100%}}';
 /* 文章独立页面：服务端直出，含 title/description/canonical/hreflang/og/JSON-LD，便于爬虫抓取收录
    一篇文章一个 URL（/article/<slug>），默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容；
@@ -1193,7 +1247,10 @@ function articlePageHtml(art, preview, l){
   const c = (art.i18n && art.i18n[lang]) || {};
   const title = c.title || '';
   const body = c.body || '';
-  const url = PUBLIC_BASE_URL + articlePath(art);
+  const base = PUBLIC_BASE_URL + articlePath(art);
+  /* 三语各自独立地址：俄语走干净地址（默认页），中文/英文带 ?lang= */
+  const langUrl = x => (x === 'ru' ? base : base + '?lang=' + x);
+  const url = langUrl(lang);          // 当前语种页面自身地址：canonical 与 og:url 均指向自己
   const desc = String(body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   const img = art.cover ? (/^https?:/i.test(art.cover) ? art.cover : PUBLIC_BASE_URL + art.cover) : '';
   const published = new Date(art.publishedAt || art.createdAt).toISOString();
@@ -1201,16 +1258,36 @@ function articlePageHtml(art, preview, l){
   const htmlLang = (lang === 'zh') ? 'zh-CN' : lang;
   const ld = { '@context':'https://schema.org', '@type':'Article', headline:title, inLanguage:htmlLang, datePublished:published, dateModified:modified, mainEntityOfPage:url };
   if (img) ld.image = [img];
-  /* hreflang：各语种指向同 URL 加 ?lang= 参数；x-default 指向无参数默认页（俄语） */
-  const alternates = ART_LANGS.map(x => '<link rel="alternate" hreflang="' + x + '" href="' + escHtml(url + '?lang=' + x) + '">').join('\n')
-    + '\n<link rel="alternate" hreflang="x-default" href="' + escHtml(url) + '">';
+  /* hreflang：三语版本互指，x-default 指向无参数默认页（俄语），供 Yandex / Google 识别语种版本 */
+  const HREFLANG = { zh:'zh-CN', en:'en', ru:'ru' };
+  const alternates = ART_LANGS.map(x => '<link rel="alternate" hreflang="' + HREFLANG[x] + '" href="' + escHtml(langUrl(x)) + '">').join('\n')
+    + '\n<link rel="alternate" hreflang="x-default" href="' + escHtml(base) + '">';
   /* 底部产品预定按钮：绑定项目后出现，按钮文案跟随当前页面语种（咨询按钮暂不做） */
   const proj = articleProjectByKey(art.project);
   const acts = (proj && proj.url) ? '<div class="acts">'
     + '<a class="act act-book" href="' + escHtml(proj.url) + '">' + escHtml(proj.book[lang] || proj.book.ru) + '</a>'
     + '</div>\n' : '';
+  /* 相关文章内链：文章页底部列出其它已发布文章（当前语种标题，非俄语链接带 ?lang=），
+     读者可继续阅读，爬虫也能顺着真实内链发现全部文章 */
+  const MORE_T = { zh:'相关文章', en:'Related articles', ru:'Другие статьи' };
+  const others = loadData().articles
+    .filter(x => x.status === 'published' && x.slug !== art.slug)
+    .sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0)).slice(0, 8);
+  const more = others.length ? '<section class="more">\n<h2>' + escHtml(MORE_T[lang]) + '</h2>\n<ul>\n'
+    + others.map(x => {
+        const t = ((x.i18n || {})[lang] || {}).title || ((x.i18n || {}).ru || {}).title || x.title || x.slug;
+        const href = (lang === 'ru') ? articlePath(x) : articlePath(x) + '?lang=' + lang;
+        return '<li><a href="' + escHtml(href) + '">' + escHtml(t) + '</a></li>';
+      }).join('\n')
+    + '\n</ul>\n</section>\n' : '';
   const OGLOCALE = { zh:'zh_CN', en:'en_US', ru:'ru_RU' };
   const BACK_TEXT = { zh:'返回首页', en:'Back to home', ru:'На главную' };
+  /* 三语切换按钮：俄语为默认干净地址，中文/英文跳到 ?lang= 版本（三个独立 URL） */
+  const LANGS_TEXT = { zh:'中文', en:'English', ru:'Русский' };
+  const relUrl = x => (x === 'ru' ? articlePath(art) : articlePath(art) + '?lang=' + x);
+  const langSwitch = '<div class="langs">' + ART_LANGS.map(x =>
+    '<a class="lang' + (x === lang ? ' on' : '') + '" href="' + escHtml(relUrl(x)) + '"' + (x === lang ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
+  ).join('') + '</div>\n';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
     + '<title>' + escHtml(title) + '</title>\n'
@@ -1229,9 +1306,10 @@ function articlePageHtml(art, preview, l){
     + '<a class="back" href="/">← ' + escHtml(BACK_TEXT[lang] || BACK_TEXT.ru) + '</a>\n'
     + '<h1>' + escHtml(title) + '</h1>\n'
     + '<div class="meta">' + published.slice(0, 10) + (preview ? ' · 草稿预览（未发布，不收录）' : '') + '</div>\n'
+    + langSwitch
     + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '">\n' : '')
     + '<article>\n' + bodyToHtml(body) + '\n</article>\n'
-    + acts + '</main>\n</body>\n</html>';
+    + more + acts + '</main>\n</body>\n</html>';
 }
 function articleNotFoundHtml(){
   return '<!DOCTYPE html>\n<html lang="zh">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -1239,14 +1317,61 @@ function articleNotFoundHtml(){
     + '<style>body{font-family:-apple-system,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#22282f}a{color:#2f7cf6}</style></head>'
     + '<body><div style="text-align:center"><h1 style="font-size:20px">404 · 页面不存在</h1><p><a href="/">返回首页</a></p></div></body></html>';
 }
-/* sitemap：列出首页与全部已发布文章，供 Yandex / Google 等爬虫发现 */
+/* sitemap：首页 + 每篇文章的俄/中/英三条独立链接（含 hreflang 互指），供 Yandex / Google 发现收录 */
 function sitemapXml(){
   const items = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
-  const urls = ['<url><loc>' + escHtml(PUBLIC_BASE_URL) + '/</loc><changefreq>daily</changefreq></url>']
-    .concat(items.map(a => '<url><loc>' + escHtml(PUBLIC_BASE_URL + articlePath(a)) + '</loc>'
-      + '<lastmod>' + new Date(a.updatedAt || a.createdAt).toISOString().slice(0, 10) + '</lastmod></url>'));
-  return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+  const urls = ['<url><loc>' + escHtml(PUBLIC_BASE_URL) + '/</loc><changefreq>daily</changefreq></url>'];
+  const HF = { zh:'zh-CN', en:'en', ru:'ru' };
+  items.forEach(a => {
+    const base = PUBLIC_BASE_URL + articlePath(a);
+    const lastmod = new Date(a.updatedAt || a.createdAt).toISOString().slice(0, 10);
+    const loc = x => (x === 'ru' ? base : base + '?lang=' + x);
+    const alts = ART_LANGS.map(x => '<xhtml:link rel="alternate" hreflang="' + HF[x] + '" href="' + escHtml(loc(x)) + '"/>').join('');
+    ART_LANGS.forEach(x => {
+      urls.push('<url><loc>' + escHtml(loc(x)) + '</loc><lastmod>' + lastmod + '</lastmod>' + alts + '</url>');
+    });
+  });
+  return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n'
     + urls.join('\n') + '\n</urlset>\n';
+}
+
+/* 文章列表页（服务端直出）：首页卡片是前端 JS 渲染的，爬虫看不到，
+   这里提供一份真实链接列表，Yandex / Google 顺着内链即可发现全部文章 */
+function articleIndexHtml(){
+  const items = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
+  const list = items.map(a => {
+    const t = ((a.i18n || {}).ru || {}).title || a.title || a.slug;
+    const p = escHtml(articlePath(a));
+    return '<li><a href="' + p + '" hreflang="ru">' + escHtml(t) + '</a>'
+      + '<span class="ls"><a href="' + p + '?lang=zh" hreflang="zh-CN">中文</a>'
+      + '<a href="' + p + '?lang=en" hreflang="en">English</a></span></li>';
+  }).join('\n');
+  return '<!DOCTYPE html>\n<html lang="ru">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>Статьи — Хайнань</title><meta name="robots" content="index,follow">'
+    + '<link rel="canonical" href="' + escHtml(PUBLIC_BASE_URL + '/articles') + '">'
+    + '<style>body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,"Segoe UI",sans-serif;line-height:1.7}'
+    + 'main{max-width:760px;margin:0 auto;padding:32px 20px 64px;background:#fff;min-height:100vh;box-sizing:border-box}'
+    + 'h1{font-size:24px;margin:0 0 20px}.back{display:inline-block;margin-bottom:18px;font-size:13px;color:#2f7cf6;text-decoration:none}'
+    + 'ul{list-style:none;padding:0;margin:0}li{padding:14px 0;border-bottom:1px solid #eef2f7}'
+    + 'a{color:#1a4f9c;text-decoration:none;font-size:16px}.ls{margin-left:12px;font-size:13px}'
+    + '.ls a{margin-left:8px;color:#2f7cf6;font-size:13px}</style></head>\n'
+    + '<body><main><a class="back" href="/">← На главную</a><h1>Статьи</h1>\n'
+    + '<ul>' + (list || '<li>Пока нет статей</li>') + '</ul>\n</main></body></html>';
+}
+/* 首页注入「所有文章」入口与最新文章真实内链：前端卡片由 JS 渲染，爬虫抓不到 */
+function indexHtml(){
+  let html;
+  try { html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf-8'); } catch(e){ return null; }
+  const arts = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
+  if (!arts.length) return html;
+  const items = arts.slice(0, 5).map(a => {
+    const t = ((a.i18n || {}).ru || {}).title || a.title || a.slug;
+    return '<li><a href="' + escHtml(articlePath(a)) + '" hreflang="ru" style="color:#4a5260;text-decoration:none">' + escHtml(t) + '</a></li>';
+  }).join('');
+  const block = '<div style="padding:6px 16px 12px">'
+    + '<a href="/articles" style="font-size:12px;color:#8b94a0;text-decoration:none">Статьи · 文章 · Articles</a>'
+    + '<ul style="list-style:none;margin:6px 0 0;padding:0;font-size:12px;line-height:1.7">' + items + '</ul></div>';
+  return html.includes('</aside>') ? html.replace('</aside>', block + '\n</aside>') : html;
 }
 
 /* ---------------- 租车/配车 API（从 hainan-map server.js 合并） ----------------
@@ -3882,6 +4007,16 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { links: d.links });
   }
 
+  /* ---- 文章列表页 /articles：服务端直出的真实内链入口（爬虫可顺着发现每篇文章） ---- */
+  if ((p === '/articles' || p === '/articles/') && req.method === 'GET'){
+    return sendHtml(req, res, 200, articleIndexHtml());
+  }
+  /* ---- 首页注入「所有文章」入口；前端卡片由 JS 渲染，爬虫抓不到，补一条真实内链 ---- */
+  if ((p === '/' || p === '/index.html') && req.method === 'GET'){
+    const html = indexHtml();
+    if (html) return sendHtml(req, res, 200, html);
+  }
+
   /* ---- 文章独立页面（/article/<slug>，服务端直出，SEO 友好）
          默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容；可通过 ?lang=zh|en|ru 切换
          草稿不对外：公开访问 404；后台带 ?preview=<登录token> 可预览（页面标注 noindex） ---- */
@@ -3899,7 +4034,7 @@ const server = http.createServer(async (req, res) => {
       return sendHtml(req, res, 404, articleNotFoundHtml());
     }
     if (art.status !== 'published' && !preview) return sendHtml(req, res, 404, articleNotFoundHtml());
-    return sendHtml(req, res, 200, articlePageHtml(art, art.status !== 'published', l), true);
+    return sendHtml(req, res, 200, articlePageHtml(art, art.status !== 'published', l));
   }
   /* ---- sitemap.xml / robots.txt：帮助搜索引擎（Yandex 等）发现并收录已发布文章 ---- */
   if (p === '/sitemap.xml' && req.method === 'GET'){
@@ -3908,7 +4043,7 @@ const server = http.createServer(async (req, res) => {
   }
   if (p === '/robots.txt' && req.method === 'GET'){
     res.writeHead(200, { 'Content-Type':'text/plain; charset=utf-8', 'Cache-Control':'no-cache' });
-    return res.end('User-agent: *\nAllow: /\nSitemap: ' + PUBLIC_BASE_URL + '/sitemap.xml\n');
+    return res.end('User-agent: *\nAllow: /\n\nUser-agent: YandexBot\nAllow: /\n\nSitemap: ' + PUBLIC_BASE_URL + '/sitemap.xml\n');
   }
 
   /* ---- 静态资源 ---- */
@@ -3975,6 +4110,8 @@ server.on('upgrade', (req, socket) => {
   try { await initCloud(loadSecrets().mongo.uri); }
   catch(e){ console.error('[cloud] 初始化失败，回退本地 JSON 文件存储:', e.message); }
   ensureDataFile();
+  /* 仓库内 articles/*.json 同步进文章库：每次部署自动发布新文章（sitemap / 列表页 / 内链随之更新） */
+  try { seedArticles(); } catch(e){ console.error('[articles] 同步失败:', e.message); }
   /* 定时巡检：只广播「人工在线」状态变化。
      必须在云库接入之后才启动——巡检会经 statePayload → operatorOnline → loadAuth，
      而 loadAuth 命中一次即永久缓存（authCache）。若在 cloud.enabled 置位前先跑，
