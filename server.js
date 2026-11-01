@@ -865,6 +865,23 @@ function matchInput(input, lang){
   }
   return { ...data.fallback, isFallback:true };
 }
+/* 消息实际语种推断：中文 → zh，西里尔字母 → ru，拉丁字母 → en；无法判断返回空串 */
+function guessLang(text){
+  const s = String(text || '');
+  if (/[\u4e00-\u9fff]/.test(s)) return 'zh';
+  if (/[\u0400-\u04ff]/.test(s)) return 'ru';
+  if (/[A-Za-z]/.test(s)) return 'en';
+  return '';
+}
+/* 先按界面语种匹配（保留语种隔离）；没命中再按消息实际语种补一次，
+   这样预订摘要 / 打卡提交 / 租房登记等跨页自动消息，以及「界面英文但发中文」的情况都能触发规则 */
+function matchInputAuto(input, lang){
+  const first = matchInput(input, lang);
+  if (!first.isFallback) return first;
+  const guess = guessLang(input);
+  if (guess && guess !== lang) return matchInput(input, guess);
+  return first;
+}
 function matchPayload(hit){
   const data = loadData();
   // 仅当该规则/兜底开启 appendLink 时，附加全部已配置的底部链接（多条、按类型合成 href）
@@ -1626,7 +1643,7 @@ function addMsg(sid, m, opts){
      这样无论是游客打字、预订摘要、打卡提交、未来任何新入口，只要走 addMsg 就自动纳入规则匹配，无例外。 */
   if (!opts || !opts.skipMatch){
     if (m.role === 'visitor' && s.mode !== 'agent' && loadData().agentChat.botEnabled !== false){
-      const payload = matchPayload(matchInput(m.text, s.lang));
+      const payload = matchPayload(matchInputAuto(m.text, s.lang));
       if (payload.matched) pushRuleMsgs(sid, payload, loadData().replySeq !== false);
     }
   }
@@ -2322,7 +2339,7 @@ const server = http.createServer(async (req, res) => {
         layout: body.layout || '', duration: body.duration || '', budget: body.budget || '',
         extras: Array.isArray(body.extras) ? body.extras : [], note: body.note || ''
       }
-    }, { skipMatch: true });
+    });
     return send(res, 200, { ok: true, id, sid });
   }
 
@@ -3026,7 +3043,7 @@ const server = http.createServer(async (req, res) => {
       if (activeSid) addMsg(activeSid, { role:'bot', reply: { [langKey]: notice }, delayMs: 0 });
       return send(res, 200, { reply: { [langKey]: notice }, quickButtons: [], matched: true, human: true, link: null, sid: activeSid, reset });
     }
-    const payload = matchPayload(matchInput(body.text, body.lang));
+    const payload = matchPayload(matchInputAuto(body.text, body.lang));
     // 关键词未命中：人工在线 → AI 不回复（只标记待人工 + 一次性转接提示）；人工离线才转 AI 兜底
     if (!payload.matched && vtext) {
       if (await humanOnline()) {
