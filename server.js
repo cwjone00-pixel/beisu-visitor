@@ -3180,8 +3180,11 @@ const server = http.createServer(async (req, res) => {
       });
     }
     if (!sid) sid = getSession('booking').id;   // 还没有任何会话时新建一个，供坐席查看
-    /* 先把界面语种写进会话，addMsg 统一匹配钩子会读 sess.lang */
-    const noteLang = ['zh', 'en', 'ru'].indexOf(body && body.lang) >= 0 ? body.lang : 'zh';
+    /* 先把界面语种写进会话，addMsg 统一匹配钩子会读 sess.lang。
+       预订成功页（跨域）不带 lang 参数，若直接按 zh 处理，英文/俄文摘要会用中文关键词去匹配，
+       结果是「配了关键词也不触发」；这里按摘要标题识别实际语种，保证摘要能命中对应语种规则。 */
+    let noteLang = ['zh', 'en', 'ru'].indexOf(body && body.lang) >= 0 ? body.lang : '';
+    if (!noteLang) noteLang = /booking summary/i.test(text) ? 'en' : (/сводка бронирования/i.test(text) ? 'ru' : 'zh');
     const sess = getSession(sid);
     sess.lang = noteLang;
     const msg = addMsg(sid, { role:'visitor', text, bookingId:String((body && body.bookingId) || '').slice(0, 40) });
