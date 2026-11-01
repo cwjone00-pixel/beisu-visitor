@@ -1037,11 +1037,11 @@ function articlePath(a){ return '/article/' + a.slug; }
 
 /* ---------------- 页面卡片（聊天里发送的方块富媒体卡片） ----------------
    每张卡片绑定一个页面：卡片标题 / 简介 / 封面图 / 跳转地址，三语文案分开配置。
-   目前【全岛游】(/island) 与【海南项目体验】(/experience) 是站内真页面（整条链路在同一站内），
-   其余三个页面（租房/租车/合作）后续另做，卡片 url 先留空待填；pageKey 用于关键词规则与人工发送时识别归属页面。 */
+   目前【全岛游】(/island)、【租房】(/rent)、【租车】(/rental)、【海南项目体验】(/experience) 都是站内真页面，
+   只有【加入我们合作】后续另做，卡片 url 先留空待填；pageKey 用于关键词规则与人工发送时识别归属页面。 */
 const CARD_PAGES = [
   { key:'island',    url:'/island', names:{ zh:'全岛游',           en:'Island Tour',              ru:'Островной тур' } },
-  { key:'rent',      url:'',        names:{ zh:'租房',             en:'Housing Rental',           ru:'Аренда жилья' } },
+  { key:'rent',      url:'/rent',   names:{ zh:'租房',             en:'Housing Rental',           ru:'Аренда жилья' } },
   { key:'car',       url:'/rental',   names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
   { key:'review',    url:'/experience', names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
   { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } }
