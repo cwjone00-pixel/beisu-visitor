@@ -992,13 +992,6 @@ function artPrimary(i18n){
   }
   return { lang:'zh', title:'', body:'' };
 }
-/* 取指定语言内容；该语种为空时回退主语言，保证任何语言下都有内容可显示 */
-function artLang(i18n, l){
-  const v = (i18n && i18n[l]) || {};
-  if (String(v.title || '').trim() || String(v.body || '').trim()) return v;
-  const p = artPrimary(i18n);
-  return { title:p.title, body:p.body };
-}
 function normArticle(input, all){
   const a = (input && typeof input === 'object') ? input : {};
   const id = a.id || crypto.randomUUID();
@@ -1011,6 +1004,8 @@ function normArticle(input, all){
   let slug = base, n = 2;
   while (others.some(x => x.slug === slug)) slug = base + '-' + (n++);                   // 保证 slug 全局唯一
   const status = a.status === 'published' ? 'published' : 'draft';
+  /* 绑定项目：只允许白名单内的 4 个产品；空值表示不绑定（文章底部只显示【咨询】） */
+  const project = articleProjectByKey(a.project) ? a.project : '';
   const createdAt = a.createdAt || Date.now();
   /* 历史别名：曾用过、现已改掉的 slug 保留下来，旧链接自动 301 跳到当前页面，保证已收录地址不失效 */
   const prevSlugs = Array.from(new Set((Array.isArray(a.prevSlugs) ? a.prevSlugs : []).map(String).filter(Boolean)))
@@ -1024,6 +1019,7 @@ function normArticle(input, all){
     body: primary.body,          // 兼容字段：主语言正文
     cover: String(a.cover || '').slice(0, 300),
     status,
+    project,                     // 绑定的产品项目（island/rent/car/pickup），决定底部【预定】按钮的去向
     createdAt,
     updatedAt: a.updatedAt || createdAt,
     publishedAt: status === 'published' ? (a.publishedAt || createdAt) : (a.publishedAt || 0)
@@ -1053,7 +1049,16 @@ function normEvent(input){
     updatedAt: e.updatedAt || createdAt
   };
 }
+/* ---------------- 文章地址 ----------------
+   一篇文章一个 URL：/article/<slug>。后台表单内置中/英/俄三语输入框；
+   前台页面默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容，
+   也可通过 ?lang=zh|en|ru 切换到对应语种；所选语种无内容时回退到俄语。 */
 function articlePath(a){ return '/article/' + a.slug; }
+/* 某语种是否录入了内容 */
+function artHasContent(i18n, l){
+  const v = (i18n && i18n[l]) || {};
+  return !!(String(v.title || '').trim() || String(v.body || '').trim());
+}
 
 /* ---------------- 页面卡片（聊天里发送的方块富媒体卡片） ----------------
    每张卡片绑定一个页面：卡片标题 / 简介 / 封面图 / 跳转地址，三语文案分开配置。
@@ -1067,6 +1072,18 @@ const CARD_PAGES = [
   { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } }
 ];
 function cardPageByKey(key){ return CARD_PAGES.filter(function (p) { return p.key === key; })[0] || null; }
+
+/* ---------------- 文章绑定项目（文章页底部产品按钮） ----------------
+   每篇文章可绑定一个产品项目；文章页底部固定展示两个按钮：
+   【咨询】回游客前台首页【预定】进该项目自己的下单页。
+   项目 → 下单页的对应关系集中维护在这里，后续新增产品只需加一行。 */
+const ARTICLE_PROJECTS = [
+  { key:'island', url:'/island',  label:'环岛游',   book:{ zh:'预定环岛游',   en:'Book Island Tour',        ru:'Забронировать островной тур' } },
+  { key:'rent',   url:'/rent',    label:'租房协助', book:{ zh:'预定租房协助', en:'Book Housing Assistance', ru:'Забронировать помощь с жильём' } },
+  { key:'car',    url:'/rental',  label:'租车协助', book:{ zh:'预定租车协助', en:'Book Car Rental',         ru:'Забронировать аренду авто' } },
+  { key:'pickup', url:'',        label:'接机协助', book:{ zh:'预定接机协助', en:'Book Airport Pickup',     ru:'Забронировать встречу в аэропорту' } }   // 下单页待定，留空时该按钮自动隐藏
+];
+function articleProjectByKey(key){ return ARTICLE_PROJECTS.filter(function (p) { return p.key === key; })[0] || null; }
 function normCard(input){
   const c = (input && typeof input === 'object') ? input : {};
   const id = c.id || crypto.randomUUID();
@@ -1097,8 +1114,6 @@ function validateCard(body){
   if (url && !/^(\/|https?:\/\/)/.test(url)) return '跳转地址必须是站内路径或 http(s) 链接';
   return null;
 }
-/* 爬虫识别：Yandex 系 UA（YandexBot / YandexImages / YandexMobileBot 等）统一命中 */
-function isYandexBot(ua){ return /yandex/i.test(String(ua || '')); }
 /* 某 slug 被当前文章启用后，把它从其它文章的历史别名里摘除，避免留下指向别处的死重定向 */
 function pruneAliases(all, art){
   for (const a of all){
@@ -1106,7 +1121,7 @@ function pruneAliases(all, art){
     if (Array.isArray(a.prevSlugs) && a.prevSlugs.length) a.prevSlugs = a.prevSlugs.filter(s => s !== art.slug);
   }
 }
-/* 解析 /article/<slug>：优先命中当前 slug；未命中时看是否命中某篇的「历史别名」→ 返回新地址供 301 跳转 */
+/* 解析 slug：优先命中当前 slug；未命中时看是否命中某篇的「历史别名」→ 返回新地址供 301 跳转 */
 function resolveArticleSlug(slug){
   const arts = loadData().articles;
   const art = arts.find(a => a.slug === slug);
@@ -1160,24 +1175,42 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + 'h1{font-size:26px;line-height:1.35;margin:0 0 10px}'
   + '.meta{color:#8b94a0;font-size:13px;margin-bottom:20px}'
   + '.cover{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin:0 0 24px}'
-  + 'article p{margin:0 0 16px;font-size:16px}';
+  + 'article p{margin:0 0 16px;font-size:16px}'
+  + '.acts{display:flex;gap:10px;margin-top:34px;padding-top:22px;border-top:1px solid #eef2f7}'
+  + '.act{flex:1 1 0;display:flex;align-items:center;justify-content:center;height:46px;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;transition:background .15s}'
+  + '.act-consult{background:#f1f4f9;color:#4a5260}'
+  + '.act-consult:hover{background:#e3e9f2}'
+  + '.act-book{background:#2f7cf6;color:#fff}'
+  + '.act-book:hover{background:#1e66e0}'
+  + '@media (max-width:420px){.acts{flex-direction:column}.act{width:100%}}';
 /* 文章独立页面：服务端直出，含 title/description/canonical/hreflang/og/JSON-LD，便于爬虫抓取收录
-   同一篇文章共用同一 URL/slug；按 lang 参数输出对应语种内容（缺省用主语言），canonical 始终指向不带参数的干净地址
-   hreflang 交替标签声明 zh/en/ru 三个语言版本，避免多语言同源内容被判重复 */
+   一篇文章一个 URL（/article/<slug>），默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容；
+   可通过 ?lang=zh|en|ru 切换语种；所选语种未录入内容时回退到俄语。
+   canonical 始终指向无参数的干净地址，hreflang 声明各语种的 ?lang= 版本，避免被判定为重复内容 */
 function articlePageHtml(art, preview, l){
-  const c = artLang(art.i18n, l || '');
-  const title = c.title || art.title;
-  const body = c.body || art.body;
+  /* 默认俄语；显式 ?lang= 切换到指定语种；该语种无内容时回退俄语（保证只填俄语的文章也能正常显示） */
+  const lang = ART_LANGS.includes(l) ? (artHasContent(art.i18n, l) ? l : 'ru') : 'ru';
+  const c = (art.i18n && art.i18n[lang]) || {};
+  const title = c.title || '';
+  const body = c.body || '';
   const url = PUBLIC_BASE_URL + articlePath(art);
   const desc = String(body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   const img = art.cover ? (/^https?:/i.test(art.cover) ? art.cover : PUBLIC_BASE_URL + art.cover) : '';
   const published = new Date(art.publishedAt || art.createdAt).toISOString();
   const modified = new Date(art.updatedAt || art.createdAt).toISOString();
-  const ld = { '@context':'https://schema.org', '@type':'Article', headline:title, datePublished:published, dateModified:modified, mainEntityOfPage:url };
+  const htmlLang = (lang === 'zh') ? 'zh-CN' : lang;
+  const ld = { '@context':'https://schema.org', '@type':'Article', headline:title, inLanguage:htmlLang, datePublished:published, dateModified:modified, mainEntityOfPage:url };
   if (img) ld.image = [img];
-  const htmlLang = (l === 'zh') ? 'zh-CN' : (ART_LANGS.includes(l) ? l : 'zh-CN');
+  /* hreflang：各语种指向同 URL 加 ?lang= 参数；x-default 指向无参数默认页（俄语） */
   const alternates = ART_LANGS.map(x => '<link rel="alternate" hreflang="' + x + '" href="' + escHtml(url + '?lang=' + x) + '">').join('\n')
     + '\n<link rel="alternate" hreflang="x-default" href="' + escHtml(url) + '">';
+  /* 底部产品预定按钮：绑定项目后出现，按钮文案跟随当前页面语种（咨询按钮暂不做） */
+  const proj = articleProjectByKey(art.project);
+  const acts = (proj && proj.url) ? '<div class="acts">'
+    + '<a class="act act-book" href="' + escHtml(proj.url) + '">' + escHtml(proj.book[lang] || proj.book.ru) + '</a>'
+    + '</div>\n' : '';
+  const OGLOCALE = { zh:'zh_CN', en:'en_US', ru:'ru_RU' };
+  const BACK_TEXT = { zh:'返回首页', en:'Back to home', ru:'На главную' };
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
     + '<title>' + escHtml(title) + '</title>\n'
@@ -1188,15 +1221,17 @@ function articlePageHtml(art, preview, l){
     + '<meta property="og:title" content="' + escHtml(title) + '">\n'
     + '<meta property="og:description" content="' + escHtml(desc) + '">\n'
     + '<meta property="og:url" content="' + escHtml(url) + '">\n'
+    + '<meta property="og:locale" content="' + OGLOCALE[lang] + '">\n'
     + (img ? '<meta property="og:image" content="' + escHtml(img) + '">\n' : '')
     + '<meta name="robots" content="' + (preview ? 'noindex,nofollow' : 'index,follow') + '">\n'
     + '<script type="application/ld+json">' + JSON.stringify(ld) + '</script>\n'
     + '<style>' + ARTICLE_CSS + '</style>\n</head>\n<body>\n<main>\n'
-    + '<a class="back" href="/">← 返回首页</a>\n'
+    + '<a class="back" href="/">← ' + escHtml(BACK_TEXT[lang] || BACK_TEXT.ru) + '</a>\n'
     + '<h1>' + escHtml(title) + '</h1>\n'
     + '<div class="meta">' + published.slice(0, 10) + (preview ? ' · 草稿预览（未发布，不收录）' : '') + '</div>\n'
     + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '">\n' : '')
-    + '<article>\n' + bodyToHtml(body) + '\n</article>\n</main>\n</body>\n</html>';
+    + '<article>\n' + bodyToHtml(body) + '\n</article>\n'
+    + acts + '</main>\n</body>\n</html>';
 }
 function articleNotFoundHtml(){
   return '<!DOCTYPE html>\n<html lang="zh">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
@@ -1204,7 +1239,7 @@ function articleNotFoundHtml(){
     + '<style>body{font-family:-apple-system,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#22282f}a{color:#2f7cf6}</style></head>'
     + '<body><div style="text-align:center"><h1 style="font-size:20px">404 · 页面不存在</h1><p><a href="/">返回首页</a></p></div></body></html>';
 }
-/* sitemap：列出首页与全部已发布文章，供 Yandex 等爬虫发现 */
+/* sitemap：列出首页与全部已发布文章，供 Yandex / Google 等爬虫发现 */
 function sitemapXml(){
   const items = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
   const urls = ['<url><loc>' + escHtml(PUBLIC_BASE_URL) + '/</loc><changefreq>daily</changefreq></url>']
@@ -3847,28 +3882,24 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { links: d.links });
   }
 
-  /* ---- 文章独立页面（服务端直出 HTML，SEO 友好，供 Yandex 等爬虫抓取）
+  /* ---- 文章独立页面（/article/<slug>，服务端直出，SEO 友好）
+         默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容；可通过 ?lang=zh|en|ru 切换
          草稿不对外：公开访问 404；后台带 ?preview=<登录token> 可预览（页面标注 noindex） ---- */
   if (p.startsWith('/article/') && req.method === 'GET'){
     const slug = decodeURIComponent(p.slice('/article/'.length));
     const q = url.searchParams.get('lang') || '';
-    /* 普通访客按 ?lang 显示对应语种（缺省主语言）；识别到 Yandex 爬虫时定向返回俄语版本，HTML lang 固定为 ru */
-    const yandex = isYandexBot(req.headers['user-agent']);
-    const al = yandex ? 'ru' : (ART_LANGS.includes(q) ? q : '');
+    const l = ART_LANGS.includes(q) ? q : '';
     const { art, redirect } = resolveArticleSlug(slug);
     const preview = !!sessionUser(url.searchParams.get('preview') || '');
     if (!art){
-      /* 命中历史别名：301 永久跳转到当前地址，保证已收录链接与外部访问不中断
-         Yandex 走干净地址（它本就定向取俄语），其余访客保留显式语言参数 */
       if (redirect && !preview){
-        const loc = redirect + ((!yandex && al) ? '?lang=' + al : '');
-        res.writeHead(301, { Location: loc, 'Cache-Control':'no-cache', 'Vary':'User-Agent' });
+        res.writeHead(301, { Location: redirect, 'Cache-Control':'no-cache' });
         return res.end();
       }
       return sendHtml(req, res, 404, articleNotFoundHtml());
     }
     if (art.status !== 'published' && !preview) return sendHtml(req, res, 404, articleNotFoundHtml());
-    return sendHtml(req, res, 200, articlePageHtml(art, art.status !== 'published', al), true);
+    return sendHtml(req, res, 200, articlePageHtml(art, art.status !== 'published', l), true);
   }
   /* ---- sitemap.xml / robots.txt：帮助搜索引擎（Yandex 等）发现并收录已发布文章 ---- */
   if (p === '/sitemap.xml' && req.method === 'GET'){

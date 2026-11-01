@@ -527,7 +527,7 @@
       <h2>文章资讯 <span class="tag" id="artCount">0 篇</span></h2>
       <button class="btn btn-primary" onclick="openArtEditor()">+ 新建文章</button>
     </div>
-    <div class="desc">录入标题、正文、配图。「已发布」会自动生成独立页面与链接（<code>/article/…</code>），并写入 <code>sitemap.xml</code>，供 Yandex 等爬虫抓取收录；「草稿」仅后台可见，公开访问返回 404。</div>
+    <div class="desc">录入标题、正文、封面图。每篇文章一个独立地址 <code>/article/…</code>，前台默认加载俄语（html lang="ru"，方便 Yandex 抓取），可在地址后加 <code>?lang=zh</code> 或 <code>?lang=en</code> 切换中/英文；中英内容留空也能正常显示俄语。已发布文章写入 <code>sitemap.xml</code>；草稿仅后台可见。封面请用实景风景照片，不要用预订页面截图。</div>
     <div id="artList" class="rule-list"></div>
   </div>
 
@@ -775,7 +775,7 @@
       <div class="tri-row"><span class="lang-chip">Русский</span><textarea class="textarea" id="amBodyRu" style="min-height:120px" placeholder="Текст на русском…"></textarea></div>
     </div>
     <div class="field">
-      <label>配图（可选，用作封面与分享图）</label>
+      <label>配图（可选，用作封面与分享图；请用实景风景照片，不要用预订页面截图）</label>
       <div style="display:flex;align-items:center;gap:8px;">
         <input type="file" id="amCoverFile" accept="image/*" style="display:none" onchange="artCoverPick(this)">
         <button class="btn btn-ghost btn-sm" onclick="document.getElementById('amCoverFile').click()">选择图片</button>
@@ -790,6 +790,17 @@
         <label><input type="radio" name="amStatus" value="draft" checked> 草稿（不公开，仅后台可预览）</label>
         <label><input type="radio" name="amStatus" value="published"> 已发布（生成独立页面，可被爬虫抓取）</label>
       </div>
+    </div>
+    <div class="field">
+      <label>绑定项目（决定文章页底部【预定】按钮去向；按钮文案跟随当前语种）</label>
+      <select class="input" id="amProject">
+        <option value="">不绑定（文章底部不显示按钮）</option>
+        <option value="island">环岛游</option>
+        <option value="rent">租房协助</option>
+        <option value="car">租车协助</option>
+        <option value="pickup">接机协助（下单页待定，暂不显示按钮）</option>
+      </select>
+      <div style="color:#9aa3ad;font-size:12px;margin-top:6px;">页面默认加载俄语（html lang="ru"），可通过 ?lang=zh|en|ru 切换；所选语种无内容时回退俄语。</div>
     </div>
     <div id="amLink" style="display:none;font-size:12px;margin-bottom:8px;color:#8b94a0;"></div>
     <div class="modal-foot">
@@ -1646,6 +1657,10 @@ async function delHome(id){ if (confirm('确定删除该按钮？')) { await API
 
 /* ================= 文章资讯（图文录入 → 独立页面） ================= */
 let arts = [], editingArt = null, artCover = '';
+/* 文章绑定项目的展示名（与后端 ARTICLE_PROJECTS 一一对应） */
+const ART_PROJECT_NAMES = { island:'环岛游', rent:'租房协助', car:'租车协助', pickup:'接机协助' };
+/* 文章独立地址：一篇文章一个 URL（/article/<slug>），默认加载俄语 */
+function articlePathOf(a){ return '/article/' + a.slug; }
 async function loadArts(){
   arts = await API.artList();
   arts = Array.isArray(arts) ? arts : [];
@@ -1661,7 +1676,7 @@ async function loadArts(){
           .map(l => `<span class="chip">${l === 'zh' ? '中' : (l === 'en' ? 'EN' : 'РУ')}</span>`).join('')}</span>
         <div class="rule-actions">
           ${a.status === 'published'
-            ? `<a class="btn btn-ghost btn-sm" href="/article/${esc(a.slug)}" target="_blank" rel="noopener">查看页面</a>`
+            ? `<a class="btn btn-ghost btn-sm" href="${articlePathOf(a)}" target="_blank" rel="noopener">查看页面</a>`
             : `<button class="btn btn-ghost btn-sm" onclick="previewArt('${a.id}')">预览草稿</button>`}
           <button class="btn btn-ghost btn-sm" onclick="openArtEditor('${a.id}')">编辑</button>
           <button class="btn btn-danger btn-sm" onclick="delArticle('${a.id}')">删除</button>
@@ -1669,6 +1684,7 @@ async function loadArts(){
       </div>
       <div class="meta">
         <span class="label">独立链接：</span><span class="chip">/article/${esc(a.slug)}</span>
+        ${a.project ? `<span class="chip" style="margin-left:6px">项目：${ART_PROJECT_NAMES[a.project] || esc(a.project)}</span>` : ''}
         ${(Array.isArray(a.prevSlugs) && a.prevSlugs.length) ? `<span class="chip" style="margin-left:6px">历史链接 +${a.prevSlugs.length} 自动跳转</span>` : ''}
         <span style="margin-left:10px;color:#9aa3ad">更新于 ${new Date(a.updatedAt || a.createdAt).toLocaleString()}</span>
       </div>
@@ -1688,14 +1704,18 @@ function openArtEditor(id){
   document.getElementById('amBodyEn').value = cell('en').body || '';
   document.getElementById('amBodyRu').value = cell('ru').body || '';
   document.getElementById('amSlug').value = a ? a.slug : '';
+  document.getElementById('amProject').value = (a && a.project) ? a.project : '';
   artCover = (a && a.cover) ? a.cover : '';
   document.querySelectorAll('input[name="amStatus"]').forEach(r => { r.checked = (r.value === (a ? a.status : 'draft')); });
   document.getElementById('amCoverHint').textContent = '';
   artCoverPreview();
   const link = document.getElementById('amLink');
   const oldN = (a && Array.isArray(a.prevSlugs)) ? a.prevSlugs.length : 0;
-  if (a){ link.style.display = 'block'; link.innerHTML = '独立页面：<span class="chip">/article/' + esc(a.slug) + '</span>（保存后生效）'
-    + (oldN ? ' · 已保留 ' + oldN + ' 个历史别名，旧链接将 301 跳转到此页' : ''); }
+  if (a){
+    link.style.display = 'block';
+    link.innerHTML = '独立页面：<span class="chip">/article/' + esc(a.slug) + '</span>（默认俄语，可加 ?lang=zh|en|ru 切换；保存后生效）'
+      + (oldN ? ' · 已保留 ' + oldN + ' 个历史别名，旧链接将 301 跳转到此页' : '');
+  }
   else link.style.display = 'none';
   show('artModal');
 }
@@ -1749,6 +1769,7 @@ async function saveArticle(){
     i18n,
     slug: val('amSlug'),
     cover: artCover,
+    project: val('amProject'),
     status: (document.querySelector('input[name="amStatus"]:checked') || {}).value || 'draft'
   };
   const r = editingArt ? await API.artUpdate(editingArt, d) : await API.artCreate(d);
@@ -1760,7 +1781,7 @@ async function delArticle(id){
 }
 function previewArt(id){
   const a = arts.find(x => x.id === id);
-  if (a) window.open('/article/' + encodeURIComponent(a.slug) + '?preview=' + encodeURIComponent(opToken), '_blank');
+  if (a) window.open(articlePathOf(a) + '?preview=' + encodeURIComponent(opToken), '_blank');
 }
 
 /* ================= 商业活动（图文录入 → 前端左侧「商业活动」板块，与文章资讯分开） ================= */
