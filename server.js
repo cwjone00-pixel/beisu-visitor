@@ -1358,21 +1358,7 @@ function articleIndexHtml(){
     + '<body><main><a class="back" href="/">← На главную</a><h1>Статьи</h1>\n'
     + '<ul>' + (list || '<li>Пока нет статей</li>') + '</ul>\n</main></body></html>';
 }
-/* 首页注入「所有文章」入口与最新文章真实内链：前端卡片由 JS 渲染，爬虫抓不到 */
-function indexHtml(){
-  let html;
-  try { html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf-8'); } catch(e){ return null; }
-  const arts = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
-  if (!arts.length) return html;
-  const items = arts.slice(0, 5).map(a => {
-    const t = ((a.i18n || {}).ru || {}).title || a.title || a.slug;
-    return '<li><a href="' + escHtml(articlePath(a)) + '" hreflang="ru" style="color:#4a5260;text-decoration:none">' + escHtml(t) + '</a></li>';
-  }).join('');
-  const block = '<div style="padding:6px 16px 12px">'
-    + '<a href="/articles" style="font-size:12px;color:#8b94a0;text-decoration:none">Статьи · 文章 · Articles</a>'
-    + '<ul style="list-style:none;margin:6px 0 0;padding:0;font-size:12px;line-height:1.7">' + items + '</ul></div>';
-  return html.includes('</aside>') ? html.replace('</aside>', block + '\n</aside>') : html;
-}
+/* 首页直接静态直出：侧边栏底部只保留登录用户行，不再注入文章内链区块 */
 
 /* ---------------- 租车/配车 API（从 hainan-map server.js 合并） ----------------
    租车数据文件：沿用 beisu-visitor 根下 data/ 目录（与其它配置同目录）；
@@ -4010,11 +3996,6 @@ const server = http.createServer(async (req, res) => {
   /* ---- 文章列表页 /articles：服务端直出的真实内链入口（爬虫可顺着发现每篇文章） ---- */
   if ((p === '/articles' || p === '/articles/') && req.method === 'GET'){
     return sendHtml(req, res, 200, articleIndexHtml());
-  }
-  /* ---- 首页注入「所有文章」入口；前端卡片由 JS 渲染，爬虫抓不到，补一条真实内链 ---- */
-  if ((p === '/' || p === '/index.html') && req.method === 'GET'){
-    const html = indexHtml();
-    if (html) return sendHtml(req, res, 200, html);
   }
 
   /* ---- 文章独立页面（/article/<slug>，服务端直出，SEO 友好）
