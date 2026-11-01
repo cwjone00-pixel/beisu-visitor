@@ -2204,6 +2204,31 @@ async function beisuAiAnswer(text, lang) {
   } catch (e) { return null; }
 }
 
+/* 人工客服实时在线判定：Render 后台坐席心跳（10 秒窗口）或自建服务客服台心跳（/healthz）。
+   在线时 AI 一律不回复，只做转接提示，由人工直接答复。 */
+let backendOpCache = { at: 0, val: false };
+async function backendOperatorOnline(){
+  const now = Date.now();
+  if (now - backendOpCache.at < 8000) return backendOpCache.val;
+  let val = false;
+  try {
+    if (typeof fetch === 'function'){
+      const r = await fetch(process.env.BEISU_AI_HEALTH || 'http://47.116.133.33/healthz', { method: 'GET' });
+      if (r.ok) { const d = await r.json(); val = !!d.operatorOnline; }
+    }
+  } catch (e) { val = false; }
+  backendOpCache = { at: now, val };
+  return val;
+}
+async function humanOnline(){ return operatorOnline() || await backendOperatorOnline(); }
+
+/* 人工在线时给访客的一次性提示（不是 AI 生成，不调用模型） */
+const HUMAN_ONLINE_NOTICE = {
+  zh: '客服在线，正在为您转接，请稍候。',
+  en: 'Our team is online and will reply to you shortly.',
+  ru: 'Оператор на связи и скоро вам ответит.'
+};
+
 /* 访客主动要求人工客服的识别与提示（不做关键词规则匹配，也不触发 AI） */
 const HUMAN_RE = /(转人工|人工客服|找人工|需要人工|真人客服|оператор|связаться с оператором|operator|human agent|real person|talk to a human)/i;
 const HUMAN_NOTICE = {
@@ -2999,8 +3024,22 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, { reply: { [langKey]: notice }, quickButtons: [], matched: true, human: true, link: null, sid: activeSid, reset });
     }
     const payload = matchPayload(matchInput(body.text, body.lang));
-    // 关键词未命中：转私有化 AI 兜底（先回一句「正在查询」，AI 结果异步写入会话，游客轮询即可看到）
+    // 关键词未命中：人工在线 → AI 不回复（只标记待人工 + 一次性转接提示）；人工离线才转 AI 兜底
     if (!payload.matched && vtext) {
+      if (await humanOnline()) {
+        if (sess) {
+          sess.needHuman = true;
+          sess.needHumanAt = Date.now();
+        }
+        const first = !(sess && sess.humanNotifiedAt);
+        if (sess) sess.humanNotifiedAt = Date.now();
+        if (activeSid && first) addMsg(activeSid, { role:'bot', reply: { [langKey]: HUMAN_ONLINE_NOTICE[langKey] }, delayMs: 0 });
+        return send(res, 200, {
+          reply: first ? { [langKey]: HUMAN_ONLINE_NOTICE[langKey] } : { zh:'', en:'', ru:'' },
+          quickButtons: [], matched: false, human: true, online: true, link: null, sid: activeSid, reset
+        });
+      }
+      if (sess) sess.humanNotifiedAt = 0;   // 人工下线后重置，下次在线再提示一次
       const HOLD = {
         zh: '正在为您查询资料，请稍候…',
         en: 'Looking that up for you, one moment…',
