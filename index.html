@@ -339,7 +339,9 @@
     background:rgba(255,255,255,.94); border-radius:24px; padding:12px 14px;
     box-shadow:0 12px 34px rgba(35,65,115,.12);
   }
-  .input-line{ display:flex; align-items:center; gap:8px; }
+  .input-line{ display:flex; align-items:center; gap:8px; flex-wrap:nowrap; }
+  /* 右侧操作按钮组：拍照 / 上传图片 / 发送 并排一行，按钮之间保留间距，不与输入框上下堆叠 */
+  .input-actions{ display:flex; align-items:center; gap:8px; flex:none; }
   /* 输入框包裹层：承载占位提示的滚动覆盖层（文案放不下时自动左右往返滚动） */
   .input-wrap{ position:relative; flex:1; min-width:0; display:flex; align-items:center; }
   #composerInput{
@@ -361,10 +363,11 @@
     45%, 55%  { transform:translateX(var(--ph-shift, 0px)); }
     92%, 100% { transform:translateX(0); }
   }
-  /* 输入框正下方快捷按钮行（租房/租车/旅游搭子） */
-  .composer-chips{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+  /* 输入框下方工具行：快捷按钮（租房/租车/旅游搭子）+ 转人工入口并排同一行，宽度不够时整体换行，不各占一整行 */
+  .composer-tools{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .composer-chips{ display:flex; align-items:center; flex-wrap:wrap; gap:8px; min-width:0; }
   /* 转人工入口：安静的虚线胶囊按钮，随语种切换文案 */
-  .human-entry{ margin-top:8px; background:none; border:1px dashed rgba(0,0,0,.22); border-radius:999px;
+  .human-entry{ margin-top:0; background:none; border:1px dashed rgba(0,0,0,.22); border-radius:999px;
     padding:4px 12px; font-size:12px; line-height:1.4; color:#777; cursor:pointer; }
   .human-entry:hover{ color:#111; border-color:rgba(0,0,0,.45); }
   .chip-btn{
@@ -605,16 +608,13 @@
     width:auto; max-width:none; align-self:stretch; flex:none;
     margin:8px 10px 12px; padding:10px 12px; border-radius:20px;
   }
-  /* 三语下输入框尺寸统一固定：整行不换行、按钮不收缩；按钮文案变长（俄语）时输入框仍保留最小可视宽度，
-     整行放不下则横向滚动（滚动条隐藏），既不挤压输入框也不撑高输入条 */
-  .mac-window.mode-mobile .input-line{
-    flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden;
-    scrollbar-width:none; -webkit-overflow-scrolling:touch;
-  }
-  .mac-window.mode-mobile .input-line::-webkit-scrollbar{ display:none; }
+  /* 手机版输入行：输入框占主要宽度，右侧按钮组并排；宽度实在不够时整组按钮折到下一行成一行，
+     不会出现两个按钮各占一整行 */
+  .mac-window.mode-mobile .input-line{ flex-wrap:wrap; row-gap:8px; }
   /* 输入框占满按钮以外的整行宽度：三语下按钮同为纯图标、宽度一致，输入框宽度自然统一，且不留空档 */
-  .mac-window.mode-mobile .input-wrap{ flex:1 1 auto; min-width:0; }
+  .mac-window.mode-mobile .input-wrap{ flex:1 1 120px; min-width:0; }
   .mac-window.mode-mobile #composerInput{ flex:1 1 auto; min-width:0; width:100%; }
+  .mac-window.mode-mobile .input-actions{ flex:none; flex-wrap:nowrap; }
   /* 拍照 / 上传图片：文字不换行、不收缩，字号缩小以适配俄语等较长文案 */
   .mac-window.mode-mobile .action-btn{
     flex:none; white-space:nowrap; padding:0 10px; height:34px; font-size:11.5px; gap:5px;
@@ -623,9 +623,7 @@
   /* 手机版：拍照 / 上传图片只保留图标，隐藏文字（按钮更紧凑，三语下宽度一致） */
   .mac-window.mode-mobile #btnPhoto span,
   .mac-window.mode-mobile #btnUpload span{ display:none; }
-  /* 发送按钮的悬停 / 按压反馈：输入行是横向滚动容器（overflow-y:hidden），
-     上浮(translateY(-2px))与外扩阴影会被容器边缘裁掉，导致按钮显示残缺。
-     手机端改为不位移、不外扩阴影，仅变色反馈（按钮完整显示、点击不晃动） */
+  /* 手机版发送按钮：上浮与外扩阴影在窄容器里会被裁掉，改为只变色反馈 */
   .mac-window.mode-mobile #btnSend:hover{ transform:none; box-shadow:none; }
   .mac-window.mode-mobile #btnSend:active{
     transform:none; box-shadow:none;                 /* 按压不做缩放/位移：按钮完整显示且不晃动 */
@@ -643,11 +641,9 @@
   .mac-window.mode-mobile #composerInput,
   .mac-window.mode-mobile .input-ph-marquee,
   html.view-mobile .lm-input{ font-size:16px; }
-  /* 输入框下方快捷按钮行：同样单行横向滚动，避免撑高输入区 */
-  .mac-window.mode-mobile .composer-chips{
-    margin-top:8px; flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; scrollbar-width:none;
-  }
-  .mac-window.mode-mobile .composer-chips::-webkit-scrollbar{ display:none; }
+  /* 手机版工具行：快捷按钮与转人工入口同行，宽度不够时整体换行，不各占一整行 */
+  .mac-window.mode-mobile .composer-tools{ margin-top:8px; }
+  .mac-window.mode-mobile .composer-chips{ margin-top:0; }
   .mac-window.mode-mobile .chip-btn{ flex:none; }
 
   @media (max-width:900px){
@@ -804,20 +800,24 @@
             <!-- 占位提示超出输入框宽度时，用该覆盖层左右往返滚动展示整句 -->
             <div class="input-ph-marquee" id="inputPhMarquee" aria-hidden="true"><span></span></div>
           </div>
-          <button class="action-btn" id="btnPhoto" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><circle cx="12" cy="13.5" r="3.6"/><path d="M8.5 7l1.4-2.3h4.2L15.5 7"/></svg>
-            <span data-i18n="btnPhoto">拍照</span>
-          </button>
-          <button class="action-btn" id="btnUpload" type="button">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16.5v2a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>
-            <span data-i18n="btnUpload">上传图片</span>
-          </button>
-          <button class="action-btn send-btn" id="btnSend" type="submit" aria-label="Send">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L10.5 13.5"/><path d="M21 3l-6.8 18-3.7-7.5L3 9.8 21 3z"/></svg>
-          </button>
+          <div class="input-actions">
+            <button class="action-btn" id="btnPhoto" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.5"/><circle cx="12" cy="13.5" r="3.6"/><path d="M8.5 7l1.4-2.3h4.2L15.5 7"/></svg>
+              <span data-i18n="btnPhoto">拍照</span>
+            </button>
+            <button class="action-btn" id="btnUpload" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M8 8l4-4 4 4"/><path d="M4 16.5v2a1.5 1.5 0 0 0 1.5 1.5h13a1.5 1.5 0 0 0 1.5-1.5v-2"/></svg>
+              <span data-i18n="btnUpload">上传图片</span>
+            </button>
+            <button class="action-btn send-btn" id="btnSend" type="submit" aria-label="Send">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 3L10.5 13.5"/><path d="M21 3l-6.8 18-3.7-7.5L3 9.8 21 3z"/></svg>
+            </button>
+          </div>
         </form>
-        <div class="composer-chips" id="composerChips"></div>
-        <button class="human-entry" id="btnHuman" type="button">转人工客服</button>
+        <div class="composer-tools">
+          <div class="composer-chips" id="composerChips"></div>
+          <button class="human-entry" id="btnHuman" type="button">转人工客服</button>
+        </div>
         <!-- 拍照 / 上传图片：原生文件控件（拍照在移动端直接唤起相机，桌面端回退为选择文件） -->
         <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
         <input id="uploadInput" type="file" accept="image/*" hidden>
