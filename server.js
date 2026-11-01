@@ -845,6 +845,9 @@ function detectKeywordLang(kw){
 function matchInput(input, lang){
   const data = loadData();
   const text = String(input || '').trim();
+  /* 英文/俄文关键词存在大小写差异（按钮文案 "Booking summary" vs 关键词 "Booking Summary"），
+     逐字符比较会导致「配了关键词却不触发」，统一按小写比较；中文无大小写，不受影响。 */
+  const flat = text.toLowerCase();
   // 语言隔离：仅使用与前端界面语种对应的「XX关键词」框内容；语种非法时不匹配任何规则（禁止跨语种命中）
   const kwOf = r => (lang === 'zh' || lang === 'en' || lang === 'ru') ? (r.keywords[lang] || []) : [];
   if (text){
@@ -852,12 +855,12 @@ function matchInput(input, lang){
     // 精准匹配
     for (const r of enabled){
       if (r.type !== 'exact') continue;
-      if (kwOf(r).some(k => text === k)) return { ...r, isFallback:false };
+      if (kwOf(r).some(k => k && flat === String(k).toLowerCase())) return { ...r, isFallback:false };
     }
     // 模糊匹配
     for (const r of enabled){
       if (r.type !== 'fuzzy') continue;
-      if (kwOf(r).some(k => k && text.includes(k))) return { ...r, isFallback:false };
+      if (kwOf(r).some(k => k && flat.includes(String(k).toLowerCase()))) return { ...r, isFallback:false };
     }
   }
   return { ...data.fallback, isFallback:true };
