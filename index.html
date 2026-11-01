@@ -363,6 +363,10 @@
   }
   /* 输入框正下方快捷按钮行（租房/租车/旅游搭子） */
   .composer-chips{ display:flex; align-items:center; gap:8px; margin-top:10px; }
+  /* 转人工入口：安静的虚线胶囊按钮，随语种切换文案 */
+  .human-entry{ margin-top:8px; background:none; border:1px dashed rgba(0,0,0,.22); border-radius:999px;
+    padding:4px 12px; font-size:12px; line-height:1.4; color:#777; cursor:pointer; }
+  .human-entry:hover{ color:#111; border-color:rgba(0,0,0,.45); }
   .chip-btn{
     height:32px; padding:0 14px; border-radius:999px; font-size:12.5px; font-weight:600;
     color:#4d74b8; background:rgba(47,124,246,.07); border:1px solid rgba(47,124,246,.20);
@@ -813,6 +817,7 @@
           </button>
         </form>
         <div class="composer-chips" id="composerChips"></div>
+        <button class="human-entry" id="btnHuman" type="button">转人工客服</button>
         <!-- 拍照 / 上传图片：原生文件控件（拍照在移动端直接唤起相机，桌面端回退为选择文件） -->
         <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
         <input id="uploadInput" type="file" accept="image/*" hidden>
@@ -1299,7 +1304,20 @@ function applyI18n(){
   refreshEventModal();   // 已打开的商业活动详情按当前语种切内容
   /* 语种切换后按钮文案长度变化会改变输入框宽度，重新判断占位文案是否溢出 */
   layoutComposerPlaceholder();
+  applyHumanEntry();     // 转人工入口文案按当前语种刷新
 }
+
+/* 转人工入口：点击发送当前语种话术，服务端识别后转人工并回复提示 */
+const HUMAN_ENTRY_LABEL = { zh:'转人工客服', en:'Talk to a human', ru:'Связаться с оператором' };
+function applyHumanEntry(){
+  const el = $('btnHuman');
+  if (el) el.textContent = HUMAN_ENTRY_LABEL[lang] || HUMAN_ENTRY_LABEL.zh;
+}
+document.addEventListener('click', function (e) {
+  const el = (e.target && e.target.closest) ? e.target.closest('#btnHuman') : null;
+  if (!el) return;
+  sendMessage(HUMAN_ENTRY_LABEL[lang] || HUMAN_ENTRY_LABEL.zh);
+});
 
 /* ---------------- 工具 ---------------- */
 const $ = id => document.getElementById(id);

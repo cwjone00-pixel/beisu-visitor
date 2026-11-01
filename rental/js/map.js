@@ -110,6 +110,14 @@ window.HainanMap = (function () {
        'hover' —— 只有地标里标了常显的地名（城市）常显，其余点位名称鼠标悬浮才出现。
        游客露营页用 'hover'：城市地名常显，营地与机场的名称悬浮才显示。 */
     var hoverLabels  = cfg.labelMode === 'hover';
+    /* 移动端不显示景点名称：窄屏下十几个地名挤在一起看不清，
+       只保留点位图标，名称交给页面底部弹卡展示；桌面端完全不变。
+       页面传 cfg.mobileNoLabels:true 打开，按视口宽度自动判定。 */
+    function isCompactView() {
+      try { return window.matchMedia('(max-width: 900px)').matches; }
+      catch (e) { return (window.innerWidth || 0) <= 900; }
+    }
+    var mobileNoLabels = !!cfg.mobileNoLabels && isCompactView();
     /* 行政区地名显示模式：'always' 进入页面即常显（不再需要悬浮）；
        默认悬浮才显示。 */
     var areaLabelAlways = cfg.areaLabelMode === 'always';
@@ -917,7 +925,7 @@ window.HainanMap = (function () {
         symbol: 'circle',
         symbolSize: FALLBACK_SIZE,
         itemStyle: { borderColor: '#ffffff', shadowColor: 'rgba(20,40,80,.35)' },
-        label: { show: true },
+        label: { show: !mobileNoLabels },
         emphasis: { scale: 1 },
         z: 40,
         data: ringData
@@ -934,7 +942,7 @@ window.HainanMap = (function () {
         silent: true,                    /* 标签只做展示，不抢点位/气泡的点击 */
         z: 90,
         renderItem: renderLabel,
-        data: labelData(plan.labels)
+        data: mobileNoLabels ? [] : labelData(plan.labels)
       });
 
       return series;
@@ -1250,6 +1258,7 @@ window.HainanMap = (function () {
     /* 容器尺寸变化会改变比例尺，需重新换算像素容差 */
     window.addEventListener('resize', function () {
       scaleKnown = false;
+      mobileNoLabels = !!cfg.mobileNoLabels && isCompactView();
       chart.resize();
       draw();
     });

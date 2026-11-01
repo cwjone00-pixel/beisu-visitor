@@ -2183,6 +2183,33 @@ function rentFallbackReply(context) {
   return '这个问题我先记下了' + town + '，客服上线后会结合您的登记信息回复您。您也可以补充预算、户型和租住时长，我帮您先匹配。';
 }
 
+/* ---- 私有化 AI 兜底（阿里云自建 RAG 知识库）----
+   关键词未命中时转发给自建服务；服务不可达时返回 null，调用方回落到原兜底话术。 */
+async function beisuAiAnswer(text, lang) {
+  const url = process.env.BEISU_AI_URL || 'https://api.beisuas.com/api/answer';
+  const key = process.env.BEISU_AI_KEY || 'de0382379cd7d95e668da25e591775f7';
+  if (!url || typeof fetch !== 'function') return null;
+  try {
+    const headers = { 'Content-Type': 'application/json', 'X-AI-Key': key };
+    const r = await fetch(url, {
+      method: 'POST', headers,
+      body: JSON.stringify({ text: String(text || '').slice(0, 500), pageLang: lang || 'zh' })
+    });
+    if (!r.ok) return null;
+    const d = await r.json();
+    const rep = d && (d.reply || d.answer);
+    return rep ? String(rep).slice(0, 600) : null;
+  } catch (e) { return null; }
+}
+
+/* 访客主动要求人工客服的识别与提示（不做关键词规则匹配，也不触发 AI） */
+const HUMAN_RE = /(转人工|人工客服|找人工|需要人工|真人客服|оператор|связаться с оператором|operator|human agent|real person|talk to a human)/i;
+const HUMAN_NOTICE = {
+  zh: '已收到您的转人工请求，客服看到后会尽快回复；等待期间我可以先帮您查询资料。',
+  en: 'Your request for a human agent has been received. Our team will reply as soon as possible; meanwhile I can look up information for you.',
+  ru: 'Запрос на оператора принят, сотрудник скоро ответит. Пока я могу подсказать по нашим материалам.'
+};
+
 /* 租房登记摘要：表单提交后写入主站会话，作为一条访客消息带入对话上下文 */
 function rentLeadSummary(d) {
   const parts = ['【租房需求登记】' + (d.town || '') + (d.county ? '（' + d.county + '）' : '')];
@@ -2960,9 +2987,31 @@ const server = http.createServer(async (req, res) => {
     if (!loadData().agentChat.botEnabled){
       return send(res, 200, { reply:{ zh:'', en:'', ru:'' }, quickButtons:[], matched:false, botDisabled:true, link:null, sid: activeSid, reset });
     }
+    const langKey = (body.lang === 'zh' || body.lang === 'en' || body.lang === 'ru') ? body.lang : 'zh';
+    const vtext = String(body.text || '').trim();
+    // 访客主动要求人工：标记会话并回复提示，不进入关键词/AI 流程（人工入口由此保留）
+    if (vtext && HUMAN_RE.test(vtext)) {
+      if (sess) { sess.needHuman = true; sess.needHumanAt = Date.now(); }
+      const notice = HUMAN_NOTICE[langKey];
+      if (activeSid) addMsg(activeSid, { role:'bot', reply: { [langKey]: notice }, delayMs: 0 });
+      return send(res, 200, { reply: { [langKey]: notice }, quickButtons: [], matched: true, human: true, link: null, sid: activeSid, reset });
+    }
     const payload = matchPayload(matchInput(body.text, body.lang));
-    // 命中规则或兜底回复（任一语种有内容）均入会话流，游客端轮询同步可见
-    // 多条消息（卡片 + 主回复 + 追加消息）按配置顺序逐条写入，各自带延时字段
+    // 关键词未命中：转私有化 AI 兜底（先回一句「正在查询」，AI 结果异步写入会话，游客轮询即可看到）
+    if (!payload.matched && vtext) {
+      const HOLD = {
+        zh: '正在为您查询资料，请稍候…',
+        en: 'Looking that up for you, one moment…',
+        ru: 'Секунду, посмотрю информацию…'
+      };
+      if (activeSid) addMsg(activeSid, { role:'bot', reply: { [langKey]: HOLD[langKey] }, delayMs: 0 });
+      beisuAiAnswer(vtext, langKey).then(function (ans) {
+        if (!activeSid) return;
+        addMsg(activeSid, { role:'bot', reply: ans ? { [langKey]: ans } : payload.reply, delayMs: 0 });
+      }).catch(function () {});
+      return send(res, 200, { reply:{ zh:'', en:'', ru:'' }, quickButtons: [], matched: false, pending: true, link: null, sid: activeSid, reset });
+    }
+    // 命中规则：按原顺序写入主回复 / 卡片 / 追加消息
     if (activeSid) pushRuleMsgs(activeSid, payload, loadData().replySeq !== false);
     payload.sid = activeSid || undefined;
     payload.reset = reset;
