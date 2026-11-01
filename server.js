@@ -2186,7 +2186,9 @@ function rentFallbackReply(context) {
 /* ---- 私有化 AI 兜底（阿里云自建 RAG 知识库）----
    关键词未命中时转发给自建服务；服务不可达时返回 null，调用方回落到原兜底话术。 */
 async function beisuAiAnswer(text, lang) {
-  const url = process.env.BEISU_AI_URL || 'https://api.beisuas.com/api/answer';
+  /* 用 IP:80 直连：阿里云大陆机房会对未备案域名的 80/443 按域名做拦截，
+     但按 IP 访问 HTTP 正常，Render 侧（Node 服务端）调用不受混合内容限制。 */
+  const url = process.env.BEISU_AI_URL || 'http://47.116.133.33/api/answer';
   const key = process.env.BEISU_AI_KEY || 'de0382379cd7d95e668da25e591775f7';
   if (!url || typeof fetch !== 'function') return null;
   try {
