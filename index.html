@@ -1299,7 +1299,6 @@ function applyI18n(){
   applyAuthState();      // 侧边栏登录状态 + 未登录门控按当前语种刷新
   renderChat();          // 机器人回复与对话内按钮按当前语种刷新
   renderArticles();      // 文章资讯卡片标题按当前语种刷新
-  refreshCardModal();    // 已打开的文章页面按当前语种切内容
   renderEvents();        // 商业活动卡片标题按当前语种刷新
   refreshEventModal();   // 已打开的商业活动详情按当前语种切内容
   /* 语种切换后按钮文案长度变化会改变输入框宽度，重新判断占位文案是否溢出 */
@@ -1416,12 +1415,12 @@ function eventBodyOf(it){
   if (it && it.bodies && it.bodies[lang]) return it.bodies[lang];
   return (it && it.body) || '';
 }
-/* 同一篇文章共用同一 URL/slug，仅以 ?lang= 指定显示的语种 */
-function withLang(u){ return u ? (u + (u.indexOf('?') >= 0 ? '&' : '?') + 'lang=' + lang) : u; }
 function makeRealCard(item, section){
   const isArt = section === 'articles';
   const title = isArt ? articleTitleOf(item) : eventTitleOf(item);
-  const url = (isArt && item.url) ? withLang(item.url) : item.url;
+  /* 文章卡片一律打开干净地址（页面默认俄语版，方便 Yandex 抓取）；
+     需要中文/英文时在地址后手动加 ?lang=zh / ?lang=en */
+  const url = item.url;
   const cover = item.cover || '';
   const card = document.createElement('div');
   card.className = 'ph-card' + (cover ? ' has-cover' : '');
@@ -1494,11 +1493,6 @@ function openCardModal(title, url){
     ph.style.display = 'flex';
   }
   $('cardOverlay').classList.add('show');
-}
-/* 语言切换时，若文章弹窗正开着，按新语种重新载入同一篇文章（URL/slug 不变） */
-function refreshCardModal(){
-  if (!$('cardOverlay').classList.contains('show') || !cardState.url) return;
-  $('cardFrame').src = withLang(cardState.url);
 }
 function closeCardModal(){
   $('cardOverlay').classList.remove('show');
