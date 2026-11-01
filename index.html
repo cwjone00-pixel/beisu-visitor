@@ -1434,7 +1434,7 @@ function makeRealCard(item, section){
   const card = document.createElement('div');
   card.className = 'ph-card' + (cover ? ' has-cover' : '');
   if (cover){
-    card.innerHTML = '<img class="card-thumb" alt=""><div class="card-body"><span class="card-title"></span></div>';
+    card.innerHTML = '<img class="card-thumb"><div class="card-body"><span class="card-title"></span></div>';
     card.querySelector('.card-thumb').src = cover;   // 列表页展示封面缩略图
     card.querySelector('.card-thumb').alt = title;   // alt 用当前语种标题（无障碍 + Yandex 图片搜索可理解图片内容）
   } else {

@@ -1311,11 +1311,23 @@ function articlePageHtml(art, preview, l){
     + '<article>\n' + bodyToHtml(body) + '\n</article>\n'
     + more + acts + '</main>\n</body>\n</html>';
 }
+/* 全站统一友好 404：登录用户/搜索引擎都看到同一页（三语提示 + 返回首页 + 文章列表入口），
+   避免链接失效时返回空白或纯文本 */
 function articleNotFoundHtml(){
-  return '<!DOCTYPE html>\n<html lang="zh">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<title>页面不存在</title><meta name="robots" content="noindex">'
-    + '<style>body{font-family:-apple-system,"Segoe UI",sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;color:#22282f}a{color:#2f7cf6}</style></head>'
-    + '<body><div style="text-align:center"><h1 style="font-size:20px">404 · 页面不存在</h1><p><a href="/">返回首页</a></p></div></body></html>';
+  return '<!DOCTYPE html>\n<html lang="ru">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>Страница не найдена — beisuas</title><meta name="robots" content="noindex">'
+    + '<meta name="description" content="Такой страницы нет. Вернитесь на главную beisuas или откройте статьи о Хайнане.">'
+    + '<style>body{font-family:-apple-system,"Segoe UI","PingFang SC",sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;color:#22282f;background:#f6f7f9}'
+    + '.box{max-width:520px;padding:32px 24px;text-align:center;background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(20,40,80,.08)}'
+    + 'h1{font-size:22px;margin:0 0 10px}p{margin:0 0 6px;color:#5b6470;line-height:1.6}'
+    + '.links{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:18px}'
+    + 'a{display:inline-block;padding:10px 18px;border-radius:9px;background:#2f7cf6;color:#fff;text-decoration:none;font-size:15px}'
+    + 'a.alt{background:#f1f4f9;color:#4a5260}</style></head>'
+    + '<body><div class="box"><h1>404 · Страница не найдена</h1>'
+    + '<p>К сожалению, такой страницы нет или она была перемещена.</p>'
+    + '<p>页面不存在 · Page not found</p>'
+    + '<div class="links"><a href="/">На главную · 返回首页</a><a class="alt" href="/articles">Статьи · 文章</a></div>'
+    + '</div></body></html>';
 }
 /* sitemap：首页 + 每篇文章的俄/中/英三条独立链接（含 hreflang 互指），供 Yandex / Google 发现收录 */
 function sitemapXml(){
@@ -1655,11 +1667,11 @@ function serveStatic(req, res){
     urlPath = '/experience/index.html';
   }
   /* 安全：禁止通过静态资源访问 data 目录（users/auth/secrets 等敏感数据），杜绝密钥泄露 */
-  if (/^\/data(\/|$)/i.test(urlPath)) return send(res, 404, 'Not Found');
+  if (/^\/data(\/|$)/i.test(urlPath)) return sendHtml(req, res, 404, articleNotFoundHtml());
   const filePath = path.normalize(path.join(ROOT, urlPath));
   if (filePath !== ROOT && !filePath.startsWith(ROOT + path.sep)) return send(res, 403, 'Forbidden');
   fs.readFile(filePath, (err, data) => {
-    if (err) return send(res, 404, 'Not Found');
+    if (err) return sendHtml(req, res, 404, articleNotFoundHtml());   // 静态路径找不到 → 友好 404（含返回首页）
     const ext = path.extname(filePath).toLowerCase();
     const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
     /* HTML 页面禁止缓存：移动端浏览器容易复用旧页面，导致前端改动看不到 */
