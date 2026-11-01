@@ -399,6 +399,9 @@
   var I18N = window.RentalI18n;
   var LANGS = ['zh', 'en', 'ru'];
   var LANG_KEY = 'camp.lang';
+  /* 首页聊天用的语言记忆键：选好天数跳回首页后，首页按这个键决定界面语种，
+     进而决定关键词按哪一组语种匹配。两处必须同步，否则英文/俄语文案会拿中文关键词去匹配，永远不命中。 */
+  var HOME_LANG_KEY = 'beisu-lang';
   var T = {
     zh: {
       back: '返回地图',
@@ -1140,6 +1143,8 @@
   function setLang(next) {
     lang = LANGS.indexOf(next) >= 0 ? next : 'zh';
     try { localStorage.setItem(LANG_KEY, lang); } catch (e) {}
+    /* 同步到首页的语言记忆：跳回首页时聊天界面与「租车意向」文案保持同一语种 */
+    try { localStorage.setItem(HOME_LANG_KEY, lang); } catch (e) {}
     document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
     applyStatic();
     if (data) render();
@@ -1157,7 +1162,9 @@
 
   function boot() {
     var saved = '';
-    try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
+    /* 优先跟随首页语言：从英文/俄文首页点进来的租车页，打开就是同一语种，
+       选车后跳回首页也不会出现「文案语种 ≠ 界面语种」导致关键词不命中 */
+    try { saved = localStorage.getItem(HOME_LANG_KEY) || localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
     lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
     applyStatic();
     $('rstate').textContent = t().loading;
