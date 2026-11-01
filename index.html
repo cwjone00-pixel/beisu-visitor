@@ -1,9 +1,11 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="ru">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>beisuas · 游客端</title>
+<title>beisuas — Хайнань для туристов: жильё, авто, туры и помощь на русском</title>
+<meta name="description" content="beisuas — помощь туристам на Хайнане: аренда жилья и автомобилей, туры по острову, трансферы, советы и ответы на вопросы в онлайн-чате на русском языке.">
+<link rel="canonical" href="https://beisuas.com/">
 <script>
 /* 设备识别提前到 <head>：解析 body 之前就定好「电脑端 / 手机端」，
    首屏直接按手机布局绘制，不会先闪一帧电脑布局再跳变。
@@ -1205,7 +1207,7 @@ const I18N = {
     authGuestBtn:'免注册，以游客身份进入', authGuestName:'游客', authGuestDone:'已以游客身份进入',
     authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能',
     imgUploading:'图片处理中，请稍候…', imgFail:'图片上传失败，请重试', imgTooLarge:'图片过大，请换一张', imgTypeErr:'请选择图片文件',
-    vtDesktop:'电脑', vtMobile:'手机'
+    vtDesktop:'电脑', vtMobile:'手机', siteTitle:'beisuas · 海南旅游助手：租房、租车、全岛游与游客咨询'
   },
   en: {
     brandTitle:'beisuas', m0:'Island-wide tours', m0d:'The best-value travel experience', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
@@ -1242,7 +1244,7 @@ const I18N = {
     authGuestBtn:'Continue as guest (no sign-up)', authGuestName:'Guest', authGuestDone:'Entered as guest',
     authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.',
     imgUploading:'Processing image, please wait…', imgFail:'Image upload failed, please try again', imgTooLarge:'Image is too large, please pick another', imgTypeErr:'Please choose an image file',
-    vtDesktop:'Desktop', vtMobile:'Phone'
+    vtDesktop:'Desktop', vtMobile:'Phone', siteTitle:'beisuas — Hainan travel help: housing, car rental, island tours'
   },
   ru: {
     brandTitle:'beisuas', m0:'Туры по всему острову', m0d:'Лучшее соотношение цены и качества', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
@@ -1279,10 +1281,16 @@ const I18N = {
     authGuestBtn:'Продолжить как гость (без регистрации)', authGuestName:'Гость', authGuestDone:'Вы вошли как гость',
     authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.',
     imgUploading:'Обработка изображения, подождите…', imgFail:'Не удалось загрузить изображение, попробуйте ещё раз', imgTooLarge:'Изображение слишком большое, выберите другое', imgTypeErr:'Выберите файл изображения',
-    vtDesktop:'ПК', vtMobile:'Телефон'
+    vtDesktop:'ПК', vtMobile:'Телефон', siteTitle:'beisuas — Хайнань для туристов: жильё, авто, туры и помощь на русском'
   }
 };
-let lang = localStorage.getItem('beisu-lang') || 'zh';
+/* 默认语种：站点主要面向俄罗斯游客，默认俄语；中文/英文浏览器自动用对应语种，用户可随时手动切换 */
+let lang = localStorage.getItem('beisu-lang') || (function(){
+  const nl = String((navigator.languages && navigator.languages[0]) || navigator.language || '').toLowerCase();
+  if (nl.indexOf('zh') === 0) return 'zh';
+  if (nl.indexOf('en') === 0) return 'en';
+  return 'ru';
+})();
 const dict = () => I18N[lang];
 
 function applyI18n(){
@@ -1291,6 +1299,7 @@ function applyI18n(){
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = d[el.dataset.i18nPh] || ''; });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = d[el.dataset.i18nTitle] || ''; });
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+  document.title = d.siteTitle || document.title;   // 标签页标题随语种切换（静态默认为俄语，便于 Yandex 收录俄语首页）
   document.querySelectorAll('.lang-opt').forEach(o => o.classList.toggle('active', o.dataset.lang === lang));
   renderHomeButtons();   // 后台配置的首页按钮按当前语种刷新
   renderComposerButtons();  // 输入框内快捷按钮按当前语种刷新
@@ -1427,6 +1436,7 @@ function makeRealCard(item, section){
   if (cover){
     card.innerHTML = '<img class="card-thumb" alt=""><div class="card-body"><span class="card-title"></span></div>';
     card.querySelector('.card-thumb').src = cover;   // 列表页展示封面缩略图
+    card.querySelector('.card-thumb').alt = title;   // alt 用当前语种标题（无障碍 + Yandex 图片搜索可理解图片内容）
   } else {
     card.innerHTML = '<span class="card-title"></span><span class="ph-line short"></span>';
   }
@@ -2298,7 +2308,7 @@ function renderChat(){
   area.innerHTML = chatLog.map(m => {
     if (m.role === 'visitor'){
       let inner = '';
-      if (m.image) inner += `<img class="msg-img" src="${escapeAttr(m.image)}" alt="" onclick="window.open(this.src,'_blank')">`;
+      if (m.image) inner += `<img class="msg-img" src="${escapeAttr(m.image)}" alt="${lang === 'zh' ? '聊天图片' : lang === 'en' ? 'Chat photo' : 'Фото из чата'}" onclick="window.open(this.src,'_blank')">`;
       if (m.text) inner += (inner ? '<br>' : '') + escapeHtml(m.text);
       return `<div class="msg-row user"><div class="msg-bubble">${inner}</div></div>`;
     }
@@ -2309,7 +2319,7 @@ function renderChat(){
       const tg = (m.role === 'agent') ? roleTag.agent : roleTag.bot;
       let cInner = `<span class="msg-tag">${escapeHtml(labelOf(tg, lang))}</span>`;
       cInner += `<a class="msg-card" href="${escapeAttr(m.card.url)}">`;
-      if (m.card.cover) cInner += `<img src="${escapeAttr(m.card.cover)}" alt="">`;
+      if (m.card.cover) cInner += `<img src="${escapeAttr(m.card.cover)}" alt="${escapeAttr(ct)}">`;
       cInner += `<div class="msg-card-bd"><div class="msg-card-title">${escapeHtml(ct)}</div>`;
       if (cd) cInner += `<div class="msg-card-desc">${escapeHtml(cd)}</div>`;
       cInner += `<div class="msg-card-url">${escapeHtml(m.card.url)}</div></div></a>`;
