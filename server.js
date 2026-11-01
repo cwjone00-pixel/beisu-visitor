@@ -2419,6 +2419,14 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
+  /* 域名统一：Render 默认域名 beisu-visitor.onrender.com 不再对外暴露，
+     301 跳转到正式域名 beisuas.com，避免重复内容与链接分散 */
+  const host = (req.headers.host || '').toLowerCase().split(':')[0];
+  if (host === 'beisu-visitor.onrender.com') {
+    const target = PUBLIC_BASE_URL + req.url;
+    res.writeHead(301, { Location: target, 'Cache-Control': 'public, max-age=3600' });
+    return res.end();
+  }
   let m;   // 路由正则匹配结果（供各分支复用，声明置于顶部以便全流程使用）
 
   /* ---- 后台管理接口鉴权 ----
