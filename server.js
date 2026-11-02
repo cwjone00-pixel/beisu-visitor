@@ -1339,8 +1339,10 @@ function articlePageHtml(art, preview, l){
   const HREFLANG = { zh:'zh-CN', en:'en', ru:'ru' };
   const alternates = ART_LANGS.map(x => '<link rel="alternate" hreflang="' + HREFLANG[x] + '" href="' + escHtml(langUrl(x)) + '">').join('\n')
     + '\n<link rel="alternate" hreflang="x-default" href="' + escHtml(base) + '">';
-  /* 咨询入口：全站统一俄语 CTA，指向首页；不再渲染任何第三方服务跳转按钮 */
-  const CONSULT = '<a class="consult" href="https://beisuas.com" lang="ru">Написать нам в чат</a>';
+  /* 咨询入口：按页面语种显示对应文案，指向首页；不再渲染任何第三方服务跳转按钮 */
+  const CONSULT_TEXT = { zh:'点此咨询', en:'Ask a question', ru:'Написать нам в чат' };
+  const consultText = escHtml(CONSULT_TEXT[lang] || CONSULT_TEXT.ru);
+  const CONSULT = '<a class="consult" href="https://beisuas.com" lang="' + lang + '">' + consultText + '</a>';
   /* 相关文章内链：文章页底部列出其它已发布文章（当前语种标题，非俄语链接带 ?lang=），
      读者可继续阅读，爬虫也能顺着真实内链发现全部文章 */
   const MORE_T = { zh:'相关文章', en:'Related articles', ru:'Другие статьи' };
@@ -1363,11 +1365,11 @@ function articlePageHtml(art, preview, l){
   const langSwitch = '<nav class="langs" aria-label="Language">' + ART_LANGS.map(x =>
     '<a class="lang' + (x === lang ? ' on' : '') + '" href="' + escHtml(relUrl(x)) + '"' + (x === lang ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
   ).join('') + '</nav>\n';
-  /* 顶部吸顶导航：左侧品牌返回首页，右侧语种切换 + 俄语咨询入口 */
+  /* 顶部吸顶导航：左侧品牌返回首页，右侧语种切换 + 当前语种咨询入口 */
   const topbar = '<header class="topbar"><div class="topbar-in"><div class="topbar-l">'
     + '<a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
     + '<a class="home" href="/">← ' + escHtml(HOME_TEXT[lang] || HOME_TEXT.ru) + '</a></div>'
-    + '<a class="consult consult-top" href="https://beisuas.com" lang="ru">Написать нам в чат</a>'
+    + '<a class="consult consult-top" href="https://beisuas.com" lang="' + lang + '">' + consultText + '</a>'
     + langSwitch + '</div></header>\n';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
@@ -1438,6 +1440,8 @@ function articleIndexHtml(lang){
     ru: { title:'Статьи — Хайнань', h1:'Статьи', empty:'Пока нет статей' }
   }[lg];
   const LANGS_TEXT = { zh:'中文', en:'English', ru:'Русский' };
+  const CONSULT_TEXT = { zh:'点此咨询', en:'Ask a question', ru:'Написать нам в чат' };
+  const consultText = escHtml(CONSULT_TEXT[lg] || CONSULT_TEXT.ru);
   const items = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
   const list = items.map(a => {
     const c = (a.i18n || {})[lg] || {};
@@ -1476,10 +1480,10 @@ function articleIndexHtml(lang){
     + '.consult-bottom .consult{flex:1 1 auto}'
     + '@media (max-width:620px){.topbar-in{flex-wrap:wrap;row-gap:8px}.langs{margin-left:auto}.consult-top{order:3;width:100%;height:36px}.lang{padding:5px 9px;font-size:12px}.ls{display:block;margin:6px 0 0}}</style></head>\n'
     + '<body><header class="topbar"><div class="topbar-in"><a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
-    + '<a class="consult consult-top" href="https://beisuas.com" lang="ru">Написать нам в чат</a>'
+    + '<a class="consult consult-top" href="https://beisuas.com" lang="' + lg + '">' + consultText + '</a>'
     + langSwitch + '</div></header><main><h1>' + escHtml(T.h1) + '</h1>\n'
     + '<ul>' + (list || '<li>' + escHtml(T.empty) + '</li>') + '</ul>\n'
-    + '<div class="consult-bottom"><a class="consult" href="https://beisuas.com" lang="ru">Написать нам в чат</a></div>\n'
+    + '<div class="consult-bottom"><a class="consult" href="https://beisuas.com" lang="' + lg + '">' + consultText + '</a></div>\n'
     + '</main></body></html>';
 }
 /* 首页直接静态直出：侧边栏底部只保留登录用户行，不再注入文章内链区块 */

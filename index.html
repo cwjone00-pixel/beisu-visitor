@@ -787,7 +787,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8.5h16M4 15.5h16"/></svg>
         </button>
         <span class="spacer"></span>
-        <a class="consult-link" href="https://beisuas.com" lang="ru">Написать нам в чат</a>
+        <a class="consult-link" href="https://beisuas.com" lang="ru" data-i18n="consultCta">Написать нам в чат</a>
 
         <!-- 语言切换：三项常驻展开、横向排列，进入页面即可直接点击切换（不做下拉收起） -->
         <div class="lang" id="langBox">
@@ -846,7 +846,7 @@
         <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
         <input id="uploadInput" type="file" accept="image/*" hidden>
       </div>
-      <a class="consult-link consult-foot" href="https://beisuas.com" lang="ru">Написать нам в чат</a>
+      <a class="consult-link consult-foot" href="https://beisuas.com" lang="ru" data-i18n="consultCta">Написать нам в чат</a>
     </main>
   </div>
 </div>
@@ -1230,7 +1230,7 @@ const I18N = {
     authGuestBtn:'免注册，以游客身份进入', authGuestName:'游客', authGuestDone:'已以游客身份进入',
     authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能',
     imgUploading:'图片处理中，请稍候…', imgFail:'图片上传失败，请重试', imgTooLarge:'图片过大，请换一张', imgTypeErr:'请选择图片文件',
-    vtDesktop:'电脑', vtMobile:'手机', siteTitle:'beisuas · 海南旅游助手：租房、租车、全岛游与游客咨询'
+    vtDesktop:'电脑', vtMobile:'手机', consultCta:'点此咨询', siteTitle:'beisuas · 海南旅游助手：租房、租车、全岛游与游客咨询'
   },
   en: {
     brandTitle:'beisuas', m0:'Island-wide tours', m0d:'The best-value travel experience', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'With a driver, explore all of Hainan', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
@@ -1267,7 +1267,7 @@ const I18N = {
     authGuestBtn:'Continue as guest (no sign-up)', authGuestName:'Guest', authGuestDone:'Entered as guest',
     authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.',
     imgUploading:'Processing image, please wait…', imgFail:'Image upload failed, please try again', imgTooLarge:'Image is too large, please pick another', imgTypeErr:'Please choose an image file',
-    vtDesktop:'Desktop', vtMobile:'Phone', siteTitle:'beisuas — Hainan travel help: housing, car rental, island tours'
+    vtDesktop:'Desktop', vtMobile:'Phone', consultCta:'Ask a question', siteTitle:'beisuas — Hainan travel help: housing, car rental, island tours'
   },
   ru: {
     brandTitle:'beisuas', m0:'Туры по всему острову', m0d:'Лучшее соотношение цены и качества', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'С водителем, объездим весь Хайнань', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
@@ -1304,7 +1304,7 @@ const I18N = {
     authGuestBtn:'Продолжить как гость (без регистрации)', authGuestName:'Гость', authGuestDone:'Вы вошли как гость',
     authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.',
     imgUploading:'Обработка изображения, подождите…', imgFail:'Не удалось загрузить изображение, попробуйте ещё раз', imgTooLarge:'Изображение слишком большое, выберите другое', imgTypeErr:'Выберите файл изображения',
-    vtDesktop:'ПК', vtMobile:'Телефон', siteTitle:'beisuas — Хайнань для туристов: жильё, авто, туры и помощь на русском'
+    vtDesktop:'ПК', vtMobile:'Телефон', consultCta:'Написать нам в чат', siteTitle:'beisuas — Хайнань для туристов: жильё, авто, туры и помощь на русском'
   }
 };
 /* 默认语种：已手动选择 > 浏览器语言 > IP 国家 > 时区 > 俄语（站点面向俄罗斯游客，不再默认中文） */
@@ -1321,6 +1321,8 @@ function applyI18n(){
   document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = d[el.dataset.i18nPh] || ''; });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = d[el.dataset.i18nTitle] || ''; });
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
+  /* 咨询入口按钮的语言标记随当前语种更新（文案本身由上面的 data-i18n 统一刷新） */
+  document.querySelectorAll('.consult-link[data-i18n]').forEach(el => { el.lang = lang; });
   document.title = d.siteTitle || document.title;   // 标签页标题随语种切换（静态默认为俄语，便于 Yandex 收录俄语首页）
   document.querySelectorAll('.lang-opt').forEach(o => o.classList.toggle('active', o.dataset.lang === lang));
   renderHomeButtons();   // 后台配置的首页按钮按当前语种刷新
