@@ -2369,10 +2369,14 @@ async function beisuAiAnswer(text, lang) {
   const url = process.env.BEISU_AI_URL || 'http://47.116.133.33/api/answer';
   const key = process.env.BEISU_AI_KEY || 'de0382379cd7d95e668da25e591775f7';
   if (!url || typeof fetch !== 'function') return null;
+  /* 超时保护：自建服务不可达或挂起时最多等 10 秒，超时返回 null，
+     由调用方发送兜底话术，避免访客发完消息后永远停在「稍等」没有任何回复 */
+  const ac = typeof AbortController === 'function' ? new AbortController() : null;
+  const timer = ac ? setTimeout(() => ac.abort(), 10000) : null;
   try {
     const headers = { 'Content-Type': 'application/json', 'X-AI-Key': key };
     const r = await fetch(url, {
-      method: 'POST', headers,
+      method: 'POST', headers, signal: ac ? ac.signal : undefined,
       body: JSON.stringify({ text: String(text || '').slice(0, 500), pageLang: lang || 'zh' })
     });
     if (!r.ok) return null;
@@ -2380,6 +2384,7 @@ async function beisuAiAnswer(text, lang) {
     const rep = d && (d.reply || d.answer);
     return rep ? String(rep).slice(0, 600) : null;
   } catch (e) { return null; }
+  finally { if (timer) clearTimeout(timer); }
 }
 
 /* 人工客服实时在线判定：Render 后台坐席心跳（10 秒窗口）或自建服务客服台心跳（/healthz）。
