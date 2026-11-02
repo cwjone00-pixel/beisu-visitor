@@ -1215,12 +1215,17 @@ function sendHtml(req, res, status, html){
   sendMaybeGzip(req, res, status, h, html);
 }
 const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",Roboto,sans-serif;line-height:1.75}'
-  + 'main{max-width:760px;margin:0 auto;padding:32px 20px 64px;background:#fff;min-height:100vh;box-sizing:border-box}'
-  + '.back{display:inline-block;margin-bottom:18px;font-size:13px;color:#2f7cf6;text-decoration:none}'
+  + 'main{max-width:760px;margin:0 auto;padding:24px 20px 64px;background:#fff;min-height:100vh;box-sizing:border-box}'
+  + '.topbar{position:sticky;top:0;z-index:9;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid #eef2f7}'
+  + '.topbar-in{max-width:760px;margin:0 auto;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-sizing:border-box}'
+  + '.brand{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;color:#22282f;text-decoration:none}'
+  + '.brand .dot{width:22px;height:22px;border-radius:7px;background:#2f7cf6;color:#fff;font-size:14px;font-weight:700;line-height:22px;text-align:center}'
+  + '.topbar-l{display:flex;align-items:center;gap:10px}'
+  + '.home{font-size:13px;color:#2f7cf6;text-decoration:none}'
   + 'h1{font-size:26px;line-height:1.35;margin:0 0 10px}'
   + '.meta{color:#8b94a0;font-size:13px;margin-bottom:20px}'
-  + '.langs{display:flex;gap:8px;margin:0 0 20px}'
-  + '.lang{display:inline-block;padding:6px 14px;border-radius:8px;background:#f1f4f9;color:#4a5260;font-size:13px;text-decoration:none}'
+  + '.langs{display:flex;gap:6px}'
+  + '.lang{display:inline-block;padding:6px 12px;border-radius:8px;background:#f1f4f9;color:#4a5260;font-size:13px;text-decoration:none}'
   + '.lang.on{background:#2f7cf6;color:#fff}'
   + '.cover{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin:0 0 24px}'
   + 'article p{margin:0 0 16px;font-size:16px}'
@@ -1236,7 +1241,8 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.more li{margin:0 0 10px}'
   + '.more a{color:#1a4f9c;text-decoration:none;font-size:15px}'
   + '.more a:hover{text-decoration:underline}'
-  + '@media (max-width:420px){.acts{flex-direction:column}.act{width:100%}}';
+  + '@media (max-width:420px){.acts{flex-direction:column}.act{width:100%}}'
+  + '@media (max-width:480px){.topbar-in{flex-wrap:wrap;row-gap:8px}.langs{margin-left:auto}.lang{padding:5px 9px;font-size:12px}}';
 /* 文章独立页面：服务端直出，含 title/description/canonical/hreflang/og/JSON-LD，便于爬虫抓取收录
    一篇文章一个 URL（/article/<slug>），默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容；
    可通过 ?lang=zh|en|ru 切换语种；所选语种未录入内容时回退到俄语。
@@ -1281,13 +1287,18 @@ function articlePageHtml(art, preview, l){
       }).join('\n')
     + '\n</ul>\n</section>\n' : '';
   const OGLOCALE = { zh:'zh_CN', en:'en_US', ru:'ru_RU' };
-  const BACK_TEXT = { zh:'返回首页', en:'Back to home', ru:'На главную' };
+  const HOME_TEXT = { zh:'返回首页', en:'Back to home', ru:'На главную' };
   /* 三语切换按钮：俄语为默认干净地址，中文/英文跳到 ?lang= 版本（三个独立 URL） */
   const LANGS_TEXT = { zh:'中文', en:'English', ru:'Русский' };
   const relUrl = x => (x === 'ru' ? articlePath(art) : articlePath(art) + '?lang=' + x);
-  const langSwitch = '<div class="langs">' + ART_LANGS.map(x =>
+  const langSwitch = '<nav class="langs" aria-label="Language">' + ART_LANGS.map(x =>
     '<a class="lang' + (x === lang ? ' on' : '') + '" href="' + escHtml(relUrl(x)) + '"' + (x === lang ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
-  ).join('') + '</div>\n';
+  ).join('') + '</nav>\n';
+  /* 顶部吸顶导航：品牌与「返回首页」都指向首页，右侧是当前语种切换 */
+  const topbar = '<header class="topbar"><div class="topbar-in"><div class="topbar-l">'
+    + '<a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
+    + '<a class="home" href="/">← ' + escHtml(HOME_TEXT[lang] || HOME_TEXT.ru) + '</a></div>'
+    + langSwitch + '</div></header>\n';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
     + '<title>' + escHtml(title) + '</title>\n'
@@ -1302,11 +1313,9 @@ function articlePageHtml(art, preview, l){
     + (img ? '<meta property="og:image" content="' + escHtml(img) + '">\n' : '')
     + '<meta name="robots" content="' + (preview ? 'noindex,nofollow' : 'index,follow') + '">\n'
     + '<script type="application/ld+json">' + JSON.stringify(ld) + '</script>\n'
-    + '<style>' + ARTICLE_CSS + '</style>\n</head>\n<body>\n<main>\n'
-    + '<a class="back" href="/">← ' + escHtml(BACK_TEXT[lang] || BACK_TEXT.ru) + '</a>\n'
+    + '<style>' + ARTICLE_CSS + '</style>\n</head>\n<body>\n' + topbar + '<main>\n'
     + '<h1>' + escHtml(title) + '</h1>\n'
     + '<div class="meta">' + published.slice(0, 10) + (preview ? ' · 草稿预览（未发布，不收录）' : '') + '</div>\n'
-    + langSwitch
     + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '">\n' : '')
     + '<article>\n' + bodyToHtml(body) + '\n</article>\n'
     + more + acts + '</main>\n</body>\n</html>';
@@ -1362,12 +1371,17 @@ function articleIndexHtml(){
     + '<title>Статьи — Хайнань</title><meta name="robots" content="index,follow">'
     + '<link rel="canonical" href="' + escHtml(PUBLIC_BASE_URL + '/articles') + '">'
     + '<style>body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,"Segoe UI",sans-serif;line-height:1.7}'
-    + 'main{max-width:760px;margin:0 auto;padding:32px 20px 64px;background:#fff;min-height:100vh;box-sizing:border-box}'
-    + 'h1{font-size:24px;margin:0 0 20px}.back{display:inline-block;margin-bottom:18px;font-size:13px;color:#2f7cf6;text-decoration:none}'
+    + 'main{max-width:760px;margin:0 auto;padding:24px 20px 64px;background:#fff;min-height:100vh;box-sizing:border-box}'
+    + 'h1{font-size:24px;margin:0 0 20px}'
+    + '.topbar{position:sticky;top:0;z-index:9;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid #eef2f7}'
+    + '.topbar-in{max-width:760px;margin:0 auto;padding:11px 20px;display:flex;align-items:center;gap:10px;box-sizing:border-box}'
+    + '.brand{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;color:#22282f;text-decoration:none}'
+    + '.brand .dot{width:22px;height:22px;border-radius:7px;background:#2f7cf6;color:#fff;font-size:14px;font-weight:700;line-height:22px;text-align:center}'
+    + '.home{font-size:13px;color:#2f7cf6;text-decoration:none}'
     + 'ul{list-style:none;padding:0;margin:0}li{padding:14px 0;border-bottom:1px solid #eef2f7}'
     + 'a{color:#1a4f9c;text-decoration:none;font-size:16px}.ls{margin-left:12px;font-size:13px}'
     + '.ls a{margin-left:8px;color:#2f7cf6;font-size:13px}</style></head>\n'
-    + '<body><main><a class="back" href="/">← На главную</a><h1>Статьи</h1>\n'
+    + '<body><header class="topbar"><div class="topbar-in"><a class="brand" href="/"><span class="dot">b</span>beisuas</a><a class="home" href="/">← На главную</a></div></header><main><h1>Статьи</h1>\n'
     + '<ul>' + (list || '<li>Пока нет статей</li>') + '</ul>\n</main></body></html>';
 }
 /* 首页直接静态直出：侧边栏底部只保留登录用户行，不再注入文章内链区块 */
