@@ -1146,14 +1146,10 @@ const ARTICLE_BLOCKS = {
                            en:{ title:'Island tour', desc:'Best-value island route with campsites and spots', cta:'View island tour' },
                            ru:{ title:'Тур по острову', desc:'Лучший маршрут по острову с выбором стоянок', cta:'Смотреть тур' } }
 };
-/* ---- 访客语种识别：浏览器语言优先，其次 IP 国家，最后兜底俄语（不默认中文） ---- */
-function reqCountry(req){
-  const h = (req && req.headers) || {};
-  return String(h['cf-ipcountry'] || h['x-vercel-ip-country'] || h['x-country-code'] || '').toUpperCase();
-}
 const RU_CTY = ['RU','BY','KZ','KG','UA','UZ','AM','AZ','GE','MD','TJ','TM','LV','LT','EE','MN'];
 const ZH_CTY = ['CN','HK','TW','MO'];
 const EN_CTY = ['US','GB','AU','CA','NZ','IE','SG','MY','PH','IN','AE','ZA'];
+/* 未指定 ?lang= 时的语种识别：浏览器语言 > IP 国家 > 兜底俄语（仅用于客户端/列表页引导，文章干净地址固定俄语） */
 function detectLang(req){
   const al = String((req && req.headers && req.headers['accept-language']) || '').toLowerCase();
   for (const part of al.split(',')){
@@ -1168,6 +1164,11 @@ function detectLang(req){
   if (ZH_CTY.indexOf(c) >= 0) return 'zh';
   if (EN_CTY.indexOf(c) >= 0) return 'en';
   return 'ru';
+}
+/* ---- 访客 IP 国家（Cloudflare 头），用于首页引导语等场景 ---- */
+function reqCountry(req){
+  const h = (req && req.headers) || {};
+  return String(h['cf-ipcountry'] || h['x-vercel-ip-country'] || h['x-country-code'] || '').toUpperCase();
 }
 function normCard(input){
   const c = (input && typeof input === 'object') ? input : {};
@@ -1354,8 +1355,9 @@ function articlePageHtml(art, preview, l){
     '<a class="lang' + (x === lang ? ' on' : '') + '" href="' + escHtml(relUrl(x)) + '"' + (x === lang ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
   ).join('') + '</nav>\n';
   /* 顶部吸顶导航：左侧品牌返回首页，右侧语种切换（不再放正文上方的小号返回首页链接） */
-  const topbar = '<header class="topbar"><div class="topbar-in">'
+  const topbar = '<header class="topbar"><div class="topbar-in"><div class="topbar-l">'
     + '<a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
+    + '<a class="home" href="/">← ' + escHtml(HOME_TEXT[lang] || HOME_TEXT.ru) + '</a></div>'
     + langSwitch + '</div></header>\n';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
@@ -4136,8 +4138,8 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/article/') && req.method === 'GET'){
     const slug = decodeURIComponent(p.slice('/article/'.length));
     const q = url.searchParams.get('lang') || '';
-    /* 未指定语种时按访客浏览器语言 / IP 国家自动选择，兜底俄语 */
-    const l = ART_LANGS.includes(q) ? q : detectLang(req);
+    /* 未指定语种时固定俄语：干净地址与 hreflang x-default、sitemap 保持一致 */
+    const l = ART_LANGS.includes(q) ? q : 'ru';
     const { art, redirect } = resolveArticleSlug(slug);
     const preview = !!sessionUser(url.searchParams.get('preview') || '');
     if (!art){
