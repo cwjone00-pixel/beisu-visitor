@@ -449,6 +449,7 @@
 
   } /* 移动端样式块结束 */
 </style>
+<script src="/lang-detect.js"></script>
 </head>
 <body>
 
@@ -1248,7 +1249,7 @@
     showPeopleMask(false);                         /* 进页面先确保弹窗关闭，避免全屏遮罩挡住地图与按钮 */
     var saved = '';
     try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
-    lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    lang = LANGS.indexOf(saved) >= 0 ? saved : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru');
     /* 出行人数：沿用第一步地图页写入的全局缓存（1-9 之外的脏值一律视为未填） */
     try {
       var pn = parseInt(localStorage.getItem(PEOPLE_KEY), 10);

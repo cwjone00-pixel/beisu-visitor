@@ -146,6 +146,7 @@
     .camp__name { font-size: 15px; }
   }
 </style>
+<script src="/lang-detect.js"></script>
 </head>
 <body>
 
@@ -465,7 +466,7 @@
   function boot() {
     var saved = '';
     try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
-    lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    lang = LANGS.indexOf(saved) >= 0 ? saved : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru');
     applyLang();
 
     var pid = '';

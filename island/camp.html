@@ -388,6 +388,7 @@
 
   } /* 移动端样式块结束（@media max-width: 900px） */
 </style>
+<script src="/lang-detect.js"></script>
 </head>
 <body>
 
@@ -919,7 +920,7 @@
     showPeopleMask(false);                         /* 进页面先确保弹窗是关闭的，绝不留全屏遮罩挡住地图 */
     var saved = '';
     try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
-    lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    lang = LANGS.indexOf(saved) >= 0 ? saved : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru');
     applyLang();                                   /* 数据到达前先把页面文字按语种渲染出来 */
 
     fetch('/api/camp-points', { cache: 'no-store' })

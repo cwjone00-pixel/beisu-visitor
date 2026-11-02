@@ -209,6 +209,7 @@
   .camp__next svg { width: 14px; height: 14px; }
   .camp__next[hidden] { display: none; }
 </style>
+<script src="/lang-detect.js"></script>
 </head>
 <body>
 
@@ -559,7 +560,7 @@
   function boot() {
     var saved = '';
     try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
-    lang = LANGS.indexOf(saved) >= 0 ? saved : 'zh';
+    lang = LANGS.indexOf(saved) >= 0 ? saved : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru');
     applyLang();                                   /* 数据到达前先把页面文字按语种渲染出来 */
 
     fetch('/api/camp-points', { cache: 'no-store' })

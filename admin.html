@@ -770,6 +770,14 @@
     </div>
     <div class="field">
       <label>正文（三语独立录入，不自动翻译；空行分段，段内换行自动保留）</label>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 6px;">
+        <span style="font-size:12px;color:#8b94a0;">快捷插入板块：</span>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="artInsertBlock('rent')">租房</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="artInsertBlock('car')">租车</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="artInsertBlock('pickup')">免费接机协助</button>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="artInsertBlock('island')">全岛游</button>
+      </div>
+      <div style="color:#9aa3ad;font-size:12px;margin:0 0 10px;">点按钮插入到光标所在的正文框（先点一下要插入的语种输入框）；位置由你决定，一篇建议放 1–3 个合适的板块。</div>
       <div class="tri-row"><span class="lang-chip">中文</span><textarea class="textarea" id="amBodyZh" style="min-height:120px" placeholder="请输入中文正文…"></textarea></div>
       <div class="tri-row"><span class="lang-chip">English</span><textarea class="textarea" id="amBodyEn" style="min-height:120px" placeholder="English content…"></textarea></div>
       <div class="tri-row"><span class="lang-chip">Русский</span><textarea class="textarea" id="amBodyRu" style="min-height:120px" placeholder="Текст на русском…"></textarea></div>
@@ -1657,6 +1665,27 @@ async function delHome(id){ if (confirm('确定删除该按钮？')) { await API
 
 /* ================= 文章资讯（图文录入 → 独立页面） ================= */
 let arts = [], editingArt = null, artCover = '';
+/* 快捷插入板块：记录最后一次获得光标的正文框，按钮把 [[block:key]] 插到该处 */
+let artFocusId = '';
+document.getElementById('artModal').addEventListener('focusin', e => {
+  if (e.target && e.target.tagName === 'TEXTAREA') artFocusId = e.target.id;
+});
+function artInsertBlock(key){
+  const keys = { rent:1, car:1, pickup:1, island:1 };
+  if (!keys[key]) return;
+  const ta = document.getElementById(artFocusId || 'amBodyRu');
+  if (!ta) return;
+  const ins = '[[block:' + key + ']]';
+  const s = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+  const e2 = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+  const before = ta.value.slice(0, s).replace(/\n+$/, '');
+  const after = ta.value.slice(e2).replace(/^\n+/, '');
+  const mid = (before ? '\n\n' : '') + ins + (after ? '\n\n' : '');
+  ta.value = before + mid + after;
+  const pos = before.length + (before ? 2 : 0) + ins.length;
+  ta.focus();
+  try { ta.setSelectionRange(pos, pos); } catch (err) { /* 忽略 */ }
+}
 /* 文章绑定项目的展示名（与后端 ARTICLE_PROJECTS 一一对应） */
 const ART_PROJECT_NAMES = { island:'环岛游', rent:'租房协助', car:'租车协助', pickup:'接机协助' };
 /* 文章独立地址：一篇文章一个 URL（/article/<slug>），默认加载俄语 */

@@ -1130,6 +1130,45 @@ const ARTICLE_PROJECTS = [
   { key:'pickup', url:'',        label:'接机协助', book:{ zh:'预定接机协助', en:'Book Airport Pickup',     ru:'Забронировать встречу в аэропорту' } }   // 下单页待定，留空时该按钮自动隐藏
 ];
 function articleProjectByKey(key){ return ARTICLE_PROJECTS.filter(function (p) { return p.key === key; })[0] || null; }
+/* 文章正文可插入的服务板块：后台编辑器手动插入 [[block:key]] 标记，
+   前台按当前语种渲染成可点击的服务卡片（不在正文里自动识别、自动插入） */
+const ARTICLE_BLOCKS = {
+  rent:   { url:'/rent',   zh:{ title:'租房协助',   desc:'全岛选市县、选乡镇，帮你避开租房纠纷', cta:'查看租房' },
+                           en:{ title:'Housing assistance', desc:'Pick a city and town, avoid rental pitfalls', cta:'View housing' },
+                           ru:{ title:'Помощь с жильём', desc:'Выберите город и район, без проблем с арендой', cta:'Смотреть жильё' } },
+  car:    { url:'/rental', zh:{ title:'租车协助',   desc:'含司机，可带你走遍整个海南', cta:'查看租车' },
+                           en:{ title:'Car rental', desc:'With a driver, travel across Hainan', cta:'View car rental' },
+                           ru:{ title:'Аренда авто', desc:'С водителем — по всему Хайнаню', cta:'Смотреть аренду авто' } },
+  pickup: { url:'/',       zh:{ title:'免费接机协助', desc:'发来机票信息，我们安排接机并陪同办理落地事项', cta:'联系安排接机' },
+                           en:{ title:'Free airport pickup', desc:'Send your flight details, we meet you and help on arrival', cta:'Arrange pickup' },
+                           ru:{ title:'Бесплатная встреча в аэропорту', desc:'Пришлите данные рейса — встретим и поможем по прилёте', cta:'Организовать встречу' } },
+  island: { url:'/island', zh:{ title:'全岛游', desc:'最高性价比的环岛路线，可自选露营与打卡点', cta:'查看全岛游' },
+                           en:{ title:'Island tour', desc:'Best-value island route with campsites and spots', cta:'View island tour' },
+                           ru:{ title:'Тур по острову', desc:'Лучший маршрут по острову с выбором стоянок', cta:'Смотреть тур' } }
+};
+/* ---- 访客语种识别：浏览器语言优先，其次 IP 国家，最后兜底俄语（不默认中文） ---- */
+function reqCountry(req){
+  const h = (req && req.headers) || {};
+  return String(h['cf-ipcountry'] || h['x-vercel-ip-country'] || h['x-country-code'] || '').toUpperCase();
+}
+const RU_CTY = ['RU','BY','KZ','KG','UA','UZ','AM','AZ','GE','MD','TJ','TM','LV','LT','EE','MN'];
+const ZH_CTY = ['CN','HK','TW','MO'];
+const EN_CTY = ['US','GB','AU','CA','NZ','IE','SG','MY','PH','IN','AE','ZA'];
+function detectLang(req){
+  const al = String((req && req.headers && req.headers['accept-language']) || '').toLowerCase();
+  for (const part of al.split(',')){
+    const t = part.split(';')[0].trim();
+    if (!t) continue;
+    if (t.indexOf('zh') === 0) return 'zh';
+    if (t.indexOf('ru') === 0) return 'ru';
+    if (t.indexOf('en') === 0) return 'en';
+  }
+  const c = reqCountry(req);
+  if (RU_CTY.indexOf(c) >= 0) return 'ru';
+  if (ZH_CTY.indexOf(c) >= 0) return 'zh';
+  if (EN_CTY.indexOf(c) >= 0) return 'en';
+  return 'ru';
+}
 function normCard(input){
   const c = (input && typeof input === 'object') ? input : {};
   const id = c.id || crypto.randomUUID();
@@ -1180,10 +1219,25 @@ function escHtml(s){
   return String(s == null ? '' : s)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-/* 正文按空行分段、段内换行转 <br>，整体转义（防止录入内容注入脚本） */
-function bodyToHtml(body){
+/* 正文按空行分段、段内换行转 <br>，整体转义（防止录入内容注入脚本）
+   正文中单独成段的 [[block:key]] 会渲染成可点击的服务卡片（后台手动插入，不做自动识别） */
+function bodyToHtml(body, lang){
+  const lg = ART_LANGS.indexOf(lang) >= 0 ? lang : 'ru';
   const paras = String(body || '').replace(/\r\n?/g, '\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
-  return paras.map(p => '<p>' + escHtml(p).replace(/\n/g, '<br>') + '</p>').join('\n') || '<p></p>';
+  return paras.map(p => {
+    const mk = p.match(/^\[\[block:([a-z]+)\]\]$/i);
+    if (mk){
+      const b = ARTICLE_BLOCKS[String(mk[1]).toLowerCase()];
+      if (b){
+        const t = b[lg] || b.ru;
+        return '<a class="blk" href="' + escHtml(b.url) + '">'
+          + '<span class="blk-t">' + escHtml(t.title) + '</span>'
+          + '<span class="blk-d">' + escHtml(t.desc) + '</span>'
+          + '<span class="blk-a">' + escHtml(t.cta) + ' →</span></a>';
+      }
+    }
+    return '<p>' + escHtml(p).replace(/\n/g, '<br>') + '</p>';
+  }).join('\n') || '<p></p>';
 }
 /* 文本类响应按需 gzip 压缩（体积约降 75%，手机端首屏更快）；客户端不支持或已是图片等二进制格式时原样发送 */
 const GZIP_MIN = 1024;
@@ -1211,7 +1265,7 @@ function sendMaybeGzip(req, res, status, headers, body){
   });
 }
 function sendHtml(req, res, status, html){
-  const h = { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff' };
+  const h = { 'Content-Type':'text/html; charset=utf-8', 'Cache-Control':'no-cache', 'X-Content-Type-Options':'nosniff', 'Vary':'Accept-Language' };
   sendMaybeGzip(req, res, status, h, html);
 }
 const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",Roboto,sans-serif;line-height:1.75}'
@@ -1221,7 +1275,6 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.brand{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;color:#22282f;text-decoration:none}'
   + '.brand .dot{width:22px;height:22px;border-radius:7px;background:#2f7cf6;color:#fff;font-size:14px;font-weight:700;line-height:22px;text-align:center}'
   + '.topbar-l{display:flex;align-items:center;gap:10px}'
-  + '.home{font-size:13px;color:#2f7cf6;text-decoration:none}'
   + 'h1{font-size:26px;line-height:1.35;margin:0 0 10px}'
   + '.meta{color:#8b94a0;font-size:13px;margin-bottom:20px}'
   + '.langs{display:flex;gap:6px}'
@@ -1229,6 +1282,12 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.lang.on{background:#2f7cf6;color:#fff}'
   + '.cover{display:block;width:100%;max-height:420px;object-fit:cover;border-radius:12px;margin:0 0 24px}'
   + 'article p{margin:0 0 16px;font-size:16px}'
+  /* 正文服务板块卡片：后台手动插入 [[block:key]] 后渲染，整卡可点击跳转对应业务页 */
+  + '.blk{display:flex;flex-direction:column;gap:4px;margin:0 0 22px;padding:16px 18px;border:1px solid #e3eaf5;border-radius:12px;background:#f8fbff;text-decoration:none;transition:border-color .15s,background .15s}'
+  + '.blk:hover{border-color:#2f7cf6;background:#f1f7ff}'
+  + '.blk-t{font-size:17px;font-weight:700;color:#18488f}'
+  + '.blk-d{font-size:14px;color:#5b6470}'
+  + '.blk-a{font-size:14px;font-weight:600;color:#2f7cf6;margin-top:4px}'
   + '.acts{display:flex;gap:10px;margin-top:34px;padding-top:22px;border-top:1px solid #eef2f7}'
   + '.act{flex:1 1 0;display:flex;align-items:center;justify-content:center;height:46px;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;transition:background .15s}'
   + '.act-consult{background:#f1f4f9;color:#4a5260}'
@@ -1287,17 +1346,16 @@ function articlePageHtml(art, preview, l){
       }).join('\n')
     + '\n</ul>\n</section>\n' : '';
   const OGLOCALE = { zh:'zh_CN', en:'en_US', ru:'ru_RU' };
-  const HOME_TEXT = { zh:'返回首页', en:'Back to home', ru:'На главную' };
+
   /* 三语切换按钮：俄语为默认干净地址，中文/英文跳到 ?lang= 版本（三个独立 URL） */
   const LANGS_TEXT = { zh:'中文', en:'English', ru:'Русский' };
   const relUrl = x => (x === 'ru' ? articlePath(art) : articlePath(art) + '?lang=' + x);
   const langSwitch = '<nav class="langs" aria-label="Language">' + ART_LANGS.map(x =>
     '<a class="lang' + (x === lang ? ' on' : '') + '" href="' + escHtml(relUrl(x)) + '"' + (x === lang ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
   ).join('') + '</nav>\n';
-  /* 顶部吸顶导航：品牌与「返回首页」都指向首页，右侧是当前语种切换 */
-  const topbar = '<header class="topbar"><div class="topbar-in"><div class="topbar-l">'
+  /* 顶部吸顶导航：左侧品牌返回首页，右侧语种切换（不再放正文上方的小号返回首页链接） */
+  const topbar = '<header class="topbar"><div class="topbar-in">'
     + '<a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
-    + '<a class="home" href="/">← ' + escHtml(HOME_TEXT[lang] || HOME_TEXT.ru) + '</a></div>'
     + langSwitch + '</div></header>\n';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
@@ -1317,7 +1375,7 @@ function articlePageHtml(art, preview, l){
     + '<h1>' + escHtml(title) + '</h1>\n'
     + '<div class="meta">' + published.slice(0, 10) + (preview ? ' · 草稿预览（未发布，不收录）' : '') + '</div>\n'
     + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '">\n' : '')
-    + '<article>\n' + bodyToHtml(body) + '\n</article>\n'
+    + '<article>\n' + bodyToHtml(body, lang) + '\n</article>\n'
     + more + acts + '</main>\n</body>\n</html>';
 }
 /* 全站统一友好 404：登录用户/搜索引擎都看到同一页（三语提示 + 返回首页 + 文章列表入口），
@@ -1358,31 +1416,49 @@ function sitemapXml(){
 
 /* 文章列表页（服务端直出）：首页卡片是前端 JS 渲染的，爬虫看不到，
    这里提供一份真实链接列表，Yandex / Google 顺着内链即可发现全部文章 */
-function articleIndexHtml(){
+function articleIndexHtml(lang){
+  const lg = ART_LANGS.indexOf(lang) >= 0 ? lang : 'ru';
+  const T = {
+    zh: { title:'文章 — 海南', h1:'文章', empty:'暂无文章' },
+    en: { title:'Articles — Hainan', h1:'Articles', empty:'No articles yet' },
+    ru: { title:'Статьи — Хайнань', h1:'Статьи', empty:'Пока нет статей' }
+  }[lg];
+  const LANGS_TEXT = { zh:'中文', en:'English', ru:'Русский' };
   const items = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
   const list = items.map(a => {
-    const t = ((a.i18n || {}).ru || {}).title || a.title || a.slug;
-    const p = escHtml(articlePath(a));
-    return '<li><a href="' + p + '" hreflang="ru">' + escHtml(t) + '</a>'
-      + '<span class="ls"><a href="' + p + '?lang=zh" hreflang="zh-CN">中文</a>'
-      + '<a href="' + p + '?lang=en" hreflang="en">English</a></span></li>';
+    const c = (a.i18n || {})[lg] || {};
+    const t = c.title || ((a.i18n || {}).ru || {}).title || a.title || a.slug;
+    const p = escHtml(articlePath(a) + (lg === 'ru' ? '' : '?lang=' + lg));
+    return '<li><a href="' + p + '" hreflang="' + (lg === 'zh' ? 'zh-CN' : lg) + '">' + escHtml(t) + '</a>'
+      + '<span class="ls"><a href="' + escHtml(articlePath(a) + '?lang=zh') + '" hreflang="zh-CN">中文</a>'
+      + '<a href="' + escHtml(articlePath(a) + '?lang=en') + '" hreflang="en">English</a>'
+      + '<a href="' + escHtml(articlePath(a)) + '" hreflang="ru">Русский</a></span></li>';
   }).join('\n');
-  return '<!DOCTYPE html>\n<html lang="ru">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<title>Статьи — Хайнань</title><meta name="robots" content="index,follow">'
-    + '<link rel="canonical" href="' + escHtml(PUBLIC_BASE_URL + '/articles') + '">'
+  const langSwitch = '<nav class="langs" aria-label="Language">' + ART_LANGS.map(x =>
+    '<a class="lang' + (x === lg ? ' on' : '') + '" href="/articles' + (x === 'ru' ? '' : '?lang=' + x) + '"'
+      + (x === lg ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
+  ).join('') + '</nav>';
+  return '<!DOCTYPE html>\n<html lang="' + (lg === 'zh' ? 'zh-CN' : lg) + '">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<title>' + escHtml(T.title) + '</title><meta name="robots" content="index,follow">'
+    + '<meta name="description" content="' + escHtml(T.h1) + ' — beisuas.com">'
+    + '<link rel="canonical" href="' + escHtml(PUBLIC_BASE_URL + '/articles' + (lg === 'ru' ? '' : '?lang=' + lg)) + '">'
     + '<style>body{margin:0;background:#f6f7f9;color:#22282f;font-family:-apple-system,"Segoe UI",sans-serif;line-height:1.7}'
     + 'main{max-width:760px;margin:0 auto;padding:24px 20px 64px;background:#fff;min-height:100vh;box-sizing:border-box}'
     + 'h1{font-size:24px;margin:0 0 20px}'
     + '.topbar{position:sticky;top:0;z-index:9;background:rgba(255,255,255,.94);backdrop-filter:blur(8px);border-bottom:1px solid #eef2f7}'
-    + '.topbar-in{max-width:760px;margin:0 auto;padding:11px 20px;display:flex;align-items:center;gap:10px;box-sizing:border-box}'
+    + '.topbar-in{max-width:760px;margin:0 auto;padding:11px 20px;display:flex;align-items:center;justify-content:space-between;gap:12px;box-sizing:border-box}'
     + '.brand{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;color:#22282f;text-decoration:none}'
     + '.brand .dot{width:22px;height:22px;border-radius:7px;background:#2f7cf6;color:#fff;font-size:14px;font-weight:700;line-height:22px;text-align:center}'
-    + '.home{font-size:13px;color:#2f7cf6;text-decoration:none}'
+    + '.langs{display:flex;gap:6px}'
+    + '.lang{display:inline-block;padding:6px 12px;border-radius:8px;background:#f1f4f9;color:#4a5260;font-size:13px;text-decoration:none}'
+    + '.lang.on{background:#2f7cf6;color:#fff}'
     + 'ul{list-style:none;padding:0;margin:0}li{padding:14px 0;border-bottom:1px solid #eef2f7}'
     + 'a{color:#1a4f9c;text-decoration:none;font-size:16px}.ls{margin-left:12px;font-size:13px}'
-    + '.ls a{margin-left:8px;color:#2f7cf6;font-size:13px}</style></head>\n'
-    + '<body><header class="topbar"><div class="topbar-in"><a class="brand" href="/"><span class="dot">b</span>beisuas</a><a class="home" href="/">← На главную</a></div></header><main><h1>Статьи</h1>\n'
-    + '<ul>' + (list || '<li>Пока нет статей</li>') + '</ul>\n</main></body></html>';
+    + '.ls a{margin-left:8px;color:#2f7cf6;font-size:13px}'
+    + '@media (max-width:480px){.langs{margin-left:auto}.lang{padding:5px 9px;font-size:12px}.ls{display:block;margin:6px 0 0}}</style></head>\n'
+    + '<body><header class="topbar"><div class="topbar-in"><a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
+    + langSwitch + '</div></header><main><h1>' + escHtml(T.h1) + '</h1>\n'
+    + '<ul>' + (list || '<li>' + escHtml(T.empty) + '</li>') + '</ul>\n</main></body></html>';
 }
 /* 首页直接静态直出：侧边栏底部只保留登录用户行，不再注入文章内链区块 */
 
@@ -1688,12 +1764,20 @@ function serveStatic(req, res){
     if (err) return sendHtml(req, res, 404, articleNotFoundHtml());   // 静态路径找不到 → 友好 404（含返回首页）
     const ext = path.extname(filePath).toLowerCase();
     const headers = { 'Content-Type': MIME[ext] || 'application/octet-stream' };
+    /* 把访客 IP 国家注入页面（window.__BEISU_COUNTRY），供 /lang-detect.js 判断默认语种 */
+    let out = data;
+    if (ext === '.html'){
+      const cc = reqCountry(req);
+      if (cc){
+        out = Buffer.from(String(data).replace(/<head(\s[^>]*)?>/i, m => m + '<script>window.__BEISU_COUNTRY=' + JSON.stringify(cc) + ';</script>'), 'utf-8');
+      }
+    }
     /* HTML 页面禁止缓存：移动端浏览器容易复用旧页面，导致前端改动看不到 */
     if (ext === '.html') headers['Cache-Control'] = 'no-cache';
     /* 地图用的两个大文件（echarts ~1MB / 地理边界）内容极少变动：允许浏览器缓存，
        避免每次进入地图子页面都重新下载一遍 */
     if (/[\\/]island[\\/](echarts\.min\.js|hainan\.geojson\.js)$/.test(filePath)) headers['Cache-Control'] = 'public, max-age=86400';
-    sendMaybeGzip(req, res, 200, headers, data);
+    sendMaybeGzip(req, res, 200, headers, out);
   });
 }
 
@@ -2471,7 +2555,7 @@ const server = http.createServer(async (req, res) => {
     const open =
       p === '/api/auth/status' || p === '/api/auth/login' || p === '/api/auth/logout' ||
       p === '/api/auth/heartbeat' || p === '/api/auth/close' ||
-      p === '/api/config' || p === '/api/match' || p === '/api/media' ||
+      p === '/api/config' || p === '/api/geo' || p === '/api/match' || p === '/api/media' ||
       (p === '/api/island/submit' && req.method === 'POST') ||
       (p === '/api/island-config' && req.method === 'GET') ||
       (p === '/api/camp-points' && req.method === 'GET') ||
@@ -3130,6 +3214,10 @@ const server = http.createServer(async (req, res) => {
     return send(res, 200, { ok:true });
   }
 
+  /* ---- 访客语种识别（浏览器语言 + IP 国家），供静态页面首屏决定默认语种 ---- */
+  if (p === '/api/geo' && req.method === 'GET'){
+    return send(res, 200, { ok:true, country: reqCountry(req), lang: detectLang(req) });
+  }
   /* ---- 全量配置（前端启动拉取） ---- */
   if (p === '/api/config' && req.method === 'GET'){
     const d = loadData();
@@ -4038,7 +4126,8 @@ const server = http.createServer(async (req, res) => {
 
   /* ---- 文章列表页 /articles：服务端直出的真实内链入口（爬虫可顺着发现每篇文章） ---- */
   if ((p === '/articles' || p === '/articles/') && req.method === 'GET'){
-    return sendHtml(req, res, 200, articleIndexHtml());
+    const q = url.searchParams.get('lang') || '';
+    return sendHtml(req, res, 200, articleIndexHtml(ART_LANGS.indexOf(q) >= 0 ? q : detectLang(req)));
   }
 
   /* ---- 文章独立页面（/article/<slug>，服务端直出，SEO 友好）
@@ -4047,7 +4136,8 @@ const server = http.createServer(async (req, res) => {
   if (p.startsWith('/article/') && req.method === 'GET'){
     const slug = decodeURIComponent(p.slice('/article/'.length));
     const q = url.searchParams.get('lang') || '';
-    const l = ART_LANGS.includes(q) ? q : '';
+    /* 未指定语种时按访客浏览器语言 / IP 国家自动选择，兜底俄语 */
+    const l = ART_LANGS.includes(q) ? q : detectLang(req);
     const { art, redirect } = resolveArticleSlug(slug);
     const preview = !!sessionUser(url.searchParams.get('preview') || '');
     if (!art){

@@ -552,6 +552,7 @@
   }
   .chat-input button:disabled { opacity: .55; cursor: default; }
 </style>
+<script src="/lang-detect.js"></script>
 </head>
 <body>
   <div class="lang" id="lang">
@@ -1090,7 +1091,10 @@ const GEO = {"type":"FeatureCollection","features":[{"type":"Feature","propertie
     });
   }
 
-  setLang('zh');
+  /* 已保存 > 浏览器语言 > IP 国家 > 时区 > 俄语（嵌入 /rent 时随后会被父页语种覆盖） */
+  var savedLang = '';
+  try { savedLang = localStorage.getItem('beisu-lang') || ''; } catch (e) { /* 忽略 */ }
+  setLang(LANGS.indexOf(savedLang) >= 0 ? savedLang : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru'));
   langBtns.forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
 
   // 嵌入模式（主站 /rent 页用 iframe 内嵌时）：隐藏页内语言切换，接受主站顶栏的语种指令

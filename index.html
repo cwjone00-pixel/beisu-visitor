@@ -654,6 +654,7 @@
     .tab{ padding:8px 22px; }
   }
 </style>
+<script src="/lang-detect.js"></script>
 </head>
 <body>
 
@@ -1284,13 +1285,12 @@ const I18N = {
     vtDesktop:'ПК', vtMobile:'Телефон', siteTitle:'beisuas — Хайнань для туристов: жильё, авто, туры и помощь на русском'
   }
 };
-/* 默认语种：站点主要面向俄罗斯游客，默认俄语；中文/英文浏览器自动用对应语种，用户可随时手动切换 */
-let lang = localStorage.getItem('beisu-lang') || (function(){
-  const nl = String((navigator.languages && navigator.languages[0]) || navigator.language || '').toLowerCase();
-  if (nl.indexOf('zh') === 0) return 'zh';
-  if (nl.indexOf('en') === 0) return 'en';
-  return 'ru';
-})();
+/* 默认语种：已手动选择 > 浏览器语言 > IP 国家 > 时区 > 俄语（站点面向俄罗斯游客，不再默认中文） */
+let lang = window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru';
+/* 浏览器/时区都判断不出语种时，用服务端 IP 国家再校正一次（不会覆盖用户手动选择） */
+if (window.beisuRefineLang) window.beisuRefineLang(function (v) {
+  if (v && v !== lang) { lang = v; applyI18n(); }
+});
 const dict = () => I18N[lang];
 
 function applyI18n(){
