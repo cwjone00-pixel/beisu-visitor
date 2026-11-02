@@ -538,6 +538,8 @@
   .login-row.bound .login-text{ font-weight:600; }
   .composer.locked{ background:rgba(255,255,255,.68); }
   #composerInput:disabled{ cursor:not-allowed; }
+  /* 未登录：输入框只读，点击即弹出登录窗口，光标提示可点击 */
+  #composerInput[readonly]{ cursor:pointer; }
   .lm-tip{ margin-top:15px; font-size:11.5px; color:#b0b7c2; text-align:center; }
 
   .modal-close{ color:#8b94a0; }
@@ -1225,7 +1227,7 @@ const I18N = {
     tgAppOpening:'正在唤起 Telegram App，请在 App 里点「登录网站」按钮完成授权…', tgUseWeb:'没反应？改用网页登录',
     authActivateSent:'激活链接已发送至 {e}，请查收邮件并点击链接完成注册（24 小时内有效）', authActivateDone:'邮箱激活成功，请登录', authActivateFail:'激活链接无效或已过期', authErrNotActivated:'该账号尚未激活，请点击邮件中的激活链接完成激活',
     authActivatePopup:'已发送激活邮件，完成激活后，直接刷新页面，输入账号密码登录', authPopupOk:'知道了',
-    authRequired:'请先登录后再发送消息', authInputPh:'请先点击左下角登录',
+    authRequired:'请先登录后再发送消息',
     authGuestBtn:'免注册，以游客身份进入', authGuestName:'游客', authGuestDone:'已以游客身份进入',
     authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能',
     imgUploading:'图片处理中，请稍候…', imgFail:'图片上传失败，请重试', imgTooLarge:'图片过大，请换一张', imgTypeErr:'请选择图片文件',
@@ -1262,7 +1264,7 @@ const I18N = {
     tgAppOpening:'Opening Telegram app — tap the "Sign in" button there to authorize…', tgUseWeb:"Didn't open? Use web sign-in",
     authActivateSent:'Activation link sent to {e}. Open the email and click the link to finish (valid for 24 hours).', authActivateDone:'Email activated — please sign in', authActivateFail:'Activation link is invalid or expired', authErrNotActivated:'This account is not activated yet. Please click the activation link in your email.',
     authActivatePopup:'Activation email sent. After activating, refresh this page and sign in with your email and password.', authPopupOk:'Got it',
-    authRequired:'Please sign in before sending messages', authInputPh:'Tap the login entry at bottom-left first',
+    authRequired:'Please sign in before sending messages',
     authGuestBtn:'Continue as guest (no sign-up)', authGuestName:'Guest', authGuestDone:'Entered as guest',
     authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.',
     imgUploading:'Processing image, please wait…', imgFail:'Image upload failed, please try again', imgTooLarge:'Image is too large, please pick another', imgTypeErr:'Please choose an image file',
@@ -1299,7 +1301,7 @@ const I18N = {
     tgAppOpening:'Открываем Telegram — нажмите кнопку «Войти» в приложении для авторизации…', tgUseWeb:'Не открылось? Войти через браузер',
     authActivateSent:'Ссылка для активации отправлена на {e}. Откройте письмо и перейдите по ссылке (действует 24 часа).', authActivateDone:'Почта активирована — войдите', authActivateFail:'Ссылка активации недействительна или истекла', authErrNotActivated:'Аккаунт не активирован. Перейдите по ссылке активации в письме.',
     authActivatePopup:'Письмо для активации отправлено. После активации обновите страницу и войдите, указав почту и пароль.', authPopupOk:'Понятно',
-    authRequired:'Сначала войдите, чтобы отправлять сообщения', authInputPh:'Сначала нажмите «Войти» внизу слева',
+    authRequired:'Сначала войдите, чтобы отправлять сообщения',
     authGuestBtn:'Продолжить как гость (без регистрации)', authGuestName:'Гость', authGuestDone:'Вы вошли как гость',
     authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.',
     imgUploading:'Обработка изображения, подождите…', imgFail:'Не удалось загрузить изображение, попробуйте ещё раз', imgTooLarge:'Изображение слишком большое, выберите другое', imgTypeErr:'Выберите файл изображения',
@@ -2001,7 +2003,8 @@ function applyAuthState(){
   }
   const locked = !currentUser;
   if (comp) comp.classList.toggle('locked', locked);
-  $('composerInput').disabled = locked;
+  /* 未登录时用只读代替禁用：仍可接收点击事件，点击即弹出登录窗口（禁用状态下浏览器不派发事件） */
+  $('composerInput').readOnly = locked;
   applyPlaceholder();
 }
 
@@ -2108,7 +2111,7 @@ function applyHeroTitle(){
 function applyPlaceholder(){
   const el = $('composerInput');
   if (!el) return;
-  if (!currentUser){ setComposerPlaceholder(dict().authInputPh); return; }   // 未登录：提示先去登录
+  if (!currentUser){ setComposerPlaceholder(''); return; }   // 未登录：输入框留空，不展示任何提示文字
   const st = window.getOrbState ? window.getOrbState() : 'bot';   // 球体模块内的闭包状态
   const opOn = st === 'both' || st === 'botoff-online';
   const grp = phText ? (opOn ? phText.agent : phText.bot) : null;
@@ -2537,6 +2540,10 @@ async function submitImageFile(file){
 const input = $('composerInput');
 /* 输入内容变化时同步占位滚动层显隐（有内容即隐藏滚动提示） */
 input.addEventListener('input', () => syncPlaceholderMarquee());
+/* 未登录时点击输入框：不进入输入状态，直接弹出登录窗口 */
+input.addEventListener('focus', () => {
+  if (!currentUser){ input.blur(); authOpen(); }
+});
 function sendComposer(){
   const v = input.value;
   if (!v || !v.trim()) return;      // 空内容不发送
