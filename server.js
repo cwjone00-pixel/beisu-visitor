@@ -3242,7 +3242,8 @@ const server = http.createServer(async (req, res) => {
       if (activeSid) addMsg(activeSid, { role:'bot', reply: { [langKey]: HOLD[langKey] }, delayMs: 0 });
       beisuAiAnswer(vtext, langKey).then(function (ans) {
         if (!activeSid) return;
-        addMsg(activeSid, { role:'bot', reply: ans ? { [langKey]: ans } : payload.reply, delayMs: 0 });
+        /* AI 拿到答案：只发答案；AI 不可用/超时：发兜底话术，并带上下方快捷按钮供访客继续操作 */
+        addMsg(activeSid, { role:'bot', reply: ans ? { [langKey]: ans } : payload.reply, quickButtons: ans ? [] : (payload.quickButtons || []), delayMs: 0 });
       }).catch(function () {});
       return send(res, 200, { reply:{ zh:'', en:'', ru:'' }, quickButtons: [], matched: false, pending: true, link: null, sid: activeSid, reset });
     }
