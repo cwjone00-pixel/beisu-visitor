@@ -6,10 +6,13 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
+    "prestart": "npm run build",
+    "build": "node scripts/optimize-images.mjs",
     "test": "node test-tg-auth.js"
   },
   "dependencies": {
-    "mongodb": "^6"
+    "mongodb": "^6",
+    "sharp": "^0.35.5"
   },
   "engines": {
     "node": ">=18"

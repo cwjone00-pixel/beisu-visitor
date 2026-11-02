@@ -678,6 +678,7 @@
   }
 </style>
 <script src="/lang-detect.js"></script>
+<script src="/webp-picture.js"></script>
 </head>
 <body>
 
@@ -1457,9 +1458,8 @@ function makeRealCard(item, section){
   const card = document.createElement('div');
   card.className = 'ph-card' + (cover ? ' has-cover' : '');
   if (cover){
-    card.innerHTML = '<img class="card-thumb"><div class="card-body"><span class="card-title"></span></div>';
-    card.querySelector('.card-thumb').src = cover;   // 列表页展示封面缩略图
-    card.querySelector('.card-thumb').alt = title;   // alt 用当前语种标题（无障碍 + Yandex 图片搜索可理解图片内容）
+    /* 封面缩略图：优先 WebP，旧浏览器自动回退原图（alt 用当前语种标题） */
+    card.innerHTML = webpPicture(cover, { cls:'card-thumb', alt:title }) + '<div class="card-body"><span class="card-title"></span></div>';
   } else {
     card.innerHTML = '<span class="card-title"></span><span class="ph-line short"></span>';
   }
@@ -1544,8 +1544,7 @@ function renderEventDetail(){
   $('eventModalTitle').textContent = title || dict().secEvents;
   box.innerHTML = '';
   if (cover){
-    const img = document.createElement('img'); img.src = cover; img.alt = '';
-    box.appendChild(img);
+    box.insertAdjacentHTML('beforeend', webpPicture(cover, { alt:'' }));
   }
   if (title){ const t = document.createElement('div'); t.className = 'ev-title'; t.textContent = title; box.appendChild(t); }
   if (body){ const b = document.createElement('div'); b.className = 'ev-body'; b.textContent = body; box.appendChild(b); }
@@ -2342,7 +2341,7 @@ function renderChat(){
       const tg = (m.role === 'agent') ? roleTag.agent : roleTag.bot;
       let cInner = `<span class="msg-tag">${escapeHtml(labelOf(tg, lang))}</span>`;
       cInner += `<a class="msg-card" href="${escapeAttr(m.card.url)}">`;
-      if (m.card.cover) cInner += `<img src="${escapeAttr(m.card.cover)}" alt="${escapeAttr(ct)}">`;
+      if (m.card.cover) cInner += webpPicture(m.card.cover, { alt: ct });
       cInner += `<div class="msg-card-bd"><div class="msg-card-title">${escapeHtml(ct)}</div>`;
       if (cd) cInner += `<div class="msg-card-desc">${escapeHtml(cd)}</div>`;
       cInner += `<div class="msg-card-url">${escapeHtml(m.card.url)}</div></div></a>`;

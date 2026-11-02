@@ -1330,6 +1330,15 @@ function articlePageHtml(art, preview, l){
   const explicitDesc = String(((art.meta || {})[lang]) || '').trim();
   const desc = explicitDesc || String(body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   const img = art.cover ? (/^https?:/i.test(art.cover) ? art.cover : PUBLIC_BASE_URL + art.cover) : '';
+  /* 构建期已为本地封面生成同名 WebP：文章页用 picture 优先加载 WebP，旧浏览器自动回退原图 */
+  const imgWebp = (img && !/^https?:/i.test(art.cover) && /\.(jpe?g|png)$/i.test(art.cover))
+    ? PUBLIC_BASE_URL + art.cover.replace(/\.(jpe?g|png)$/i, '.webp')
+    : '';
+  const coverHtml = img
+    ? (imgWebp
+        ? '<picture style="display:contents"><source srcset="' + escHtml(imgWebp) + '" type="image/webp"><img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '"></picture>\n'
+        : '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '">\n')
+    : '';
   const published = new Date(art.publishedAt || art.createdAt).toISOString();
   const modified = new Date(art.updatedAt || art.createdAt).toISOString();
   const htmlLang = (lang === 'zh') ? 'zh-CN' : lang;
@@ -1388,7 +1397,7 @@ function articlePageHtml(art, preview, l){
     + '<style>' + ARTICLE_CSS + '</style>\n</head>\n<body>\n' + topbar + '<main>\n'
     + '<h1>' + escHtml(title) + '</h1>\n'
     + '<div class="meta">' + published.slice(0, 10) + (preview ? ' · 草稿预览（未发布，不收录）' : '') + '</div>\n'
-    + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '">\n' : '')
+    + coverHtml
     + '<article>\n' + bodyToHtml(body, lang) + '\n</article>\n'
     + more
     + '<div class="consult-bottom">' + CONSULT + '</div>\n'
@@ -1750,7 +1759,7 @@ const MIME = {
   '.js':'application/javascript; charset=utf-8',
   '.css':'text/css; charset=utf-8',
   '.json':'application/json; charset=utf-8',
-  '.svg':'image/svg+xml',
+  '.svg':'image/svg+xml', '.webp':'image/webp',
   '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg'
 };
 function serveStatic(req, res){

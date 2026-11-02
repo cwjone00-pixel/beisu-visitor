@@ -392,6 +392,7 @@
 </div>
 
 <script src="js/rental-i18n.js"></script>
+<script src="/webp-picture.js"></script>
 <script>
 (function () {
   'use strict';
@@ -623,14 +624,10 @@
     var card = document.createElement('article');
     card.className = 'rcar';
 
-    /* 车辆照片（服务端已过滤掉没有图的车辆，这里拿到的一定有图） */
+    /* 车辆照片（服务端已过滤掉没有图的车辆，这里拿到的一定有图）：优先 WebP，旧浏览器回退原图 */
     var pic = document.createElement('div');
     pic.className = 'rcar__img';
-    var img = document.createElement('img');
-    img.src = car.image;
-    img.alt = pick(car.names, '');
-    img.loading = 'lazy';
-    pic.appendChild(img);
+    pic.innerHTML = webpPicture(car.image, { alt: pick(car.names, ''), loading: 'lazy' });
     if (car.ev) {
       var ev = document.createElement('span');
       ev.className = 'rcar__ev';
@@ -855,11 +852,7 @@
         renderDialog();
       };
 
-      var img = document.createElement('img');
-      img.className = 'ropt__img';
-      img.src = it.image;
-      img.alt = pick(it.names, '');
-      img.loading = 'lazy';
+      var imgHtml = webpPicture(it.image, { cls: 'ropt__img', alt: pick(it.names, ''), loading: 'lazy' });
 
       var txt = document.createElement('div');
       txt.className = 'ropt__txt';
@@ -887,7 +880,7 @@
       txt.appendChild(mt);
       txt.appendChild(et);
       lab.appendChild(radio);
-      lab.appendChild(img);
+      lab.insertAdjacentHTML('beforeend', imgHtml);
       lab.appendChild(txt);
       box.appendChild(lab);
     });
@@ -1003,11 +996,7 @@
     /* 车辆摘要：图 + 名称 + 座位/变速箱 */
     var box = $('ddlgCar');
     box.innerHTML = '';
-    var img = document.createElement('img');
-    img.className = 'ddlg__img';
-    img.src = car.image;
-    img.alt = pick(car.names, '');
-    box.appendChild(img);
+    box.insertAdjacentHTML('beforeend', webpPicture(car.image, { cls: 'ddlg__img', alt: pick(car.names, '') }));
     var txt = document.createElement('div');
     var name = document.createElement('div');
     name.className = 'ddlg__name';
