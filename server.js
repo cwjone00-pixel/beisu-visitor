@@ -1276,6 +1276,7 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.brand{display:flex;align-items:center;gap:8px;font-size:17px;font-weight:700;color:#22282f;text-decoration:none}'
   + '.brand .dot{width:22px;height:22px;border-radius:7px;background:#2f7cf6;color:#fff;font-size:14px;font-weight:700;line-height:22px;text-align:center}'
   + '.topbar-l{display:flex;align-items:center;gap:10px}'
+  + '.home{font-size:13px;color:#2f7cf6;text-decoration:none}'
   + 'h1{font-size:26px;line-height:1.35;margin:0 0 10px}'
   + '.meta{color:#8b94a0;font-size:13px;margin-bottom:20px}'
   + '.langs{display:flex;gap:6px}'
@@ -1350,6 +1351,7 @@ function articlePageHtml(art, preview, l){
 
   /* 三语切换按钮：俄语为默认干净地址，中文/英文跳到 ?lang= 版本（三个独立 URL） */
   const LANGS_TEXT = { zh:'中文', en:'English', ru:'Русский' };
+  const HOME_TEXT = { zh:'返回首页', en:'Back to home', ru:'На главную' };
   const relUrl = x => (x === 'ru' ? articlePath(art) : articlePath(art) + '?lang=' + x);
   const langSwitch = '<nav class="langs" aria-label="Language">' + ART_LANGS.map(x =>
     '<a class="lang' + (x === lang ? ' on' : '') + '" href="' + escHtml(relUrl(x)) + '"' + (x === lang ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
