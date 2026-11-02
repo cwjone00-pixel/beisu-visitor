@@ -984,6 +984,15 @@ function normArtI18n(a){
   });
   return out;
 }
+/* 每篇文章独立的 SEO 描述（三语，可选）：留空时仍按正文前 160 字自动截取，保持旧文章兼容 */
+function normArtMeta(a){
+  const src = (a && typeof a.meta === 'object' && a.meta) ? a.meta : {};
+  const out = {};
+  ART_LANGS.forEach(l => {
+    out[l] = String(src[l] || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+  });
+  return out;
+}
 /* 主语言：优先中文，其次英文/俄语（用于无 lang 参数时的默认渲染、slug 生成回退、后台列表展示） */
 function artPrimary(i18n){
   for (const l of ART_LANGS){
@@ -1004,7 +1013,7 @@ function normArticle(input, all){
   let slug = base, n = 2;
   while (others.some(x => x.slug === slug)) slug = base + '-' + (n++);                   // 保证 slug 全局唯一
   const status = a.status === 'published' ? 'published' : 'draft';
-  /* 绑定项目：只允许白名单内的 4 个产品；空值表示不绑定（文章底部只显示【咨询】） */
+  /* 绑定项目：保留白名单校验仅用于兼容旧数据；文章页底部不再渲染产品下单按钮，统一显示咨询入口 */
   const project = articleProjectByKey(a.project) ? a.project : '';
   const createdAt = a.createdAt || Date.now();
   /* 历史别名：曾用过、现已改掉的 slug 保留下来，旧链接自动 301 跳到当前页面，保证已收录地址不失效 */
@@ -1015,6 +1024,7 @@ function normArticle(input, all){
     slug,
     prevSlugs,
     i18n,                        // 三语正文与标题（唯一内容源）
+    meta: normArtMeta(a),        // 三语独立 SEO 描述（可选；留空则按正文自动截取）
     title: primary.title,        // 兼容/展示字段：主语言标题
     body: primary.body,          // 兼容字段：主语言正文
     cover: String(a.cover || '').slice(0, 300),
@@ -1119,10 +1129,9 @@ const CARD_PAGES = [
 ];
 function cardPageByKey(key){ return CARD_PAGES.filter(function (p) { return p.key === key; })[0] || null; }
 
-/* ---------------- 文章绑定项目（文章页底部产品按钮） ----------------
-   每篇文章可绑定一个产品项目；文章页底部固定展示两个按钮：
-   【咨询】回游客前台首页【预定】进该项目自己的下单页。
-   项目 → 下单页的对应关系集中维护在这里，后续新增产品只需加一行。 */
+/* ---------------- 文章绑定项目（历史字段） ----------------
+   每篇文章可绑定一个产品项目，仅用于数据兼容；文章页底部已统一改为咨询入口，
+   不再展示产品下单按钮。项目 → 下单页的对应关系集中维护在这里，后续需要时可复用。 */
 const ARTICLE_PROJECTS = [
   { key:'island', url:'/island',  label:'环岛游',   book:{ zh:'预定环岛游',   en:'Book Island Tour',        ru:'Забронировать островной тур' } },
   { key:'rent',   url:'/rent',    label:'租房协助', book:{ zh:'预定租房协助', en:'Book Housing Assistance', ru:'Забронировать помощь с жильём' } },
@@ -1290,20 +1299,19 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.blk-t{font-size:17px;font-weight:700;color:#18488f}'
   + '.blk-d{font-size:14px;color:#5b6470}'
   + '.blk-a{font-size:14px;font-weight:600;color:#2f7cf6;margin-top:4px}'
-  + '.acts{display:flex;gap:10px;margin-top:34px;padding-top:22px;border-top:1px solid #eef2f7}'
-  + '.act{flex:1 1 0;display:flex;align-items:center;justify-content:center;height:46px;border-radius:10px;font-size:15px;font-weight:600;text-decoration:none;transition:background .15s}'
-  + '.act-consult{background:#f1f4f9;color:#4a5260}'
-  + '.act-consult:hover{background:#e3e9f2}'
-  + '.act-book{background:#2f7cf6;color:#fff}'
-  + '.act-book:hover{background:#1e66e0}'
+  /* 咨询入口：全站统一俄语按钮，顶部导航与正文底部各一个，均指向首页 */
+  + '.consult{display:inline-flex;align-items:center;justify-content:center;height:42px;padding:0 18px;border-radius:10px;background:#2f7cf6;color:#fff;font-size:14px;font-weight:600;text-decoration:none;white-space:nowrap;transition:background .15s}'
+  + '.consult:hover{background:#1e66e0}'
+  + '.consult-top{height:32px;padding:0 12px;font-size:12.5px;border-radius:8px;flex:none}'
+  + '.consult-bottom{display:flex;margin-top:34px;padding-top:22px;border-top:1px solid #eef2f7}'
+  + '.consult-bottom .consult{flex:1 1 auto}'
   + '.more{margin-top:34px;padding-top:22px;border-top:1px solid #eef2f7}'
   + '.more h2{font-size:16px;margin:0 0 12px}'
   + '.more ul{list-style:none;margin:0;padding:0}'
   + '.more li{margin:0 0 10px}'
   + '.more a{color:#1a4f9c;text-decoration:none;font-size:15px}'
   + '.more a:hover{text-decoration:underline}'
-  + '@media (max-width:420px){.acts{flex-direction:column}.act{width:100%}}'
-  + '@media (max-width:480px){.topbar-in{flex-wrap:wrap;row-gap:8px}.langs{margin-left:auto}.lang{padding:5px 9px;font-size:12px}}';
+  + '@media (max-width:620px){.topbar-in{flex-wrap:wrap;row-gap:8px}.topbar-l{flex:1 1 auto}.langs{margin-left:auto;order:2}.consult-top{order:3;width:100%;height:36px}.lang{padding:5px 9px;font-size:12px}}';
 /* 文章独立页面：服务端直出，含 title/description/canonical/hreflang/og/JSON-LD，便于爬虫抓取收录
    一篇文章一个 URL（/article/<slug>），默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容；
    可通过 ?lang=zh|en|ru 切换语种；所选语种未录入内容时回退到俄语。
@@ -1318,7 +1326,9 @@ function articlePageHtml(art, preview, l){
   /* 三语各自独立地址：俄语走干净地址（默认页），中文/英文带 ?lang= */
   const langUrl = x => (x === 'ru' ? base : base + '?lang=' + x);
   const url = langUrl(lang);          // 当前语种页面自身地址：canonical 与 og:url 均指向自己
-  const desc = String(body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+  /* meta 描述：优先用该语种的独立描述（后台/JSON 配置），留空回退正文前 160 字 */
+  const explicitDesc = String(((art.meta || {})[lang]) || '').trim();
+  const desc = explicitDesc || String(body || '').replace(/\s+/g, ' ').trim().slice(0, 160);
   const img = art.cover ? (/^https?:/i.test(art.cover) ? art.cover : PUBLIC_BASE_URL + art.cover) : '';
   const published = new Date(art.publishedAt || art.createdAt).toISOString();
   const modified = new Date(art.updatedAt || art.createdAt).toISOString();
@@ -1329,11 +1339,8 @@ function articlePageHtml(art, preview, l){
   const HREFLANG = { zh:'zh-CN', en:'en', ru:'ru' };
   const alternates = ART_LANGS.map(x => '<link rel="alternate" hreflang="' + HREFLANG[x] + '" href="' + escHtml(langUrl(x)) + '">').join('\n')
     + '\n<link rel="alternate" hreflang="x-default" href="' + escHtml(base) + '">';
-  /* 底部产品预定按钮：绑定项目后出现，按钮文案跟随当前页面语种（咨询按钮暂不做） */
-  const proj = articleProjectByKey(art.project);
-  const acts = (proj && proj.url) ? '<div class="acts">'
-    + '<a class="act act-book" href="' + escHtml(proj.url) + '">' + escHtml(proj.book[lang] || proj.book.ru) + '</a>'
-    + '</div>\n' : '';
+  /* 咨询入口：全站统一俄语 CTA，指向首页；不再渲染任何第三方服务跳转按钮 */
+  const CONSULT = '<a class="consult" href="https://beisuas.com" lang="ru">Написать нам в чат</a>';
   /* 相关文章内链：文章页底部列出其它已发布文章（当前语种标题，非俄语链接带 ?lang=），
      读者可继续阅读，爬虫也能顺着真实内链发现全部文章 */
   const MORE_T = { zh:'相关文章', en:'Related articles', ru:'Другие статьи' };
@@ -1351,15 +1358,16 @@ function articlePageHtml(art, preview, l){
 
   /* 三语切换按钮：俄语为默认干净地址，中文/英文跳到 ?lang= 版本（三个独立 URL） */
   const LANGS_TEXT = { zh:'中文', en:'English', ru:'Русский' };
-  const CONSULT_TEXT = { zh:'点击咨询', en:'Ask a question', ru:'Задать вопрос' };
+  const HOME_TEXT = { zh:'返回首页', en:'Back to home', ru:'На главную' };
   const relUrl = x => (x === 'ru' ? articlePath(art) : articlePath(art) + '?lang=' + x);
   const langSwitch = '<nav class="langs" aria-label="Language">' + ART_LANGS.map(x =>
     '<a class="lang' + (x === lang ? ' on' : '') + '" href="' + escHtml(relUrl(x)) + '"' + (x === lang ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
   ).join('') + '</nav>\n';
-  /* 顶部吸顶导航：左侧品牌 + 咨询入口（都指向首页聊天框），右侧语种切换 */
+  /* 顶部吸顶导航：左侧品牌返回首页，右侧语种切换 + 俄语咨询入口 */
   const topbar = '<header class="topbar"><div class="topbar-in"><div class="topbar-l">'
     + '<a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
-    + '<a class="home" href="/">' + escHtml(CONSULT_TEXT[lang] || CONSULT_TEXT.ru) + '</a></div>'
+    + '<a class="home" href="/">← ' + escHtml(HOME_TEXT[lang] || HOME_TEXT.ru) + '</a></div>'
+    + '<a class="consult consult-top" href="https://beisuas.com" lang="ru">Написать нам в чат</a>'
     + langSwitch + '</div></header>\n';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
@@ -1380,7 +1388,9 @@ function articlePageHtml(art, preview, l){
     + '<div class="meta">' + published.slice(0, 10) + (preview ? ' · 草稿预览（未发布，不收录）' : '') + '</div>\n'
     + (img ? '<img class="cover" src="' + escHtml(img) + '" alt="' + escHtml(title) + '">\n' : '')
     + '<article>\n' + bodyToHtml(body, lang) + '\n</article>\n'
-    + more + acts + '</main>\n</body>\n</html>';
+    + more
+    + '<div class="consult-bottom">' + CONSULT + '</div>\n'
+    + '</main>\n</body>\n</html>';
 }
 /* 全站统一友好 404：登录用户/搜索引擎都看到同一页（三语提示 + 返回首页 + 文章列表入口），
    避免链接失效时返回空白或纯文本 */
@@ -1459,10 +1469,18 @@ function articleIndexHtml(lang){
     + 'ul{list-style:none;padding:0;margin:0}li{padding:14px 0;border-bottom:1px solid #eef2f7}'
     + 'a{color:#1a4f9c;text-decoration:none;font-size:16px}.ls{margin-left:12px;font-size:13px}'
     + '.ls a{margin-left:8px;color:#2f7cf6;font-size:13px}'
-    + '@media (max-width:480px){.langs{margin-left:auto}.lang{padding:5px 9px;font-size:12px}.ls{display:block;margin:6px 0 0}}</style></head>\n'
+    + '.consult{display:inline-flex;align-items:center;justify-content:center;height:36px;padding:0 16px;border-radius:9px;background:#2f7cf6;color:#fff;font-size:13px;font-weight:600;text-decoration:none;white-space:nowrap}'
+    + '.consult:hover{background:#1e66e0}'
+    + '.consult-top{height:32px;padding:0 12px;font-size:12.5px;border-radius:8px;flex:none}'
+    + '.consult-bottom{display:flex;margin-top:30px;padding-top:20px;border-top:1px solid #eef2f7}'
+    + '.consult-bottom .consult{flex:1 1 auto}'
+    + '@media (max-width:620px){.topbar-in{flex-wrap:wrap;row-gap:8px}.langs{margin-left:auto}.consult-top{order:3;width:100%;height:36px}.lang{padding:5px 9px;font-size:12px}.ls{display:block;margin:6px 0 0}}</style></head>\n'
     + '<body><header class="topbar"><div class="topbar-in"><a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
+    + '<a class="consult consult-top" href="https://beisuas.com" lang="ru">Написать нам в чат</a>'
     + langSwitch + '</div></header><main><h1>' + escHtml(T.h1) + '</h1>\n'
-    + '<ul>' + (list || '<li>' + escHtml(T.empty) + '</li>') + '</ul>\n</main></body></html>';
+    + '<ul>' + (list || '<li>' + escHtml(T.empty) + '</li>') + '</ul>\n'
+    + '<div class="consult-bottom"><a class="consult" href="https://beisuas.com" lang="ru">Написать нам в чат</a></div>\n'
+    + '</main></body></html>';
 }
 /* 首页直接静态直出：侧边栏底部只保留登录用户行，不再注入文章内链区块 */
 

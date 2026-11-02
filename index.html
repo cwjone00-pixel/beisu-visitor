@@ -209,6 +209,21 @@
   .lang-opt:hover{ background:rgba(20,40,80,.1); }
   .lang-opt.active, .lang-opt.active:hover{ background:#2f7cf6; color:#fff; }
 
+  /* 咨询入口：全站统一俄语 CTA，顶部导航与输入区下方各一个，均链接回首页 */
+  .consult-link{
+    display:inline-flex; align-items:center; justify-content:center;
+    height:30px; padding:0 14px; border-radius:8px;
+    background:#2f7cf6; color:#fff; font-size:12.5px; font-weight:600;
+    text-decoration:none; white-space:nowrap; flex:none; margin-left:8px;
+    transition:background .15s;
+  }
+  .consult-link:hover{ background:#1e66e0; }
+  .consult-foot{
+    align-self:center; flex:none;
+    height:36px; padding:0 22px; font-size:13px;
+    margin:-6px 0 14px; border-radius:999px;
+  }
+
   .hero{ flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; padding-top:clamp(20px,6.5vh,58px); }
   .hero-inner{ width:900px; max-width:92%; flex:1; min-height:0; display:flex; flex-direction:column; align-items:center; }
 
@@ -583,8 +598,16 @@
   .mac-window.mode-mobile.drawer-open .sidebar{ transform:translateX(0); }
   .mac-window.mode-mobile .brand-row{ padding:22px 8px 12px; }
 
-  /* 顶栏：仅保留汉堡按钮 + 语言切换 */
-  .mac-window.mode-mobile .topbar{ height:52px; padding:0 8px; }
+  /* 顶栏：汉堡按钮 + 语言切换 + 咨询按钮（窄屏时咨询按钮独占一行） */
+  .mac-window.mode-mobile .topbar{
+    height:auto; min-height:52px; flex-wrap:wrap; row-gap:6px; padding:6px 8px;
+  }
+  .mac-window.mode-mobile .lang{ margin-left:auto; }
+  .mac-window.mode-mobile .topbar .consult-link{ order:3; width:100%; margin-left:0; height:34px; }
+  /* 输入区下方咨询按钮：手机版横向铺满，紧贴窗口底部 */
+  .mac-window.mode-mobile .consult-foot{
+    align-self:stretch; margin:0 10px 10px; height:38px;
+  }
 
   /* 主聊天区：与电脑版同一套 flex 布局逻辑——外层定高，消息区内部滚动，输入框固定不参与滚动 */
   .mac-window.mode-mobile .hero{ padding:18px 12px 0; min-height:0; }
@@ -764,6 +787,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8.5h16M4 15.5h16"/></svg>
         </button>
         <span class="spacer"></span>
+        <a class="consult-link" href="https://beisuas.com" lang="ru">Написать нам в чат</a>
 
         <!-- 语言切换：三项常驻展开、横向排列，进入页面即可直接点击切换（不做下拉收起） -->
         <div class="lang" id="langBox">
@@ -822,6 +846,7 @@
         <input id="photoInput" type="file" accept="image/*" capture="environment" hidden>
         <input id="uploadInput" type="file" accept="image/*" hidden>
       </div>
+      <a class="consult-link consult-foot" href="https://beisuas.com" lang="ru">Написать нам в чат</a>
     </main>
   </div>
 </div>
