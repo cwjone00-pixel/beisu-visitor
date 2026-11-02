@@ -1351,15 +1351,15 @@ function articlePageHtml(art, preview, l){
 
   /* 三语切换按钮：俄语为默认干净地址，中文/英文跳到 ?lang= 版本（三个独立 URL） */
   const LANGS_TEXT = { zh:'中文', en:'English', ru:'Русский' };
-  const HOME_TEXT = { zh:'返回首页', en:'Back to home', ru:'На главную' };
+  const CONSULT_TEXT = { zh:'点击咨询', en:'Ask a question', ru:'Задать вопрос' };
   const relUrl = x => (x === 'ru' ? articlePath(art) : articlePath(art) + '?lang=' + x);
   const langSwitch = '<nav class="langs" aria-label="Language">' + ART_LANGS.map(x =>
     '<a class="lang' + (x === lang ? ' on' : '') + '" href="' + escHtml(relUrl(x)) + '"' + (x === lang ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
   ).join('') + '</nav>\n';
-  /* 顶部吸顶导航：左侧品牌返回首页，右侧语种切换（不再放正文上方的小号返回首页链接） */
+  /* 顶部吸顶导航：左侧品牌 + 咨询入口（都指向首页聊天框），右侧语种切换 */
   const topbar = '<header class="topbar"><div class="topbar-in"><div class="topbar-l">'
     + '<a class="brand" href="/"><span class="dot">b</span>beisuas</a>'
-    + '<a class="home" href="/">← ' + escHtml(HOME_TEXT[lang] || HOME_TEXT.ru) + '</a></div>'
+    + '<a class="home" href="/">' + escHtml(CONSULT_TEXT[lang] || CONSULT_TEXT.ru) + '</a></div>'
     + langSwitch + '</div></header>\n';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
