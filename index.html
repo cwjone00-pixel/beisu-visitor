@@ -1414,6 +1414,7 @@ document.querySelector('.mac-window .main').addEventListener('click', () => sync
 $('catMenu').addEventListener('click', e => {
   const item = e.target.closest('.menu-item');
   if (!item) return;
+  if (!currentUser || !currentUser.id) { authOpen(); return; }
   document.querySelectorAll('#catMenu .menu-item').forEach(i => i.classList.remove('active'));
   item.classList.add('active');
   syncDrawer(false);   // 手机版：选中菜单项后自动收回抽屉
@@ -1431,7 +1432,10 @@ function makePlaceholderCard(section){
   const card = document.createElement('div');
   card.className = 'ph-card';
   card.innerHTML = '<span class="ph-line"></span><span class="ph-line short"></span>';
-  card.addEventListener('click', () => openCardModal(dict()[section === 'events' ? 'secEvents' : 'secArticles']));
+  card.addEventListener('click', () => {
+    if (!currentUser || !currentUser.id) { authOpen(); return; }
+    openCardModal(dict()[section === 'events' ? 'secEvents' : 'secArticles']);
+  });
   return card;
 }
 /* 文章资讯：三语独立录入（zh/en/ru），前台跟随全局语言显示对应语种内容 */
@@ -1465,6 +1469,7 @@ function makeRealCard(item, section){
   }
   card.querySelector('.card-title').textContent = title;
   card.addEventListener('click', () => {
+    if (!currentUser || !currentUser.id) { authOpen(); return; }
     if (isArt) openCardModal(title || dict().secArticles, url);
     else openEventModal(item);          // 商业活动：打开图文详情弹窗（无独立页面）
   });
