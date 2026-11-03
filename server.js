@@ -4269,7 +4269,9 @@ server.on('upgrade', (req, socket) => {
   setInterval(sweepSessions, 2000);
   tgBotId().catch(() => {});   // 启动即预热 Telegram Bot ID，避免用户首次点击时等待外网请求
   tgSetupWebhook().catch(() => {});   // 线上环境注册 Telegram webhook（手机端唤起 App 登录用）；本地自动跳过
-  server.listen(PORT, () => {
+  /* 监听地址：默认全接口（兼容 Render 等平台）；VPS 上由 systemd 注入 BIND_HOST=127.0.0.1，
+     只接受本机 Nginx 反代，避免应用端口直接暴露到公网 */
+  server.listen(PORT, process.env.BIND_HOST || '0.0.0.0', () => {
     console.log(`[beisu-visitor] server running at http://localhost:${PORT}`);
     console.log(`  游客前端: http://localhost:${PORT}/`);
     console.log(`  后台管理: http://localhost:${PORT}/admin.html`);
