@@ -562,12 +562,14 @@
       <div style="font-size:13px; font-weight:700; color:#1f2d3d;">免拼（包车整车价）</div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;">
         <input class="input" id="priceSeat4" type="number" min="0" max="999999" placeholder="4 座车价（元）" style="width:150px;">
+        <input class="input" id="priceSeat5" type="number" min="0" max="999999" placeholder="5 座车价（元）" style="width:150px;">
         <input class="input" id="priceSeat7" type="number" min="0" max="999999" placeholder="7 座车价（元）" style="width:150px;">
         <input class="input" id="priceSeat9" type="number" min="0" max="999999" placeholder="9 座车价（元）" style="width:150px;">
       </div>
       <div style="font-size:13px; font-weight:700; color:#1f2d3d; margin-top:12px;">拼团（按人头，各车型单人单价）</div>
       <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;">
         <input class="input" id="priceShared4" type="number" min="0" max="999999" placeholder="4 座单人价（元）" style="width:150px;">
+        <input class="input" id="priceShared5" type="number" min="0" max="999999" placeholder="5 座单人价（元）" style="width:150px;">
         <input class="input" id="priceShared7" type="number" min="0" max="999999" placeholder="7 座单人价（元）" style="width:150px;">
         <input class="input" id="priceShared9" type="number" min="0" max="999999" placeholder="9 座单人价（元）" style="width:150px;">
         <span id="priceState" style="font-size:12px; color:#8b94a0;"></span>
@@ -2012,7 +2014,7 @@ async function delCard(id){
 }
 
 /* ================= 全岛游价格方案 ================= */
-/* 打卡点页分「免拼 / 拼团」两个板块展示：免拼按车型整车价（4/7/9 座，座位含司机），
+/* 打卡点页分「免拼 / 拼团」两个板块展示：免拼按车型整车价（4/5/7/9 座，座位含司机），
    拼团按单人单价（前端乘人数得总价）；填 0 / 留空的项游客端显示占位 */
 async function loadIslandPrice(){
   try {
@@ -2020,16 +2022,20 @@ async function loadIslandPrice(){
     const pv = (d && d.pricing && d.pricing.private) || {};
     const sh = (d && d.pricing && d.pricing.shared) || {};
     $('priceSeat4').value = pv.seat4 > 0 ? pv.seat4 : '';
+    $('priceSeat5').value = pv.seat5 > 0 ? pv.seat5 : '';
     $('priceSeat7').value = pv.seat7 > 0 ? pv.seat7 : '';
     $('priceSeat9').value = pv.seat9 > 0 ? pv.seat9 : '';
     $('priceShared4').value = sh.seat4 > 0 ? sh.seat4 : '';
+    $('priceShared5').value = sh.seat5 > 0 ? sh.seat5 : '';
     $('priceShared7').value = sh.seat7 > 0 ? sh.seat7 : '';
     $('priceShared9').value = sh.seat9 > 0 ? sh.seat9 : '';
     const parts = [];
     if (pv.seat4 > 0) parts.push('4座 ¥' + pv.seat4);
+    if (pv.seat5 > 0) parts.push('5座 ¥' + pv.seat5);
     if (pv.seat7 > 0) parts.push('7座 ¥' + pv.seat7);
     if (pv.seat9 > 0) parts.push('9座 ¥' + pv.seat9);
     if (sh.seat4 > 0) parts.push('拼团4座 ¥' + sh.seat4 + '/人');
+    if (sh.seat5 > 0) parts.push('拼团5座 ¥' + sh.seat5 + '/人');
     if (sh.seat7 > 0) parts.push('拼团7座 ¥' + sh.seat7 + '/人');
     if (sh.seat9 > 0) parts.push('拼团9座 ¥' + sh.seat9 + '/人');
     $('priceState').textContent = parts.length
@@ -2040,9 +2046,11 @@ async function loadIslandPrice(){
 async function saveIslandPrice(){
   const body = {
     seat4: parseInt($('priceSeat4').value, 10) || 0,
+    seat5: parseInt($('priceSeat5').value, 10) || 0,
     seat7: parseInt($('priceSeat7').value, 10) || 0,
     seat9: parseInt($('priceSeat9').value, 10) || 0,
     shared4: parseInt($('priceShared4').value, 10) || 0,
+    shared5: parseInt($('priceShared5').value, 10) || 0,
     shared7: parseInt($('priceShared7').value, 10) || 0,
     shared9: parseInt($('priceShared9').value, 10) || 0
   };

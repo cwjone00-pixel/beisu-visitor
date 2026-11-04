@@ -151,20 +151,20 @@ function shapeData(raw){
     if (!Array.isArray(d.cards)) d.cards = [];
     d.cards = d.cards.map(normCard);
     /* 全岛游价格方案（后台配置；0 = 未配置，前端占位展示）：
-       免拼 = 包下整台车，4/7/9 座（座位含司机）各自一个整车价；
-       拼团 = 与其他游客拼车按人头付费，4/7/9 座各自一个单人单价 */
+       免拼 = 包下整台车，4/5/7/9 座（座位含司机）各自一个整车价；
+       拼团 = 与其他游客拼车按人头付费，4/5/7/9 座各自一个单人单价 */
     if (!d.islandPricing || typeof d.islandPricing !== 'object') d.islandPricing = {};
     if (!d.islandPricing.private || typeof d.islandPricing.private !== 'object') d.islandPricing.private = {};
-    ['seat4', 'seat7', 'seat9'].forEach(function (k) {
+    ['seat4', 'seat5', 'seat7', 'seat9'].forEach(function (k) {
       d.islandPricing.private[k] = Math.max(0, Math.min(999999, Math.round(+d.islandPricing.private[k] || 0)));
     });
-    /* 拼团单价：历史数据 shared 可能是单数字（旧版不分车型），迁移时把该值铺到 4/7/9 座；
-       新版为 { seat4, seat7, seat9 }，按车型各自一个单人单价 */
+    /* 拼团单价：历史数据 shared 可能是单数字（旧版不分车型），迁移时把该值铺到 4/5/7/9 座；
+       新版为 { seat4, seat5, seat7, seat9 }，按车型各自一个单人单价 */
     if (!d.islandPricing.shared || typeof d.islandPricing.shared !== 'object') {
       const legacy = Math.max(0, Math.min(999999, Math.round(+d.islandPricing.shared || 0)));
-      d.islandPricing.shared = { seat4: legacy, seat7: legacy, seat9: legacy };
+      d.islandPricing.shared = { seat4: legacy, seat5: legacy, seat7: legacy, seat9: legacy };
     } else {
-      ['seat4', 'seat7', 'seat9'].forEach(function (k) {
+      ['seat4', 'seat5', 'seat7', 'seat9'].forEach(function (k) {
         d.islandPricing.shared[k] = Math.max(0, Math.min(999999, Math.round(+d.islandPricing.shared[k] || 0)));
       });
     }
@@ -1978,8 +1978,8 @@ function islandSummary(lang, d){
     priceP:function (v, p){ return '包车价格: ' + v + ' 座车 ¥' + p; },
     priceS:function (v, pp, n, sum){ return '拼团价格: ' + v + ' 座 ¥' + pp + '/人 × ' + n + ' 人 = ¥' + sum; }
   };
-  /* 人数匹配车型（座位数含司机，乘客上限 3/6/8）：1-3 人 → 4 座，4-6 人 → 7 座，7-8 人 → 9 座，9 人需定制 */
-  function seatsOf(n){ return n <= 3 ? 4 : (n <= 6 ? 7 : (n <= 8 ? 9 : 0)); }
+  /* 人数匹配车型（座位数含司机，乘客上限 3/4/6/8）：1-3 人 → 4 座，4 人 → 5 座，5-6 人 → 7 座，7-8 人 → 9 座，9 人需定制 */
+  function seatsOf(n){ return n <= 3 ? 4 : (n <= 4 ? 5 : (n <= 6 ? 7 : (n <= 8 ? 9 : 0))); }
   /* 按 ID 反查点位名称，只输出地名（不带 p_mv 编码），
      ID 仍保留在消息结构化字段 island.campId / island.spots 里供后台识别 */
   const all = loadMap().points;
@@ -3394,29 +3394,29 @@ const server = http.createServer(async (req, res) => {
   }
 
   /* ---- 全岛游价格方案配置 ---- */
-  /* 公开：游客端打卡点页面读取报价（免拼 4/7/9 座整车价 + 拼团各车型单人价；0 = 未配置，前端占位展示） */
+  /* 公开：游客端打卡点页面读取报价（免拼 4/5/7/9 座整车价 + 拼团各车型单人价；0 = 未配置，前端占位展示） */
   if (p === '/api/island-config' && req.method === 'GET'){
     const pr = loadData().islandPricing || {};
     const pv = pr.private || {};
     const sh = pr.shared || {};
     return send(res, 200, { ok:true, pricing: {
-      private: { seat4: pv.seat4 || 0, seat7: pv.seat7 || 0, seat9: pv.seat9 || 0 },
-      shared: { seat4: sh.seat4 || 0, seat7: sh.seat7 || 0, seat9: sh.seat9 || 0 }
+      private: { seat4: pv.seat4 || 0, seat5: pv.seat5 || 0, seat7: pv.seat7 || 0, seat9: pv.seat9 || 0 },
+      shared: { seat4: sh.seat4 || 0, seat5: sh.seat5 || 0, seat7: sh.seat7 || 0, seat9: sh.seat9 || 0 }
     }});
   }
-  /* 后台：设置价格方案。seat4/seat7/seat9 为免拼各车型整车价，
-     shared4/shared7/shared9 为拼团各车型单人单价；各项 0-999999，填 0 即未配置（游客端该项显示占位） */
+  /* 后台：设置价格方案。seat4/seat5/seat7/seat9 为免拼各车型整车价，
+     shared4/shared5/shared7/shared9 为拼团各车型单人单价；各项 0-999999，填 0 即未配置（游客端该项显示占位） */
   if (p === '/api/admin/island-config' && req.method === 'PUT'){
     const body = await readBody(req);
     function num(v){ const n = Math.round(+v || 0); return (n >= 0 && n <= 999999) ? n : -1; }
-    const seat4 = num(body.seat4), seat7 = num(body.seat7), seat9 = num(body.seat9);
-    const sh4 = num(body.shared4), sh7 = num(body.shared7), sh9 = num(body.shared9);
-    if (seat4 < 0 || seat7 < 0 || seat9 < 0 || sh4 < 0 || sh7 < 0 || sh9 < 0)
+    const seat4 = num(body.seat4), seat5 = num(body.seat5), seat7 = num(body.seat7), seat9 = num(body.seat9);
+    const sh4 = num(body.shared4), sh5 = num(body.shared5), sh7 = num(body.shared7), sh9 = num(body.shared9);
+    if (seat4 < 0 || seat5 < 0 || seat7 < 0 || seat9 < 0 || sh4 < 0 || sh5 < 0 || sh7 < 0 || sh9 < 0)
       return send(res, 400, { ok:false, error:'价格需为 0-999999 的数字' });
     const d = loadData();
     d.islandPricing = {
-      private: { seat4: seat4, seat7: seat7, seat9: seat9 },
-      shared: { seat4: sh4, seat7: sh7, seat9: sh9 }
+      private: { seat4: seat4, seat5: seat5, seat7: seat7, seat9: seat9 },
+      shared: { seat4: sh4, seat5: sh5, seat7: sh7, seat9: sh9 }
     };
     await saveData(d);
     return send(res, 200, { ok:true, pricing: d.islandPricing });
@@ -3450,16 +3450,16 @@ const server = http.createServer(async (req, res) => {
     const tentType = (body.tentType === 'single' || body.tentType === 'shared') ? body.tentType : '';
     /* 出行方式：免拼 private / 拼团 shared，其它值按未选择处理 */
     const tourType = (body.tourType === 'private' || body.tourType === 'shared') ? body.tourType : '';
-    /* 所选车型：4/7/9 座（座位含司机，乘客上限 3/6/8）。
+    /* 所选车型：4/5/7/9 座（座位含司机，乘客上限 3/4/6/8）。
        免拼/拼团均带车型（拼团用于取对应车型的单人单价）；
        客户端选的车型坐不下时自动改派最小可坐车型；9 人无适配车型则留空（客服定制） */
     let vehicle = 0;
     {
-      const CAPS = { 4:3, 7:6, 9:8 };
+      const CAPS = { 4:3, 5:4, 7:6, 9:8 };
       const v = parseInt(body.vehicle, 10);
       if (CAPS[v] && (!people || CAPS[v] >= people)) vehicle = v;
       if (!vehicle && people){
-        const order = [4, 7, 9];
+        const order = [4, 5, 7, 9];
         for (let i = 0; i < order.length; i++){
           if (CAPS[order[i]] >= people){ vehicle = order[i]; break; }
         }
