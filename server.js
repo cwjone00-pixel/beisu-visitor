@@ -2567,6 +2567,8 @@ function rentLeadSummary(d) {
 /* ---------------- 路由 ---------------- */
 const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
+  /* 全响应加 HSTS：让浏览器自动强制 HTTPS 访问（Gcore 边缘已配置 redirect_http_to_https，双重保障） */
+  res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
   /* 域名统一：Render 默认域名 beisu-visitor.onrender.com 不再对外暴露，
@@ -3494,21 +3496,23 @@ const server = http.createServer(async (req, res) => {
        3) 都没有时退回「最近活跃会话」，再没有就新建一个 */
     let sid = '';
     const wantSid = String((body && body.sessionId) || '').trim();
-    if (/^[A-Za-z0-9_-]{1,64}$/.test(wantSid)) sid = wantSid;
+    /* 已被后台人工结束的会话保持锁定：不再往里追加预订清单，
+       否则每次预订都会把已结束的旧会话“复活”，后台看起来删不掉 */
+    if (/^[A-Za-z0-9_-]{1,64}$/.test(wantSid) && !(db.sessions[wantSid] && db.sessions[wantSid].ended)) sid = wantSid;
     if (!sid){
       const vkey = String((body && body.visitorKey) || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40);
-      if (vkey) sid = 'bk-' + vkey;
+      if (vkey && !(db.sessions['bk-' + vkey] && db.sessions['bk-' + vkey].ended)) sid = 'bk-' + vkey;
     }
     if (!sid){
       let latestTs = -1;
       Object.keys(db.sessions || {}).forEach(k => {
         const s = db.sessions && db.sessions[k];
-        if (!s || !Array.isArray(s.messages) || !s.messages.length) return;
+        if (!s || s.ended || !Array.isArray(s.messages) || !s.messages.length) return;
         const ts = s.messages[s.messages.length - 1].ts || 0;
         if (ts > latestTs){ latestTs = ts; sid = k; }
       });
     }
-    if (!sid) sid = getSession('booking').id;   // 还没有任何会话时新建一个，供坐席查看
+    if (!sid) sid = crypto.randomUUID();   // 没有可落的目标会话时新建一个，供坐席查看
     /* 先把界面语种写进会话，addMsg 统一匹配钩子会读 sess.lang。
        预订成功页（跨域）不带 lang 参数，若直接按 zh 处理，英文/俄文摘要会用中文关键词去匹配，
        结果是「配了关键词也不触发」；这里按摘要标题识别实际语种，保证摘要能命中对应语种规则。 */
