@@ -3568,9 +3568,8 @@ function buildAiExport(){
     }
     if (!chatId)
       return send(res, 400, { ok: false, error: 'chatId missing: send /alert to @beisuas_Helperbot once, or fill data/alert.json' });
-    const body = await readBody(req);
-    let text = '';
-    try { text = String((JSON.parse(body || '{}') || {}).text || '').slice(0, 1200); } catch(e){}
+    const body = await readBody(req, 8192);
+    const text = String((body && body.text) || '').slice(0, 1200);
     if (!text) return send(res, 400, { ok: false, error: 'empty text' });
     try {
       const r = await tgApi('sendMessage', { chat_id: chatId, text: text, disable_web_page_preview: true });
