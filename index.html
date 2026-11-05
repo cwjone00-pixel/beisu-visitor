@@ -675,7 +675,7 @@
     .tab{ padding:8px 22px; }
   }
 </style>
-<script src="/lang-detect.js"></script>
+<script src="/lang-detect.js?v=20261105"></script>
 <script src="/webp-picture.js"></script>
 </head>
 <body>
@@ -789,9 +789,9 @@
 
         <!-- 语言切换：三项常驻展开、横向排列，进入页面即可直接点击切换（不做下拉收起） -->
         <div class="lang" id="langBox">
-          <div class="lang-opt active" data-lang="zh">中文</div>
+          <div class="lang-opt" data-lang="zh">中文</div>
           <div class="lang-opt" data-lang="en">English</div>
-          <div class="lang-opt" data-lang="ru">Русский</div>
+          <div class="lang-opt active" data-lang="ru">Русский</div>
         </div>
       </div>
 
@@ -1303,9 +1303,9 @@ const I18N = {
     vtDesktop:'ПК', vtMobile:'Телефон', consultCta:'Написать нам в чат', siteTitle:'beisuas — Хайнань для туристов: жильё, авто, туры и помощь на русском'
   }
 };
-/* 默认语种：已手动选择 > 浏览器语言 > IP 国家 > 时区 > 俄语（站点面向俄罗斯游客，不再默认中文） */
+/* 默认语种：已手动选择 > 俄语（站点面向俄罗斯游客，默认俄语，不再按浏览器/IP 判断） */
 let lang = window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru';
-/* 浏览器/时区都判断不出语种时，用服务端 IP 国家再校正一次（不会覆盖用户手动选择） */
+/* 默认语种固定俄语，beisuRefineLang 仅保留调用兼容（不会覆盖用户手动选择） */
 if (window.beisuRefineLang) window.beisuRefineLang(function (v) {
   if (v && v !== lang) { lang = v; applyI18n(); }
 });

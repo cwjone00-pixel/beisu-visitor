@@ -1186,20 +1186,13 @@ const ARTICLE_BLOCKS = {
 const RU_CTY = ['RU','BY','KZ','KG','UA','UZ','AM','AZ','GE','MD','TJ','TM','LV','LT','EE','MN'];
 const ZH_CTY = ['CN','HK','TW','MO'];
 const EN_CTY = ['US','GB','AU','CA','NZ','IE','SG','MY','PH','IN','AE','ZA'];
-/* 未指定 ?lang= 时的语种识别：浏览器语言 > IP 国家 > 兜底俄语（仅用于客户端/列表页引导，文章干净地址固定俄语） */
+/* 服务端默认语种：俄语优先（面向俄罗斯游客）。
+   仅在 URL 显式带 ?lang=zh/en 时才切换，忽略浏览器的 Accept-Language 与 IP 国家。 */
 function detectLang(req){
-  const al = String((req && req.headers && req.headers['accept-language']) || '').toLowerCase();
-  for (const part of al.split(',')){
-    const t = part.split(';')[0].trim();
-    if (!t) continue;
-    if (t.indexOf('zh') === 0) return 'zh';
-    if (t.indexOf('ru') === 0) return 'ru';
-    if (t.indexOf('en') === 0) return 'en';
-  }
-  const c = reqCountry(req);
-  if (RU_CTY.indexOf(c) >= 0) return 'ru';
-  if (ZH_CTY.indexOf(c) >= 0) return 'zh';
-  if (EN_CTY.indexOf(c) >= 0) return 'en';
+  try {
+    const q = new URL(req.url, 'http://x').searchParams.get('lang');
+    if (q === 'zh' || q === 'en' || q === 'ru') return q;
+  } catch(e){}
   return 'ru';
 }
 /* ---- 访客 IP 国家（Cloudflare 头），用于首页引导语等场景 ---- */
@@ -1946,7 +1939,7 @@ function scheduleTrFill(s){
 }
 function getSession(id){
   const db = loadChats();
-  if (!db.sessions[id]) db.sessions[id] = { id, mode:'bot', createdAt:Date.now(), messages:[] };
+  if (!db.sessions[id]) db.sessions[id] = { id, mode:'bot', lang:'ru', createdAt:Date.now(), messages:[] };
   return db.sessions[id];
 }
 function addMsg(sid, m, opts){
@@ -2522,6 +2515,17 @@ function rentFallbackReply(context) {
   return '这个问题我先记下了' + town + '，客服上线后会结合您的登记信息回复您。您也可以补充预算、户型和租住时长，我帮您先匹配。';
 }
 
+/* ---- 访客提问语种识别 ----
+   西里尔字母 → 俄语，汉字 → 中文，其余含拉丁字母 → 英文；
+   纯数字/表情等无字母内容返回空，调用方回退到界面语种。 */
+function detectTextLang(text){
+  const s = String(text || '');
+  if (/[\u0400-\u04FF]/.test(s)) return 'ru';
+  if (/[\u4E00-\u9FFF]/.test(s)) return 'zh';
+  if (/[A-Za-z]/.test(s)) return 'en';
+  return '';
+}
+
 /* ---- 私有化 AI 兜底（阿里云自建 RAG 知识库）----
    关键词未命中时转发给自建服务；服务不可达时返回 null，调用方回落到原兜底话术。 */
 async function beisuAiAnswer(text, lang) {
@@ -2538,7 +2542,7 @@ async function beisuAiAnswer(text, lang) {
     const headers = { 'Content-Type': 'application/json', 'X-AI-Key': key };
     const r = await fetch(url, {
       method: 'POST', headers, signal: ac ? ac.signal : undefined,
-      body: JSON.stringify({ text: String(text || '').slice(0, 500), pageLang: lang || 'zh' })
+      body: JSON.stringify({ text: String(text || '').slice(0, 500), pageLang: lang || 'ru' })
     });
     if (!r.ok) return null;
     const d = await r.json();
@@ -3383,8 +3387,11 @@ const server = http.createServer(async (req, res) => {
     if (!loadData().agentChat.botEnabled){
       return send(res, 200, { reply:{ zh:'', en:'', ru:'' }, quickButtons:[], matched:false, botDisabled:true, link:null, sid: activeSid, reset });
     }
-    const langKey = (body.lang === 'zh' || body.lang === 'en' || body.lang === 'ru') ? body.lang : 'zh';
+    const langKey = (body.lang === 'zh' || body.lang === 'en' || body.lang === 'ru') ? body.lang : 'ru';
     const vtext = String(body.text || '').trim();
+    /* 识别访客本次提问所用语种：AI 与关键词匹配都跟随提问语言，而非界面语言 */
+    const textLang = detectTextLang(vtext);
+    const replyLang = textLang || langKey;
     // 访客主动要求人工：标记会话并回复提示，不进入关键词/AI 流程（人工入口由此保留）
     if (vtext && HUMAN_RE.test(vtext)) {
       if (sess) { sess.needHuman = true; sess.needHumanAt = Date.now(); }
@@ -3392,7 +3399,7 @@ const server = http.createServer(async (req, res) => {
       if (activeSid) addMsg(activeSid, { role:'bot', reply: { [langKey]: notice }, delayMs: 0 });
       return send(res, 200, { reply: { [langKey]: notice }, quickButtons: [], matched: true, human: true, link: null, sid: activeSid, reset });
     }
-    const payload = matchPayload(matchInputAuto(body.text, body.lang));
+    const payload = matchPayload(matchInputAuto(body.text, replyLang));
     // 关键词未命中：人工在线 → AI 不回复（只标记待人工 + 一次性转接提示）；人工离线才转 AI 兜底
     if (!payload.matched && vtext) {
       if (await humanOnline()) {
@@ -3414,8 +3421,8 @@ const server = http.createServer(async (req, res) => {
         en: 'Looking that up for you, one moment…',
         ru: 'Секунду, посмотрю информацию…'
       };
-      if (activeSid) addMsg(activeSid, { role:'bot', reply: { [langKey]: HOLD[langKey] }, delayMs: 0 });
-      beisuAiAnswer(vtext, langKey).then(function (ans) {
+      if (activeSid) addMsg(activeSid, { role:'bot', reply: { [replyLang]: HOLD[replyLang] }, delayMs: 0 });
+      beisuAiAnswer(vtext, replyLang).then(function (ans) {
         if (!activeSid) return;
         /* AI 拿到答案：只发答案；AI 不可用/超时：发兜底话术，并带上下方快捷按钮供访客继续操作 */
         let card = null;
@@ -3424,7 +3431,7 @@ const server = http.createServer(async (req, res) => {
           ans = parsed.text || null;
           if (parsed.cardKey) card = aiCardByAlias(parsed.cardKey);
         }
-        addMsg(activeSid, { role:'bot', reply: ans ? { [langKey]: ans } : payload.reply, quickButtons: ans ? [] : (payload.quickButtons || []), delayMs: 0 });
+        addMsg(activeSid, { role:'bot', reply: ans ? { [replyLang]: ans } : payload.reply, quickButtons: ans ? [] : (payload.quickButtons || []), delayMs: 0 });
         if (ans && card) addMsg(activeSid, { role:'bot', card: card, delayMs: 600 });
       }).catch(function () {});
       return send(res, 200, { reply:{ zh:'', en:'', ru:'' }, quickButtons: [], matched: false, pending: true, link: null, sid: activeSid, reset });
