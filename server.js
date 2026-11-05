@@ -1136,9 +1136,27 @@ const CARD_PAGES = [
   { key:'rent',      url:'/rent',   names:{ zh:'租房',             en:'Housing Rental',           ru:'Аренда жилья' } },
   { key:'car',       url:'/rental',   names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
   { key:'review',    url:'/experience', names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
-  { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } }
+  { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } },
+  { key:'pickup',    url:'/',        names:{ zh:'接机协助',         en:'Airport Pickup',           ru:'Встреча в аэропорту' } },
+  { key:'exp',       url:'/experience', names:{ zh:'海上项目',      en:'Sea Activities',           ru:'Морские активности' } }
 ];
 function cardPageByKey(key){ return CARD_PAGES.filter(function (p) { return p.key === key; })[0] || null; }
+
+/* AI 回复中的 [CARD:xxx] 标记 → 后台页面卡片：命中板块时自动带出对应预订卡片（图二样式），
+   卡片标题/简介/封面/跳转页全部走后台「页面卡片」配置，多语言自动匹配。 */
+const AI_CARD_ALIAS = { rental_card:'car', house_card:'rent', pick_card:'pickup', tour_card:'island', sea_card:'exp' };
+function stripAiCardMarker(text){
+  let key = null;
+  const t = String(text || '').replace(/\[CARD:([a-z0-9_]+)\]/ig, function (_, k) { key = String(k).toLowerCase(); return ''; });
+  return { text: t.replace(/\n{3,}/g, '\n\n').trim(), cardKey: key };
+}
+function aiCardByAlias(alias){
+  const pk = AI_CARD_ALIAS[alias];
+  if (!pk) return null;
+  const c = loadData().cards.filter(function (x) { return x.pageKey === pk && x.enabled !== false; })[0];
+  if (!c || !c.url) return null;
+  return { id:c.id, pageKey:c.pageKey, url:c.url, cover:c.cover, titles:c.titles, descs:c.descs };
+}
 
 /* ---------------- 文章绑定项目（历史字段） ----------------
    每篇文章可绑定一个产品项目，仅用于数据兼容；文章页底部已统一改为咨询入口，
@@ -3401,7 +3419,14 @@ const server = http.createServer(async (req, res) => {
       beisuAiAnswer(vtext, langKey).then(function (ans) {
         if (!activeSid) return;
         /* AI 拿到答案：只发答案；AI 不可用/超时：发兜底话术，并带上下方快捷按钮供访客继续操作 */
+        let card = null;
+        if (ans) {
+          const parsed = stripAiCardMarker(ans);
+          ans = parsed.text || null;
+          if (parsed.cardKey) card = aiCardByAlias(parsed.cardKey);
+        }
         addMsg(activeSid, { role:'bot', reply: ans ? { [langKey]: ans } : payload.reply, quickButtons: ans ? [] : (payload.quickButtons || []), delayMs: 0 });
+        if (ans && card) addMsg(activeSid, { role:'bot', card: card, delayMs: 600 });
       }).catch(function () {});
       return send(res, 200, { reply:{ zh:'', en:'', ru:'' }, quickButtons: [], matched: false, pending: true, link: null, sid: activeSid, reset });
     }
