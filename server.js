@@ -1447,7 +1447,13 @@ function articleNotFoundHtml(){
 /* sitemap：首页 + 每篇文章的俄/中/英三条独立链接（含 hreflang 互指），供 Yandex / Google 发现收录 */
 function sitemapXml(){
   const items = loadData().articles.filter(a => a.status === 'published').sort((x, y) => (y.publishedAt || 0) - (x.publishedAt || 0));
-  const urls = ['<url><loc>' + escHtml(PUBLIC_BASE_URL) + '/</loc><changefreq>daily</changefreq></url>'];
+  /* 首页三语独立链接 + hreflang（x-default 指向俄语默认页） */
+  const HOME_HF = { ru:'ru', en:'en', zh:'zh-CN' };
+  const homeAlts = HOME_LANG_CODES.map(x =>
+    '<xhtml:link rel="alternate" hreflang="' + HOME_HF[x] + '" href="' + escHtml(PUBLIC_BASE_URL + '/' + x) + '"/>').join('')
+    + '<xhtml:link rel="alternate" hreflang="x-default" href="' + escHtml(PUBLIC_BASE_URL + '/ru') + '"/>';
+  const urls = HOME_LANG_CODES.map(x =>
+    '<url><loc>' + escHtml(PUBLIC_BASE_URL + '/' + x) + '</loc><changefreq>daily</changefreq>' + homeAlts + '</url>');
   const HF = { zh:'zh-CN', en:'en', ru:'ru' };
   items.forEach(a => {
     const base = PUBLIC_BASE_URL + articlePath(a);
@@ -2597,6 +2603,99 @@ function rentLeadSummary(d) {
   if (Array.isArray(d.extras) && d.extras.length) parts.push('配套：' + d.extras.join('、'));
   if (d.note) parts.push('备注：' + d.note);
   return parts.join('｜');
+}
+
+/* ---------------- 首页三语独立路由（/ru、/en、/zh） ----------------
+   语言完全由 URL 决定：服务端直接输出对应语言的静态文案、html lang、canonical 与 hreflang，
+   前端只按服务端写入的 __BEISU_FORCED_LANG 渲染，不再依赖 localStorage 判断语种。 */
+const HOME_FILE = path.join(ROOT, 'index.html');
+const HOME_SOURCE = fs.readFileSync(HOME_FILE, 'utf-8');
+const HOME_LANG_CODES = ['ru', 'en', 'zh'];
+const HOME_HTML_LANG = { ru:'ru', en:'en', zh:'zh-CN' };
+const HOME_DESC = {
+  ru:'beisuas — помощь туристам на Хайнане: аренда жилья и автомобилей, туры по острову, трансферы, советы и ответы на вопросы в онлайн-чате на русском языке.',
+  en:'beisuas — tourist help in Hainan: housing and car rental, island tours, transfers, tips and answers in an online chat in English.',
+  zh:'beisuas — 海南旅游服务：租房、租车、环岛游、接送、攻略与在线中文客服咨询。'
+};
+/* hreflang：三语互指，x-default 指向俄语默认页 */
+const HOME_ALTS = [
+  ['ru', '/ru'], ['en', '/en'], ['zh-CN', '/zh'], ['x-default', '/ru']
+];
+function loadHomeI18n(){
+  const m = HOME_SOURCE.match(/const I18N = \{/);
+  if (!m) return null;
+  const start = HOME_SOURCE.indexOf('{', m.index);
+  let depth = 0, inStr = false, quote = '', esc = false;
+  for (let i = start; i < HOME_SOURCE.length; i++){
+    const ch = HOME_SOURCE[i];
+    if (inStr){
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === quote) inStr = false;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`'){ inStr = true; quote = ch; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}'){
+      depth--;
+      if (depth === 0){
+        try { return new Function('return (' + HOME_SOURCE.slice(start, i + 1) + ')')(); }
+        catch(e){ console.error('[home] 首页文案字典解析失败:', e.message); return null; }
+      }
+    }
+  }
+  return null;
+}
+const HOME_I18N = loadHomeI18n();
+const HOME_VARIANTS = new Map();
+function homeVariant(lang, canonicalPath){
+  const cacheKey = lang + '|' + canonicalPath;
+  if (HOME_VARIANTS.has(cacheKey)) return HOME_VARIANTS.get(cacheKey);
+  const dict = (HOME_I18N && HOME_I18N[lang]) || {};
+  let html = HOME_SOURCE;
+  /* html lang + 服务端强制语种（必须早于页面脚本执行） */
+  html = html.replace(/<html\s+lang="[^"]*"/i, '<html lang="' + HOME_HTML_LANG[lang] + '"');
+  html = html.replace(/<head(\s[^>]*)?>/i, function (m) {
+    return m + '<script>window.__BEISU_FORCED_LANG=' + JSON.stringify(lang) + ';</script>';
+  });
+  /* 标题与描述按语种输出 */
+  if (dict.siteTitle) html = html.replace(/<title>[^<]*<\/title>/, '<title>' + escHtml(dict.siteTitle) + '</title>');
+  html = html.replace(/<meta name="description" content="[^"]*">/,
+    '<meta name="description" content="' + escHtml(HOME_DESC[lang]) + '">');
+  /* canonical + hreflang（三个语言页 + x-default） */
+  const alts = HOME_ALTS.map(function (x) {
+    return '<link rel="alternate" hreflang="' + x[0] + '" href="' + escHtml(PUBLIC_BASE_URL + x[1]) + '">';
+  }).join('\n');
+  html = html.replace(/<link rel="canonical" href="[^"]*">/,
+    '<link rel="canonical" href="' + escHtml(PUBLIC_BASE_URL + canonicalPath) + '">\n' + alts);
+  /* 静态文案：把 data-i18n 标记的元素文本按语种预填，爬虫不执行 JS 也能看到对应语言 */
+  html = html.replace(/(<([a-zA-Z0-9]+)([^>]*\sdata-i18n="([^"]+)"[^>]*)>)([^<]*)(<\/\2>)/g,
+    function (all, open, tag, attrs, key, txt, close) {
+      const v = dict[key];
+      return (typeof v === 'string' && v) ? open + escHtml(v) + close : all;
+    });
+  html = html.replace(/<([a-zA-Z0-9]+)([^>]*\sdata-i18n-ph="([^"]+)"[^>]*)>/g,
+    function (all, tag, attrs, key) {
+      const v = dict[key];
+      if (typeof v !== 'string' || !v) return all;
+      return all.replace(/placeholder="[^"]*"/, 'placeholder="' + escHtml(v) + '"');
+    });
+  /* 当前语种的切换按钮标记为选中态（其余保持普通链接） */
+  html = html.replace(/<a class="lang-opt( active)?" data-lang="([^"]+)" href="([^"]+)">/g,
+    function (all, on, code, href) {
+      return '<a class="lang-opt' + (code === lang ? ' active' : '') + '" data-lang="' + code + '" href="' + href + '">';
+    });
+  HOME_VARIANTS.set(cacheKey, html);
+  return html;
+}
+function sendHomeLang(req, res, lang, canonicalPath){
+  const html = homeVariant(lang, canonicalPath);
+  const headers = {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    'Content-Language': HOME_HTML_LANG[lang]
+  };
+  sendMaybeGzip(req, res, 200, headers, html);
 }
 
 /* ---------------- 路由 ---------------- */
@@ -4422,6 +4521,14 @@ function buildAiExport(){
   if (p === '/robots.txt' && req.method === 'GET'){
     res.writeHead(200, { 'Content-Type':'text/plain; charset=utf-8', 'Cache-Control':'no-cache' });
     return res.end('User-agent: *\nAllow: /\n\nUser-agent: YandexBot\nAllow: /\n\nSitemap: ' + PUBLIC_BASE_URL + '/sitemap.xml\n');
+  }
+
+  /* ---- 首页三语独立路由：/ru（俄语）、/en（英语）、/zh（中文） ----
+     语种由 URL 固定，服务端直出对应语言文案；根路径 / 保持可访问，canonical 归到 /ru */
+  if (req.method === 'GET'){
+    const langRoute = { '/ru':'ru', '/ru/':'ru', '/en':'en', '/en/':'en', '/zh':'zh', '/zh/':'zh' }[p];
+    if (langRoute) return sendHomeLang(req, res, langRoute, '/' + langRoute);
+    if (p === '/' || p === '/index.html') return sendHomeLang(req, res, 'ru', '/ru');
   }
 
   /* ---- 静态资源 ---- */

@@ -205,10 +205,30 @@
     display:flex; align-items:center; justify-content:center;
     height:30px; padding:0 12px; border-radius:8px; white-space:nowrap;
     font-size:12.5px; color:#4a5260; cursor:pointer; background:rgba(20,40,80,.05);
-    transition:background .15s, color .15s;
+    transition:background .15s, color .15s; text-decoration:none;
   }
   .lang-opt:hover{ background:rgba(20,40,80,.1); }
   .lang-opt.active, .lang-opt.active:hover{ background:#2f7cf6; color:#fff; }
+
+  /* 语言提示条：按浏览器语言提示可切换的版本，用户可自行选择或关闭（不做强制跳转） */
+  .lang-hint{
+    position:fixed; left:50%; bottom:18px; transform:translateX(-50%); z-index:9999;
+    display:flex; align-items:center; gap:10px; max-width:calc(100% - 24px);
+    padding:10px 12px 10px 16px; border-radius:12px; background:rgba(28,35,48,.94);
+    color:#fff; font-size:13px; line-height:1.4; box-shadow:0 10px 30px rgba(10,20,40,.25);
+  }
+  .lang-hint[hidden]{ display:none; }
+  .lang-hint-go{
+    flex:none; padding:6px 12px; border-radius:8px; background:#2f7cf6; color:#fff;
+    font-size:12.5px; font-weight:600; text-decoration:none;
+  }
+  .lang-hint-close{
+    flex:none; width:24px; height:24px; border:0; border-radius:6px; background:transparent;
+    color:rgba(255,255,255,.75); font-size:14px; cursor:pointer;
+  }
+  @media (max-width:600px){
+    .lang-hint{ left:12px; right:12px; bottom:12px; transform:none; max-width:none; }
+  }
 
   /* 咨询入口：全站统一俄语 CTA，顶部导航与输入区下方各一个，均链接回首页 */
   .consult-link{
@@ -676,7 +696,7 @@
     .tab{ padding:8px 22px; }
   }
 </style>
-<script src="/lang-detect.js?v=20261105"></script>
+<script src="/lang-detect.js?v=20261105a"></script>
 <script src="/webp-picture.js"></script>
 </head>
 <body>
@@ -788,11 +808,11 @@
         </button>
         <span class="spacer"></span>
 
-        <!-- 语言切换：三项常驻展开、横向排列，进入页面即可直接点击切换（不做下拉收起） -->
+        <!-- 语言切换：三项常驻展开、横向排列；点击直接跳转到对应语言页面（/zh、/en、/ru） -->
         <div class="lang" id="langBox">
-          <div class="lang-opt" data-lang="zh">中文</div>
-          <div class="lang-opt" data-lang="en">English</div>
-          <div class="lang-opt active" data-lang="ru">Русский</div>
+          <a class="lang-opt" data-lang="zh" href="/zh">中文</a>
+          <a class="lang-opt" data-lang="en" href="/en">English</a>
+          <a class="lang-opt" data-lang="ru" href="/ru">Русский</a>
         </div>
       </div>
 
@@ -992,6 +1012,13 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<!-- 语言提示条：按浏览器语言提示，用户可自行切换或关闭；服务端路由语言固定，不做强制跳转 -->
+<div class="lang-hint" id="langHint" hidden>
+  <span id="langHintText"></span>
+  <a class="lang-hint-go" id="langHintGo" href="/ru"></a>
+  <button class="lang-hint-close" id="langHintClose" type="button" aria-label="close">✕</button>
+</div>
 
 <script>
 /* ================================================================
@@ -1997,13 +2024,40 @@ function applyAuthState(){
 }
 
 /* ---------------- 语言切换 ---------------- */
-/* 语言切换：三项常驻显示，点击即切换并即时刷新全页文案 */
+/* 语言切换：点击直接跳转到对应语言页面（/zh、/en、/ru），页面语言由服务端固定，
+   不再把选择写进 localStorage 后就地改文案 */
 document.querySelectorAll('.lang-opt').forEach(opt => opt.addEventListener('click', e => {
-  e.stopPropagation();
-  lang = opt.dataset.lang;
-  localStorage.setItem('beisu-lang', lang);
-  applyI18n();
+  e.preventDefault();
+  const code = opt.dataset.lang;
+  const target = { zh:'/zh', en:'/en', ru:'/ru' }[code];
+  if (target) location.href = target;
 }));
+
+/* 语言提示条：页面语言与浏览器语言不一致时，提示用户自行切换（可关闭，不强制跳转） */
+function initLangHint(){
+  const box = $('langHint');
+  if (!box) return;
+  const forced = window.beisuForcedLang ? window.beisuForcedLang() : '';
+  if (!forced) return;   // 只有 /ru、/en、/zh 路由页展示
+  try { if (sessionStorage.getItem('beisu-lang-hint') === '1') return; } catch(e){}
+  const nav = String((navigator.languages && navigator.languages[0]) || navigator.language || '').toLowerCase();
+  const want = nav.indexOf('zh') === 0 ? 'zh' : (nav.indexOf('en') === 0 ? 'en' : (nav.indexOf('ru') === 0 ? 'ru' : ''));
+  if (!want || want === forced) return;
+  const T = {
+    zh: { msg:'检测到你的浏览器语言是中文，是否切换到中文版？', go:'切换到中文' },
+    en: { msg:'Your browser language is English. Switch to English?', go:'Switch to English' },
+    ru: { msg:'Язык вашего браузера — русский. Переключиться на русский?', go:'Переключиться' }
+  }[want];
+  $('langHintText').textContent = T.msg;
+  $('langHintGo').textContent = T.go;
+  $('langHintGo').href = '/' + want;
+  box.hidden = false;
+  $('langHintClose').addEventListener('click', () => {
+    box.hidden = true;
+    try { sessionStorage.setItem('beisu-lang-hint', '1'); } catch(e){}
+  });
+}
+initLangHint();
 
 /* ---------------- 主区域交互 ---------------- */
 /* ============ 关键词自动回复（全部由后端配置驱动，前端零硬编码） ============ */
