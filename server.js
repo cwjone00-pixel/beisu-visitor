@@ -2607,6 +2607,7 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/island/submit' && req.method === 'POST') ||
       (p === '/api/island-config' && req.method === 'GET') ||
       (p === '/api/public/ai-kb' && req.method === 'GET') ||
+      (p === '/api/internal/alert' && req.method === 'POST') ||
       (p === '/api/camp-points' && req.method === 'GET') ||
       (p === '/api/play-points' && req.method === 'GET') ||
       (p === '/api/articles' && req.method === 'GET') ||
@@ -3127,6 +3128,12 @@ const server = http.createServer(async (req, res) => {
       const msg = body && body.message;
       const text = String((msg && msg.text) || '');
       const chatId = msg && msg.chat && msg.chat.id;
+      if (chatId && /^\/alert(?:@\S+)?$/i.test(text.trim())){
+        try {
+          const f = path.join(ROOT, 'data', 'alert-chat.json');
+          fs.writeFileSync(f, JSON.stringify({ id: String(chatId), ts: Date.now() }), 'utf8');
+        } catch(e){}
+      }
       if (!chatId || !/^\/start/i.test(text)) return;
       const m = text.match(/^\/start(?:@\S+)?\s+login_([0-9a-f]{32})\s*$/i);
       const g = loadSecrets().telegram;
@@ -3544,6 +3551,33 @@ function buildAiExport(){
       'ETag': etag
     });
     return res.end(body);
+  }
+
+  /* ---- 同步告警转发：阿里云无法直连 Telegram，由俄站代发 ---- */
+  if (p === '/api/internal/alert' && req.method === 'POST'){
+    let cfg = {};
+    try { cfg = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'alert.json'), 'utf8')) || {}; } catch(e){}
+    if (!cfg.token || String(req.headers['x-alert-token'] || '') !== String(cfg.token))
+      return send(res, 401, { ok: false, error: 'unauthorized' });
+    let chatId = String(cfg.chatId || '').trim();
+    if (!chatId){
+      try {
+        const c = JSON.parse(fs.readFileSync(path.join(ROOT, 'data', 'alert-chat.json'), 'utf8'));
+        chatId = String((c && c.id) || '').trim();
+      } catch(e){}
+    }
+    if (!chatId)
+      return send(res, 400, { ok: false, error: 'chatId missing: send /alert to @beisuas_Helperbot once, or fill data/alert.json' });
+    const body = await readBody(req);
+    let text = '';
+    try { text = String((JSON.parse(body || '{}') || {}).text || '').slice(0, 1200); } catch(e){}
+    if (!text) return send(res, 400, { ok: false, error: 'empty text' });
+    try {
+      const r = await tgApi('sendMessage', { chat_id: chatId, text: text, disable_web_page_preview: true });
+      return send(res, 200, { ok: true, message_id: (r && r.result && r.result.message_id) || null });
+    } catch(e){
+      return send(res, 502, { ok: false, error: String(e.message || e).slice(0, 100) });
+    }
   }
   if (p === '/api/island-config' && req.method === 'GET'){
     const pr = loadData().islandPricing || {};
