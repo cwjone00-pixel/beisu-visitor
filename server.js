@@ -232,6 +232,17 @@ function normExpProjects(raw){
       const n = Math.round(Number(s));
       if (isFinite(n) && n >= 0) item[k] = Math.min(999999, n);
     });
+    /* 免拼价：按座位数 4 / 5 / 7 / 9 座分别保存，单位元/户 */
+    if (v.seats && typeof v.seats === 'object'){
+      const seats = {};
+      ['4', '5', '7', '9'].forEach(function (k) {
+        const s = String(v.seats[k] == null ? '' : v.seats[k]).trim();
+        if (!s) return;
+        const n = Math.round(Number(s));
+        if (isFinite(n) && n >= 0) seats[k] = Math.min(999999, n);
+      });
+      if (Object.keys(seats).length) item.seats = seats;
+    }
     /* 项目页面内容：概览段落 / 体验亮点（数组，逐条截断，全空不存） */
     if (v.content && typeof v.content === 'object'){
       const ov = Array.isArray(v.content.overview) ? v.content.overview : [];
@@ -2595,6 +2606,7 @@ const server = http.createServer(async (req, res) => {
       p === '/api/config' || p === '/api/geo' || p === '/api/match' || p === '/api/media' ||
       (p === '/api/island/submit' && req.method === 'POST') ||
       (p === '/api/island-config' && req.method === 'GET') ||
+      (p === '/api/public/ai-kb' && req.method === 'GET') ||
       (p === '/api/camp-points' && req.method === 'GET') ||
       (p === '/api/play-points' && req.method === 'GET') ||
       (p === '/api/articles' && req.method === 'GET') ||
@@ -3300,7 +3312,7 @@ const server = http.createServer(async (req, res) => {
   /* ---- 图片媒体：上传（前端已压缩的 dataURL）与读取 ----
      上传开放给游客前端使用；严格限定为图片 dataURL 并限制体积，避免被滥用 */
   if (p === '/api/media' && req.method === 'POST'){
-    const body = await readBody(req, 8 * 1024 * 1024);
+    const body = await readBody(req, 20 * 1024 * 1024);
     if (body && body.__tooLarge) return send(res, 413, { ok:false, error:'图片过大，请压缩后再试' });
     const m = /^data:(image\/(?:png|jpeg|jpg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(String(body.dataUrl || ''));
     if (!m) return send(res, 400, { ok:false, error:'仅支持图片文件' });
@@ -3395,6 +3407,144 @@ const server = http.createServer(async (req, res) => {
 
   /* ---- 全岛游价格方案配置 ---- */
   /* 公开：游客端打卡点页面读取报价（免拼 4/5/7/9 座整车价 + 拼团各车型单人价；0 = 未配置，前端占位展示） */
+/* ============================================================
+   只读业务数据导出（GET /api/public/ai-kb）
+   供阿里云 AI 定时拉取：仅项目、价格、体验亮点、公共联系方式，
+   不含任何访客个人信息；版本号随数据内容变化。
+   ============================================================ */
+const AI_EXPORT_FILE = path.join(ROOT, 'data', 'ai-export.json');
+const AI_EXPORT_NOTE = {
+  rental: {
+    zh: '租车协助：帮您选租车行、挑车型、确认价格与取车安排。车辆为自驾，不含司机，租金不含油费，押金可退。',
+    en: 'Car rental assistance: we help you pick a rental shop and car, confirm the price and pickup. Self-drive only, no driver, fuel not included, deposit refundable.',
+    ru: 'Помощь с арендой авто: подберём прокат и машину, подтвердим цену и получение. Только самоуправление, без водителя, топливо не включено, залог возвращается.'
+  },
+  island: {
+    zh: '环岛游报价：免拼为整车价，拼团为单人价；座位数含司机，门票餐饮等以客服确认为准。9 人以上请联系客服定制。',
+    en: 'Island tour: private price is per vehicle, shared price is per person; seats include the driver. Tickets and meals are subject to confirmation. For 9+ people contact support.',
+    ru: 'Тур по острову: цена «без подселения» — за машину, «групповая» — за человека; места включают водителя. Билеты и питание уточняйте у поддержки. Для 9+ человек свяжитесь с нами.'
+  },
+  experience: {
+    zh: '体验项目价格与库存以最终确认单为准，未确认前不得视为成交价。',
+    en: 'Experience prices and availability are subject to the final confirmation; not a confirmed deal until confirmed.',
+    ru: 'Цены и наличие мест на впечатления действительны только после подтверждения; до этого не являются окончательной ценой.'
+  }
+};
+
+function loadAiExportToken(){
+  try {
+    const j = JSON.parse(fs.readFileSync(AI_EXPORT_FILE, 'utf8'));
+    return String((j && j.token) || '').trim();
+  } catch(e){ return ''; }
+}
+
+function buildAiExport(){
+  const d = loadData() || {};
+  const secretsData = loadSecrets() || {};
+  let rawCars = {};
+  try { rawCars = JSON.parse(fs.readFileSync(RENTAL_CARS_FILE, 'utf8')); } catch(e){ rawCars = {}; }
+  const catalog = rawCars.catalog || {};
+  const cars = Object.keys(catalog).map(function(id){
+    const c = catalog[id] || {};
+    return {
+      id: id,
+      name: c.names || c.name || id,
+      seats: c.seats || 0,
+      gear: c.gear || '',
+      ev: !!c.ev,
+      dayPrice: c.day || 0,
+      weekPrice: c.week || 0,
+      deposit: c.deposit || 0
+    };
+  });
+  const link = d.link || {};
+  const tg = String((secretsData.telegram && secretsData.telegram.botUsername) || '').trim().replace(/^@/, '');
+  const contacts = { site: PUBLIC_BASE_URL };
+  if (tg) contacts.telegram = 'https://t.me/' + tg;
+  if (link && link.url) contacts.extra = { text: link.text || {}, url: String(link.url) };
+
+  const pr = d.islandPricing || {};
+  const pv = pr.private || {};
+  const sh = pr.shared || {};
+  const islandTour = {
+    capacity: { seat4: 3, seat5: 4, seat7: 6, seat9: 8 },
+    private: { seat4: pv.seat4||0, seat5: pv.seat5||0, seat7: pv.seat7||0, seat9: pv.seat9||0 },
+    shared:  { seat4: sh.seat4||0, seat5: sh.seat5||0, seat7: sh.seat7||0, seat9: sh.seat9||0 },
+    note: AI_EXPORT_NOTE.island
+  };
+
+  const expProjects = d.expProjects || {};
+  const experience = Object.keys(expProjects).map(function(slug){
+    const p = expProjects[slug] || {};
+    const out = { slug: slug };
+    ['name','intro','duration','group','level','from'].forEach(function(k){
+      if (p[k]) out[k] = p[k];
+    });
+    if (typeof p.price === 'number') out.price = p.price;
+    if (typeof p.deposit === 'number') out.deposit = p.deposit;
+    if (p.content) out.content = p.content;
+    if (!out.price) out.status = 'placeholder';
+    return out;
+  });
+
+  const articles = [];
+  try {
+    fs.readdirSync(ARTICLES_DIR).forEach(function(f){
+      if (!/\.json$/i.test(f)) return;
+      try {
+        const a = JSON.parse(fs.readFileSync(path.join(ARTICLES_DIR, f), 'utf8'));
+        if (!a || a.status !== 'published' || !a.slug) return;
+        const title = {}, meta = {};
+        ['zh','en','ru'].forEach(function(l){
+          const it = (a.i18n && a.i18n[l]) || {};
+          if (it.title) title[l] = String(it.title);
+          const mm = (a.meta && a.meta[l]) || '';
+          if (mm) meta[l] = String(mm).slice(0, 200);
+        });
+        if (!Object.keys(title).length) return;
+        articles.push({ slug: String(a.slug), title: title, meta: meta, url: PUBLIC_BASE_URL + '/article/' + String(a.slug) });
+      } catch(e){}
+    });
+  } catch(e){}
+
+  const core = {
+    schemaVersion: 1,
+    currency: 'CNY',
+    contacts: contacts,
+    rental: { note: AI_EXPORT_NOTE.rental, cars: cars },
+    islandTour: islandTour,
+    experience: { note: AI_EXPORT_NOTE.experience, items: experience },
+    articles: articles
+  };
+  const version = 'v1-' + crypto.createHash('sha1').update(JSON.stringify(core)).digest('hex').slice(0, 16);
+  return Object.assign({ version: version, generatedAt: new Date().toISOString() }, core);
+}
+
+  /* ---- 只读业务数据导出：阿里云 AI 定时同步使用（不含访客个人信息） ---- */
+  if (p === '/api/public/ai-kb' && req.method === 'GET'){
+    const token = loadAiExportToken();
+    if (!token) return send(res, 503, { ok:false, error:'ai export token not configured' });
+    const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+    const xai = String(req.headers['x-ai-token'] || '').trim();
+    let qs = '';
+    try { qs = String(new URL(req.url, 'http://x').searchParams.get('token') || ''); } catch(e){}
+    const got = bearer || xai || qs;
+    if (got !== token) return send(res, 401, { ok:false, error:'unauthorized' });
+    const payload = buildAiExport();
+    const etag = '"' + payload.version + '"';
+    if (String(req.headers['if-none-match'] || '').indexOf(payload.version) >= 0){
+      res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'public, max-age=60' });
+      return res.end();
+    }
+    const body = JSON.stringify(payload);
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Content-Length': Buffer.byteLength(body),
+      'Cache-Control': 'public, max-age=60',
+      'ETag': etag
+    });
+    return res.end(body);
+  }
   if (p === '/api/island-config' && req.method === 'GET'){
     const pr = loadData().islandPricing || {};
     const pv = pr.private || {};

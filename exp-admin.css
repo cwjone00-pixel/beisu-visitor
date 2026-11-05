@@ -2373,6 +2373,35 @@ textarea:focus-visible {
   color: var(--color-muted);
 }
 
+.seat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 8px 16px;
+  min-width: 320px;
+}
+
+.seat-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--color-muted);
+}
+
+.seat-field b {
+  min-width: 32px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.seat-field .input {
+  width: 88px;
+  height: 34px;
+  min-height: 34px;
+  padding: 4px 8px;
+}
+
 .price-name {
   width: 100%;
   max-width: 300px;

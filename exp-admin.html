@@ -117,8 +117,8 @@
                 <thead>
                   <tr>
                     <th>项目名称</th>
-                    <th>基础价格（¥）</th>
-                    <th>定金（¥）</th>
+                    <th>拼团（元/人）</th>
+                    <th>免拼（元/户）</th>
                   </tr>
                 </thead>
                 <tbody id="priceRows"></tbody>
@@ -367,6 +367,12 @@
         const p = Object.assign({}, base, { name: '' });
         if (typeof o.price === 'number') p.price = o.price;
         if (typeof o.deposit === 'number') p.deposit = o.deposit;
+        if (o.seats && typeof o.seats === 'object'){
+          p.seats = {};
+          ['4', '5', '7', '9'].forEach(function (k){
+            if (typeof o.seats[k] === 'number') p.seats[k] = o.seats[k];
+          });
+        }
         if (o.name) p.name = o.name;
         p.meta = {};
         ['intro', 'duration', 'group', 'level', 'from'].forEach(function (k){ if (o[k]) p.meta[k] = o[k]; });
@@ -396,6 +402,14 @@
         const item = {};
         if (typeof p.price === 'number') item.price = p.price;
         if (typeof p.deposit === 'number') item.deposit = p.deposit;
+        if (p.seats && typeof p.seats === 'object'){
+          const seats = {};
+          ['4', '5', '7', '9'].forEach(function (k){
+            const n = Number(p.seats[k]);
+            if (isFinite(n) && n >= 0) seats[k] = Math.round(n);
+          });
+          if (Object.keys(seats).length) item.seats = seats;
+        }
         if (p.name && p.name.trim()) item.name = p.name.trim();
         ['intro', 'duration', 'group', 'level', 'from'].forEach(function (k){
           const v = p.meta && p.meta[k];
@@ -494,21 +508,45 @@
     }
 
     /* ================= 项目价格设置 ================= */
+    const PRICE_SEATS = ['4', '5', '7', '9'];
     let priceDraft = null;
+    function seatPricesOf(p){
+      const base = typeof p.deposit === 'number' ? p.deposit : 0;
+      const src = (p.seats && typeof p.seats === 'object') ? p.seats : {};
+      const out = {};
+      PRICE_SEATS.forEach(function (k){
+        out[k] = typeof src[k] === 'number' ? src[k] : base;
+      });
+      return out;
+    }
+    function normalizeSeatPrices(seats){
+      const out = {};
+      PRICE_SEATS.forEach(function (k){
+        const n = Number(seats && seats[k]);
+        out[k] = isFinite(n) && n > 0 ? Math.round(n) : 0;
+      });
+      return out;
+    }
     function priceInit(){
       priceDraft = projects.map(function (p){
-        return { slug: p.slug, key: p.key, name: p.name || '', price: p.price, deposit: p.deposit, tone: p.tone };
+        return { slug: p.slug, key: p.key, name: p.name || '', price: p.price, deposit: p.deposit, seats: seatPricesOf(p), tone: p.tone };
       });
       renderPrices();
     }
     function renderPrices(){
       $('priceRows').innerHTML = priceDraft.map(function (p){
         const placeholder = copyOf(p).name;
+        const seats = p.seats || {};
+        const seatFields = PRICE_SEATS.map(function (k){
+          return '<span class="seat-field"><b>' + k + ' 座</b>'
+            + '<input class="input input--sm" type="number" min="0" step="100" value="' + (Number(seats[k]) || 0) + '" aria-label="' + escAttr(placeholder) + ' ' + k + ' 座免拼价（元/户）" oninput="priceSeatUpdate(\'' + escAttr(p.slug) + '\', \'' + k + '\', Number(this.value))" />'
+            + '</span>';
+        }).join('');
         return '<tr>'
           + '<td><input class="input input--sm price-name" type="text" value="' + escAttr(p.name) + '" placeholder="' + escAttr(placeholder) + '" aria-label="项目名称" oninput="priceUpdate(\'' + escAttr(p.slug) + '\', \'name\', this.value)" />'
           + '<span class="table__id">' + esc(p.slug) + '</span></td>'
-          + '<td><div class="price-input"><span>¥</span><input class="input input--sm" type="number" min="0" step="100" value="' + (p.price || 0) + '" aria-label="' + escAttr(placeholder) + ' 基础价格（¥）" oninput="priceUpdate(\'' + escAttr(p.slug) + '\', \'price\', Number(this.value))" /></div></td>'
-          + '<td><div class="price-input"><span>¥</span><input class="input input--sm" type="number" min="0" step="100" value="' + (p.deposit || 0) + '" aria-label="' + escAttr(placeholder) + ' 定金（¥）" oninput="priceUpdate(\'' + escAttr(p.slug) + '\', \'deposit\', Number(this.value))" /></div></td>'
+          + '<td><div class="price-input"><span>¥</span><input class="input input--sm" type="number" min="0" step="100" value="' + (p.price || 0) + '" aria-label="' + escAttr(placeholder) + ' 拼团价（元/人）" oninput="priceUpdate(\'' + escAttr(p.slug) + '\', \'price\', Number(this.value))" /></div></td>'
+          + '<td><div class="seat-grid">' + seatFields + '</div></td>'
           + '</tr>';
       }).join('');
     }
@@ -517,32 +555,40 @@
       if (r) r[field] = value;
       $('priceSaved').style.display = 'none';
     }
+    function priceSeatUpdate(slug, seat, value){
+      const r = priceDraft.find(function (x){ return x.slug === slug; });
+      if (r){
+        if (!r.seats) r.seats = {};
+        r.seats[seat] = value;
+      }
+      $('priceSaved').style.display = 'none';
+    }
     function priceAdd(){
       const used = {};
       priceDraft.forEach(function (p){ used[p.slug] = true; });
       let i = 1;
       while (used['custom-' + i]) i += 1;
-      priceDraft.push({ slug: 'custom-' + i, key: null, name: '', price: 0, deposit: 0, tone: TONES[priceDraft.length % TONES.length] });
+      priceDraft.push({ slug: 'custom-' + i, key: null, name: '', price: 0, deposit: 0, seats: { 4: 0, 5: 0, 7: 0, 9: 0 }, tone: TONES[priceDraft.length % TONES.length] });
       $('priceSaved').style.display = 'none';
       renderPrices();
     }
     async function priceSave(){
       const bySlug = {};
       priceDraft.forEach(function (r){ bySlug[r.slug] = r; });
-      /* 价格草稿只含名称/价格/定金，合并回完整项目对象，避免清掉内容/图集等其他覆盖 */
+      /* 价格草稿含名称/拼团价/各车型免拼价，合并回完整项目对象，避免清掉内容/图集等其他覆盖 */
       const list = projects.map(function (p){
         const r = bySlug[p.slug];
-        return r ? Object.assign({}, p, { name: r.name, price: Number(r.price) || 0, deposit: Number(r.deposit) || 0 }) : p;
+        return r ? Object.assign({}, p, { name: r.name, price: Number(r.price) || 0, deposit: Number(r.deposit) || 0, seats: normalizeSeatPrices(r.seats) }) : p;
       }).concat(priceDraft.filter(function (r){
         return !projects.some(function (p){ return p.slug === r.slug; });
       }).map(function (r){
-        return { slug: r.slug, key: null, name: r.name, price: Number(r.price) || 0, deposit: Number(r.deposit) || 0, tone: r.tone, meta: {} };
+        return { slug: r.slug, key: null, name: r.name, price: Number(r.price) || 0, deposit: Number(r.deposit) || 0, seats: normalizeSeatPrices(r.seats), tone: r.tone, meta: {} };
       }));
       const ok = await pushOverrides(list);
       if (ok){ $('priceSaved').style.display = ''; }
     }
     function priceReset(){
-      priceDraft = BASE_PROJECTS.map(function (p){ return Object.assign({}, p, { name: '' }); });
+      priceDraft = BASE_PROJECTS.map(function (p){ return Object.assign({}, p, { name: '', seats: seatPricesOf(p) }); });
       $('priceSaved').style.display = 'none';
       renderPrices();
     }
@@ -622,6 +668,28 @@
     function ctAddText(key){ ctDraft[key].push(''); ctDirty(); renderContent(); }
     function ctDelText(key, i){ ctDraft[key].splice(i, 1); ctDirty(); renderContent(); }
     function ctDelImage(i){ ctDraft.gallery.splice(i, 1); ctDirty(); renderGallery(); }
+    // 上传前压缩：最长边 1920px，JPEG 0.85（大图原图 base64 会超服务器限制）
+    function ctCompressImage(file){
+      return new Promise(function (res, rej){
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = function(){
+          URL.revokeObjectURL(url);
+          const MAX = 1920;
+          let w = img.naturalWidth, h = img.naturalHeight;
+          if (!w || !h) return rej(new Error('bad image'));
+          const scale = Math.min(1, MAX / Math.max(w, h));
+          w = Math.max(1, Math.round(w * scale));
+          h = Math.max(1, Math.round(h * scale));
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          cv.getContext('2d').drawImage(img, 0, 0, w, h);
+          res(cv.toDataURL('image/jpeg', 0.85));
+        };
+        img.onerror = function(){ URL.revokeObjectURL(url); rej(new Error('load fail')); };
+        img.src = url;
+      });
+    }
     async function ctUploadFiles(input){
       const files = Array.prototype.slice.call(input.files || []);
       input.value = '';
@@ -633,12 +701,7 @@
       for (const f of files){
         if (!/^image\//.test(f.type)) continue;
         try {
-          const dataUrl = await new Promise(function (res, rej){
-            const r = new FileReader();
-            r.onload = function(){ res(r.result); };
-            r.onerror = rej;
-            r.readAsDataURL(f);
-          });
+          const dataUrl = await ctCompressImage(f);
           const d = await req('/api/media', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
