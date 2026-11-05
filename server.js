@@ -2616,11 +2616,6 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(301, { Location: target, 'Cache-Control': 'public, max-age=3600' });
     return res.end();
   }
-  /* www 统一到主域：避免同一内容两个域名（SEO 重复、外链分散、VK 等平台回调域名不一致） */
-  if (host === 'www.beisuas.com') {
-    res.writeHead(301, { Location: PUBLIC_BASE_URL + req.url, 'Cache-Control': 'public, max-age=3600' });
-    return res.end();
-  }
   /* HEAD 请求与 GET 走同一路由：Node 对 HEAD 响应自动只回响应头不发 body，
      归一后搜索引擎/监测工具对文章页、sitemap 等的 HEAD 探测不再 404 */
   if (req.method === 'HEAD') req.method = 'GET';
