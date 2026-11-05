@@ -1403,6 +1403,7 @@ function articlePageHtml(art, preview, l){
     + langSwitch + '</div></header>\n';
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+    + '<link rel="icon" href="/favicon.png" sizes="any">\n'
     + '<title>' + escHtml(title) + '</title>\n'
     + '<meta name="description" content="' + escHtml(desc) + '">\n'
     + '<link rel="canonical" href="' + escHtml(url) + '">\n'
@@ -1428,6 +1429,7 @@ function articlePageHtml(art, preview, l){
    避免链接失效时返回空白或纯文本 */
 function articleNotFoundHtml(){
   return '<!DOCTYPE html>\n<html lang="ru">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<link rel="icon" href="/favicon.png" sizes="any">'
     + '<title>Страница не найдена — beisuas</title><meta name="robots" content="noindex">'
     + '<meta name="description" content="Такой страницы нет. Вернитесь на главную beisuas или откройте статьи о Хайнане.">'
     + '<style>body{font-family:-apple-system,"Segoe UI","PingFang SC",sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;color:#22282f;background:#f6f7f9}'
@@ -1487,6 +1489,7 @@ function articleIndexHtml(lang){
       + (x === lg ? ' aria-current="page"' : '') + '>' + LANGS_TEXT[x] + '</a>'
   ).join('') + '</nav>';
   return '<!DOCTYPE html>\n<html lang="' + (lg === 'zh' ? 'zh-CN' : lg) + '">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+    + '<link rel="icon" href="/favicon.png" sizes="any">'
     + '<title>' + escHtml(T.title) + '</title><meta name="robots" content="index,follow">'
     + '<meta name="description" content="' + escHtml(T.h1) + ' — beisuas.com">'
     + '<link rel="canonical" href="' + escHtml(PUBLIC_BASE_URL + '/articles' + (lg === 'ru' ? '' : '?lang=' + lg)) + '">'
