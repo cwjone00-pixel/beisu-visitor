@@ -248,14 +248,7 @@
                 <span class="site-form__label">Telegram</span>
                 <input class="input" type="text" id="siteTelegram" placeholder="https://t.me/…" oninput="siteDirty()" />
               </label>
-              <label class="site-form__row">
-                <span class="site-form__label">Instagram</span>
-                <input class="input" type="text" id="siteInstagram" placeholder="https://instagram.com/…" oninput="siteDirty()" />
-              </label>
-              <label class="site-form__row">
-                <span class="site-form__label">Facebook</span>
-                <input class="input" type="text" id="siteFacebook" placeholder="https://facebook.com/…" oninput="siteDirty()" />
-              </label>
+
             </div>
           </div>
         </main>
@@ -696,8 +689,6 @@
         $('siteEmail').value = d.email || '';
         $('sitePhone').value = d.phone || '';
         $('siteTelegram').value = d.telegram || '';
-        $('siteInstagram').value = d.instagram || '';
-        $('siteFacebook').value = d.facebook || '';
       } catch(e){}
     }
     async function siteSave(){
@@ -706,8 +697,6 @@
         email: $('siteEmail').value,
         phone: $('sitePhone').value,
         telegram: $('siteTelegram').value,
-        instagram: $('siteInstagram').value,
-        facebook: $('siteFacebook').value,
       };
       try {
         const r = await req('/api/settings', {

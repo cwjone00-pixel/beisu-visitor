@@ -3585,8 +3585,11 @@ const server = http.createServer(async (req, res) => {
   /* ---- 站内「海南项目体验」页脚联系方式（只读）：与官网 /api/settings 保持同一份字段 ---- */
   if (p === '/api/settings' && req.method === 'GET'){
     const d = loadData();
-    const base = { brandIntro:'', email:'hello@example.com', phone:'+86 000 0000 0000', telegram:'', instagram:'', facebook:'' };
-    const own = (d.siteSettings && typeof d.siteSettings === 'object') ? d.siteSettings : {};
+    const base = { brandIntro:'', email:'hello@example.com', phone:'+86 000 0000 0000', telegram:'' };
+    const own = (d.siteSettings && typeof d.siteSettings === 'object') ? Object.assign({}, d.siteSettings) : {};
+    /* Instagram / Facebook 已下线：历史数据里若残留这两个字段，不再返回给前端 */
+    delete own.instagram;
+    delete own.facebook;
     return send(res, 200, Object.assign(base, own));
   }
   /* 联系方式保存（后台「海南项目体验 · 联系方式」；需登录，不在游客白名单内） */
@@ -3595,7 +3598,7 @@ const server = http.createServer(async (req, res) => {
     const src = (body && typeof body === 'object') ? body : {};
     const d = loadData();
     const out = {};
-    ['brandIntro', 'email', 'phone', 'telegram', 'instagram', 'facebook'].forEach(function (k){
+    ['brandIntro', 'email', 'phone', 'telegram'].forEach(function (k){
       out[k] = String(src[k] == null ? '' : src[k]).trim().slice(0, k === 'brandIntro' ? 500 : 200);
     });
     d.siteSettings = out;
