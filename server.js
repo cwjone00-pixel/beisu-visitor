@@ -1137,14 +1137,13 @@ const CARD_PAGES = [
   { key:'car',       url:'/rental',   names:{ zh:'租车',             en:'Car Rental',               ru:'Аренда авто' } },
   { key:'review',    url:'/experience', names:{ zh:'海南项目体验评价', en:'Hainan Project Reviews',   ru:'Отзывы о проектах Хайнаня' } },
   { key:'cooperate', url:'',        names:{ zh:'加入我们合作',     en:'Join Us & Cooperate',      ru:'Сотрудничество' } },
-  { key:'pickup',    url:'/',        names:{ zh:'接机协助',         en:'Airport Pickup',           ru:'Встреча в аэропорту' } },
-  { key:'exp',       url:'/experience', names:{ zh:'海上项目',      en:'Sea Activities',           ru:'Морские активности' } }
+  { key:'pickup',    url:'/',        names:{ zh:'接机协助',         en:'Airport Pickup',           ru:'Встреча в аэропорту' } }
 ];
 function cardPageByKey(key){ return CARD_PAGES.filter(function (p) { return p.key === key; })[0] || null; }
 
 /* AI 回复中的 [CARD:xxx] 标记 → 后台页面卡片：命中板块时自动带出对应预订卡片（图二样式），
    卡片标题/简介/封面/跳转页全部走后台「页面卡片」配置，多语言自动匹配。 */
-const AI_CARD_ALIAS = { rental_card:'car', house_card:'rent', pick_card:'pickup', tour_card:'island', sea_card:'exp' };
+const AI_CARD_ALIAS = { rental_card:'car', house_card:'rent', pick_card:'pickup', tour_card:'island', sea_card:'review' };
 function stripAiCardMarker(text){
   let key = null;
   const t = String(text || '').replace(/\[CARD:([a-z0-9_]+)\]/ig, function (_, k) { key = String(k).toLowerCase(); return ''; });
