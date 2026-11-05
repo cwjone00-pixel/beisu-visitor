@@ -2601,6 +2601,11 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') return send(res, 204, '');
   /* 全响应加 HSTS：让浏览器自动强制 HTTPS 访问（Gcore 边缘已配置 redirect_http_to_https，双重保障） */
   res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains');
+  /* 基础安全响应头：禁止 MIME 嗅探、限制来源信息、禁止被第三方站点嵌套、收敛设备权限 */
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(self)');
   const url = new URL(req.url, `http://${req.headers.host}`);
   const p = url.pathname;
   /* 域名统一：Render 默认域名 beisu-visitor.onrender.com 不再对外暴露，
@@ -2609,6 +2614,11 @@ const server = http.createServer(async (req, res) => {
   if (host === 'beisu-visitor.onrender.com') {
     const target = PUBLIC_BASE_URL + req.url;
     res.writeHead(301, { Location: target, 'Cache-Control': 'public, max-age=3600' });
+    return res.end();
+  }
+  /* www 统一到主域：避免同一内容两个域名（SEO 重复、外链分散、VK 等平台回调域名不一致） */
+  if (host === 'www.beisuas.com') {
+    res.writeHead(301, { Location: PUBLIC_BASE_URL + req.url, 'Cache-Control': 'public, max-age=3600' });
     return res.end();
   }
   /* HEAD 请求与 GET 走同一路由：Node 对 HEAD 响应自动只回响应头不发 body，
