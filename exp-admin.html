@@ -248,6 +248,14 @@
                 <span class="site-form__label">Telegram</span>
                 <input class="input" type="text" id="siteTelegram" placeholder="https://t.me/…" oninput="siteDirty()" />
               </label>
+              <label class="site-form__row">
+                <span class="site-form__label">VK</span>
+                <input class="input" type="text" id="siteVk" placeholder="https://vk.com/…" oninput="siteDirty()" />
+              </label>
+              <label class="site-form__row">
+                <span class="site-form__label">WhatsApp</span>
+                <input class="input" type="text" id="siteWhatsapp" placeholder="https://wa.me/…" oninput="siteDirty()" />
+              </label>
 
             </div>
           </div>
@@ -752,6 +760,8 @@
         $('siteEmail').value = d.email || '';
         $('sitePhone').value = d.phone || '';
         $('siteTelegram').value = d.telegram || '';
+        $('siteVk').value = d.vk || '';
+        $('siteWhatsapp').value = d.whatsapp || '';
       } catch(e){}
     }
     async function siteSave(){
@@ -760,6 +770,8 @@
         email: $('siteEmail').value,
         phone: $('sitePhone').value,
         telegram: $('siteTelegram').value,
+        vk: $('siteVk').value,
+        whatsapp: $('siteWhatsapp').value,
       };
       try {
         const r = await req('/api/settings', {
