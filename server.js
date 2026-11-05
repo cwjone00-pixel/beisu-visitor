@@ -1454,6 +1454,17 @@ function sitemapXml(){
     + '<xhtml:link rel="alternate" hreflang="x-default" href="' + escHtml(PUBLIC_BASE_URL + '/ru') + '"/>';
   const urls = HOME_LANG_CODES.map(x =>
     '<url><loc>' + escHtml(PUBLIC_BASE_URL + '/' + x) + '</loc><changefreq>daily</changefreq>' + homeAlts + '</url>');
+  /* 子页面（租房 / 租车 / 全岛游）三语独立链接 + hreflang（x-default 指向俄语版） */
+  const SUB_PAGES = ['/rent/', '/rent/hainan-map', '/rental/', '/rental/rental',
+    '/rental/camp', '/rental/camp-next', '/island/', '/island/spots'];
+  SUB_PAGES.forEach(function (pg) {
+    const alts = HOME_LANG_CODES.map(x =>
+      '<xhtml:link rel="alternate" hreflang="' + HOME_HF[x] + '" href="' + escHtml(PUBLIC_BASE_URL + '/' + x + pg) + '"/>').join('')
+      + '<xhtml:link rel="alternate" hreflang="x-default" href="' + escHtml(PUBLIC_BASE_URL + '/ru' + pg) + '"/>';
+    HOME_LANG_CODES.forEach(x => {
+      urls.push('<url><loc>' + escHtml(PUBLIC_BASE_URL + '/' + x + pg) + '</loc>' + alts + '</url>');
+    });
+  });
   const HF = { zh:'zh-CN', en:'en', ru:'ru' };
   items.forEach(a => {
     const base = PUBLIC_BASE_URL + articlePath(a);
@@ -1820,6 +1831,12 @@ function serveStatic(req, res){
     urlPath = '/experience/index.html';
   } else if (urlPath.startsWith('/experience/') && path.extname(urlPath) === '') {
     urlPath = '/experience/index.html';
+  }
+  /* 语言前缀下的静态资源：页面里的相对路径（如 /ru/rental/js/map.js）先去掉语言前缀按原路径取；
+     HTML 不走此回退，避免把原版页面当成目标语言页面输出（页面本身由语言路由直出） */
+  if (path.extname(urlPath) !== '.html'){
+    const langPrefix = urlPath.match(/^\/(ru|en|zh)\/(.+)$/);
+    if (langPrefix) urlPath = '/' + langPrefix[2];
   }
   /* 安全：禁止通过静态资源访问 data 目录（users/auth/secrets 等敏感数据），杜绝密钥泄露 */
   if (/^\/data(\/|$)/i.test(urlPath)) return sendHtml(req, res, 404, articleNotFoundHtml());
@@ -2690,6 +2707,138 @@ function homeVariant(lang, canonicalPath){
 }
 function sendHomeLang(req, res, lang, canonicalPath){
   const html = homeVariant(lang, canonicalPath);
+  const headers = {
+    'Content-Type': 'text/html; charset=utf-8',
+    'Cache-Control': 'no-cache',
+    'Content-Language': HOME_HTML_LANG[lang]
+  };
+  sendMaybeGzip(req, res, 200, headers, html);
+}
+
+/* ---------------- 子页面三语独立路由（/ru|/en|/zh + 原路径） ----------------
+   覆盖游客实际会访问的租房 / 租车 / 全岛游页面；管理页不参与语言路由。
+   URL 决定语种：服务端写入 __BEISU_FORCED_LANG，页面脚本只按该值渲染；
+   语言切换按钮点击时由注入脚本跳转到同路径的目标语言版本。 */
+const SUBPAGE_FILES = {
+  'rent':'rent/index.html', 'rent/':'rent/index.html', 'rent/index.html':'rent/index.html',
+  'rent/hainan-map':'rent/hainan-map.html', 'rent/hainan-map.html':'rent/hainan-map.html',
+  'rental':'rental/map-play.html', 'rental/':'rental/map-play.html',
+  'rental/map-play':'rental/map-play.html', 'rental/map-play.html':'rental/map-play.html',
+  'rental/index.html':'rental/map-play.html',
+  'rental/rental':'rental/rental.html', 'rental/rental.html':'rental/rental.html',
+  'rental/camp':'rental/camp.html', 'rental/camp.html':'rental/camp.html',
+  'rental/camp-next':'rental/camp-next.html', 'rental/camp-next.html':'rental/camp-next.html',
+  'island':'island/camp.html', 'island/':'island/camp.html', 'island/index.html':'island/camp.html',
+  'island/camp':'island/camp.html', 'island/camp.html':'island/camp.html',
+  'island/spots':'island/camp-next.html', 'island/spots/':'island/camp-next.html',
+  'island/camp-next':'island/camp-next.html', 'island/camp-next.html':'island/camp-next.html'
+};
+/* 每个文件的规范链接（追加在 /ru、/en、/zh 之后） */
+const SUBPAGE_CANON = {
+  'rent/index.html':'/rent/',
+  'rent/hainan-map.html':'/rent/hainan-map',
+  'rental/map-play.html':'/rental/',
+  'rental/rental.html':'/rental/rental',
+  'rental/camp.html':'/rental/camp',
+  'rental/camp-next.html':'/rental/camp-next',
+  'island/camp.html':'/island/',
+  'island/camp-next.html':'/island/spots'
+};
+/* 各页面三语标题（服务端直出，避免爬虫看到中文标题） */
+const SUBPAGE_META = {
+  '/rent/': {
+    zh:'租房 · 海南全岛地图', en:'Housing rental · Hainan island map', ru:'Аренда жилья · карта Хайнаня'
+  },
+  '/rent/hainan-map': {
+    zh:'海南全岛租房地图', en:'Hainan island housing map', ru:'Карта аренды жилья на Хайнане'
+  },
+  '/rental/': {
+    zh:'租车 · 海南全岛地图', en:'Car rental · Hainan island map', ru:'Аренда авто · карта Хайнаня'
+  },
+  '/rental/rental': {
+    zh:'租车详情', en:'Car rental details', ru:'Детали аренды авто'
+  },
+  '/rental/camp': {
+    zh:'露营点 · 租车地图', en:'Camping spots · car rental map', ru:'Кемпинги · карта аренды авто'
+  },
+  '/rental/camp-next': {
+    zh:'露营点详情', en:'Camping spot details', ru:'Детали кемпинга'
+  },
+  '/island/': {
+    zh:'全岛游 · 露营与打卡地图', en:'Island tour · camping and spots map', ru:'Тур по острову · кемпинг и места'
+  },
+  '/island/spots': {
+    zh:'全岛游 · 打卡点详情', en:'Island tour · spot details', ru:'Тур по острову · детали места'
+  }
+};
+/* 旧的单语地址 301 到俄语规范地址（保留查询参数），避免重复收录 */
+const LEGACY_LANG_REDIRECT = {
+  '/rent':'/ru/rent/', '/rent/':'/ru/rent/', '/rent/index.html':'/ru/rent/',
+  '/rent/hainan-map':'/ru/rent/hainan-map', '/rent/hainan-map.html':'/ru/rent/hainan-map',
+  '/rental':'/ru/rental/', '/rental/':'/ru/rental/',
+  '/rental/map-play':'/ru/rental/', '/rental/map-play.html':'/ru/rental/',
+  '/rental/index.html':'/ru/rental/',
+  '/rental/rental':'/ru/rental/rental', '/rental/rental.html':'/ru/rental/rental',
+  '/rental/camp':'/ru/rental/camp', '/rental/camp.html':'/ru/rental/camp',
+  '/rental/camp-next':'/ru/rental/camp-next', '/rental/camp-next.html':'/ru/rental/camp-next',
+  '/island':'/ru/island/', '/island/':'/ru/island/', '/island/index.html':'/ru/island/',
+  '/island/camp':'/ru/island/', '/island/camp.html':'/ru/island/',
+  '/island/spots':'/ru/island/spots', '/island/spots/':'/ru/island/spots',
+  '/island/camp-next':'/ru/island/spots', '/island/camp-next.html':'/ru/island/spots'
+};
+const SUBPAGE_CACHE = new Map();
+const SUBPAGE_SOURCE = new Map();
+function subpageSource(file){
+  if (!SUBPAGE_SOURCE.has(file)) SUBPAGE_SOURCE.set(file, fs.readFileSync(path.join(ROOT, file), 'utf-8'));
+  return SUBPAGE_SOURCE.get(file);
+}
+const SUBPAGE_ALTS = [['ru', 'ru'], ['en', 'en'], ['zh-CN', 'zh'], ['x-default', 'ru']];
+function subpageAlts(canonPath){
+  return SUBPAGE_ALTS.map(function (x) {
+    return '<link rel="alternate" hreflang="' + x[0] + '" href="' +
+      escHtml(PUBLIC_BASE_URL + '/' + x[1] + canonPath) + '">';
+  }).join('\n');
+}
+function subpageVariant(file, lang, canonPath){
+  const key = file + '|' + lang + '|' + canonPath;
+  if (SUBPAGE_CACHE.has(key)) return SUBPAGE_CACHE.get(key);
+  let html = subpageSource(file);
+  /* html lang + 服务端强制语种 + 语言按钮跳转拦截（必须早于页面脚本执行） */
+  html = html.replace(/<html\s+lang="[^"]*"/i, '<html lang="' + HOME_HTML_LANG[lang] + '"');
+  const routeScript = '<script>(function(){'
+    + 'window.__BEISU_FORCED_LANG=' + JSON.stringify(lang) + ';'
+    + 'window.__BEISU_LANG_CANON=' + JSON.stringify(canonPath) + ';'
+    + 'function go(c){if(!c)return;var p=window.__BEISU_LANG_CANON;'
+    + 'if(c===window.__BEISU_FORCED_LANG)return;location.href="/"+c+p;}'
+    + 'document.addEventListener("click",function(e){var t=e.target;'
+    + 'var el=t&&t.closest?t.closest("[data-lang]"):null;'
+    + 'if(el){e.preventDefault();e.stopPropagation();go(el.getAttribute("data-lang"));return;}'
+    + 'var a=t&&t.closest?t.closest("a[href]"):null;if(!a)return;var u;'
+    + 'try{u=new URL(a.href,location.origin);}catch(_){return;}'
+    + 'if(u.origin!==location.origin)return;if(/^\\/[a-z]{2}\\//.test(u.pathname))return;'
+    + 'if(!/^\\/(rent|rental|island)(\\/|$)/.test(u.pathname))return;'
+    + 'e.preventDefault();location.href="/"+window.__BEISU_FORCED_LANG+u.pathname+u.search+u.hash;'
+    + '},true);})();<\/script>';
+  html = html.replace(/<head(\s[^>]*)?>/i, function (m) { return m + routeScript; });
+  /* 标题按语种输出 */
+  const meta = SUBPAGE_META[canonPath];
+  if (meta && meta[lang]) html = html.replace(/<title>[^<]*<\/title>/, '<title>' + escHtml(meta[lang]) + '</title>');
+  /* canonical + hreflang */
+  const alts = subpageAlts(canonPath);
+  const canon = '<link rel="canonical" href="' + escHtml(PUBLIC_BASE_URL + '/' + lang + canonPath) + '">';
+  if (/<link rel="canonical" href="[^"]*">/.test(html)) {
+    html = html.replace(/<link rel="canonical" href="[^"]*">/, canon + '\n' + alts);
+  } else {
+    html = html.replace(/<\/head>/i, canon + '\n' + alts + '\n</head>');
+  }
+  /* rent/index 内嵌地图改为当前语种路径，保证 iframe 与页面语种一致 */
+  html = html.replace('src="hainan-map.html?embed=1"',
+    'src="/' + lang + '/rent/hainan-map.html?embed=1"');
+  SUBPAGE_CACHE.set(key, html);
+  return html;
+}
+function sendSubpageLang(req, res, file, lang, canonPath){
+  const html = subpageVariant(file, lang, canonPath);
   const headers = {
     'Content-Type': 'text/html; charset=utf-8',
     'Cache-Control': 'no-cache',
@@ -4529,6 +4678,23 @@ function buildAiExport(){
     const langRoute = { '/ru':'ru', '/ru/':'ru', '/en':'en', '/en/':'en', '/zh':'zh', '/zh/':'zh' }[p];
     if (langRoute) return sendHomeLang(req, res, langRoute, '/' + langRoute);
     if (p === '/' || p === '/index.html') return sendHomeLang(req, res, 'ru', '/ru');
+  }
+
+  /* ---- 子页面三语独立路由：/ru|/en|/zh + 原路径 ---- */
+  if (req.method === 'GET'){
+    const lm = p.match(/^\/(ru|en|zh)\/(.+)$/);
+    if (lm){
+      const file = SUBPAGE_FILES[lm[2]];
+      if (file) return sendSubpageLang(req, res, file, lm[1], SUBPAGE_CANON[file]);
+    }
+    /* 旧单语地址 301 到俄语规范地址，保留查询参数 */
+    const legacyTarget = LEGACY_LANG_REDIRECT[p];
+    if (legacyTarget){
+      const qi = req.url.indexOf('?');
+      const qs = qi >= 0 ? req.url.slice(qi) : '';
+      res.writeHead(301, { Location: legacyTarget + qs, 'Cache-Control': 'no-cache' });
+      return res.end();
+    }
   }
 
   /* ---- 静态资源 ---- */

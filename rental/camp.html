@@ -561,7 +561,7 @@
   function boot() {
     var saved = '';
     try { saved = localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
-    lang = LANGS.indexOf(saved) >= 0 ? saved : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru');
+    lang = (window.__BEISU_FORCED_LANG && LANGS.indexOf(window.__BEISU_FORCED_LANG) >= 0) ? window.__BEISU_FORCED_LANG : (LANGS.indexOf(saved) >= 0 ? saved : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru'));
     applyLang();                                   /* 数据到达前先把页面文字按语种渲染出来 */
 
     fetch('/api/camp-points', { cache: 'no-store' })

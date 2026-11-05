@@ -1156,7 +1156,7 @@
     /* 优先跟随首页语言：从英文/俄文首页点进来的租车页，打开就是同一语种，
        选车后跳回首页也不会出现「文案语种 ≠ 界面语种」导致关键词不命中 */
     try { saved = localStorage.getItem(HOME_LANG_KEY) || localStorage.getItem(LANG_KEY) || ''; } catch (e) {}
-    lang = LANGS.indexOf(saved) >= 0 ? saved : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru');
+    lang = (window.__BEISU_FORCED_LANG && LANGS.indexOf(window.__BEISU_FORCED_LANG) >= 0) ? window.__BEISU_FORCED_LANG : (LANGS.indexOf(saved) >= 0 ? saved : (window.beisuDefaultLang ? window.beisuDefaultLang() : 'ru'));
     applyStatic();
     $('rstate').textContent = t().loading;
     $('rstate').classList.add('show');
