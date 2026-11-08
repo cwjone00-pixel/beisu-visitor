@@ -1153,12 +1153,17 @@ const articlesState = { count: PH_COUNT.articles, max: 12, loading: false };
                                   : (operatorOnline ? 'botoff-online' : 'botoff-offline'));
   }
   detectState();
-  setInterval(detectState, 20000);   // 20s 轮询兜底（WebSocket 不可用时也能刷新状态，避免高频请求）
+  /* 30s 轮询兜底（WebSocket 不可用时也能刷新状态）；后台标签页暂停，减少无效回源 */
+  setInterval(() => { if (!document.hidden) detectState(); }, 30000);
 
   /* WebSocket 实时推送：人工坐席上线/离线、机器人开关变更 → 立即刷新指示灯（无需等轮询）
      握手失败（例如 CDN 未开启 WebSocket）时最多重试 3 次即停止，改由 20s 轮询兜底，
      避免每个页面持续产生无效请求 */
   (function connectStateWS(){
+    /* 连续失败后在本地记一天，期间不再尝试握手（CDN 未开启 WebSocket 时避免每次进页面都产生失败请求） */
+    let offUntil = 0;
+    try { offUntil = +localStorage.getItem('beisu-ws-off') || 0; } catch(e){}
+    if (Date.now() < offUntil) return;
     const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
     let fails = 0;
     function open(){
@@ -1177,7 +1182,10 @@ const articlesState = { count: PH_COUNT.articles, max: 12, loading: false };
         } catch(e){}
       };
       ws.onclose = function(){
-        if (fails >= 3) return;
+        if (fails >= 3){
+          try { localStorage.setItem('beisu-ws-off', String(Date.now() + 86400000)); } catch(e){}
+          return;
+        }
         fails++;
         setTimeout(open, 3000 * fails);
       };
@@ -2523,7 +2531,11 @@ async function syncMessages(){
     seqFirstSync = false;
   } catch(e){ /* 网络异常时静默，下轮轮询重试 */ }
 }
-setInterval(syncMessages, 3000);
+/* 消息轮询：4s 一轮；后台标签页暂停，回到前台立即补一次，减少无效回源 */
+setInterval(() => { if (!document.hidden) syncMessages(); }, 4000);
+document.addEventListener('visibilitychange', function () {
+  if (!document.hidden) { try { syncMessages(); } catch(e){} }
+});
 
 document.querySelectorAll('.topbar .icon-btn').forEach(el => {
   el.addEventListener('click', () => toast(dict().toastDemo));
