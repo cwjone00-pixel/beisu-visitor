@@ -1333,6 +1333,13 @@ const ARTICLE_CSS = 'body{margin:0;background:#f6f7f9;color:#22282f;font-family:
   + '.more a{color:#1a4f9c;text-decoration:none;font-size:15px}'
   + '.more a:hover{text-decoration:underline}'
   + '@media (max-width:620px){.topbar-in{flex-wrap:wrap;row-gap:8px}.topbar-l{flex:1 1 auto}.langs{margin-left:auto;order:2}.consult-top{order:3;width:100%;height:36px}.lang{padding:5px 9px;font-size:12px}}';
+/* PWA 头信息：manifest + 主题色 + 图标 + 安装脚本（文章页与文章列表共用） */
+const PWA_HEAD = '<link rel="manifest" href="/manifest.webmanifest">\n'
+  + '<meta name="theme-color" content="#2f7cf6">\n'
+  + '<meta name="mobile-web-app-capable" content="yes">\n'
+  + '<meta name="apple-mobile-web-app-capable" content="yes">\n'
+  + '<link rel="apple-touch-icon" href="/icon-180.png">\n'
+  + '<script src="/pwa.js" defer></script>\n';
 /* 文章独立页面：服务端直出，含 title/description/canonical/hreflang/og/JSON-LD，便于爬虫抓取收录
    一篇文章一个 URL（/article/<slug>），默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容；
    可通过 ?lang=zh|en|ru 切换语种；所选语种未录入内容时回退到俄语。
@@ -1404,6 +1411,7 @@ function articlePageHtml(art, preview, l){
   return '<!DOCTYPE html>\n<html lang="' + htmlLang + '">\n<head>\n'
     + '<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1">\n'
     + '<link rel="icon" href="/favicon.png" sizes="any">\n'
+    + PWA_HEAD
     + '<title>' + escHtml(title) + '</title>\n'
     + '<meta name="description" content="' + escHtml(desc) + '">\n'
     + '<link rel="canonical" href="' + escHtml(url) + '">\n'
@@ -1507,6 +1515,7 @@ function articleIndexHtml(lang){
   ).join('') + '</nav>';
   return '<!DOCTYPE html>\n<html lang="' + (lg === 'zh' ? 'zh-CN' : lg) + '">\n<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
     + '<link rel="icon" href="/favicon.png" sizes="any">'
+    + PWA_HEAD
     + '<title>' + escHtml(T.title) + '</title><meta name="robots" content="index,follow">'
     + '<meta name="description" content="' + escHtml(T.h1) + ' — beisuas.com">'
     + '<link rel="canonical" href="' + escHtml(PUBLIC_BASE_URL + '/articles' + (lg === 'ru' ? '' : '?lang=' + lg)) + '">'
@@ -1800,6 +1809,7 @@ const MIME = {
   '.js':'application/javascript; charset=utf-8',
   '.css':'text/css; charset=utf-8',
   '.json':'application/json; charset=utf-8',
+  '.webmanifest':'application/manifest+json; charset=utf-8',
   '.svg':'image/svg+xml', '.webp':'image/webp',
   '.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg'
 };
@@ -1856,6 +1866,8 @@ function serveStatic(req, res){
     }
     /* HTML 页面禁止缓存：移动端浏览器容易复用旧页面，导致前端改动看不到 */
     if (ext === '.html') headers['Cache-Control'] = 'no-cache';
+    /* PWA 的 manifest 与 service worker 必须每次校验，避免 CDN/浏览器缓存旧版本导致装不上或更新不生效 */
+    if (ext === '.webmanifest' || /[\\/]sw\.js$/.test(filePath)) headers['Cache-Control'] = 'no-cache';
     /* 地图用的两个大文件（echarts ~1MB / 地理边界）内容极少变动：允许浏览器缓存，
        避免每次进入地图子页面都重新下载一遍 */
     if (/[\\/]island[\\/](echarts\.min\.js|hainan\.geojson\.js)$/.test(filePath)) headers['Cache-Control'] = 'public, max-age=86400';
