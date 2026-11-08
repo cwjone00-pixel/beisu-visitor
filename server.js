@@ -1339,7 +1339,7 @@ const PWA_HEAD = '<link rel="manifest" href="/manifest.webmanifest">\n'
   + '<meta name="mobile-web-app-capable" content="yes">\n'
   + '<meta name="apple-mobile-web-app-capable" content="yes">\n'
   + '<link rel="apple-touch-icon" href="/icon-180.png">\n'
-  + '<script src="/pwa.js" defer></script>\n';
+  + '<script src="/pwa.js?v=20261108" defer></script>\n';
 /* 文章独立页面：服务端直出，含 title/description/canonical/hreflang/og/JSON-LD，便于爬虫抓取收录
    一篇文章一个 URL（/article/<slug>），默认加载俄语（html lang="ru"），方便 Yandex 抓取俄语内容；
    可通过 ?lang=zh|en|ru 切换语种；所选语种未录入内容时回退到俄语。
