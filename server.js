@@ -1834,6 +1834,13 @@ function serveStatic(req, res){
     return res.end();
   }
   if (urlPath === '/rent/') urlPath = '/rent/index.html';
+  /* 浏览器/系统默认会请求这些固定图标名（不带尺寸后缀），直接映射到现有图标，避免 404 */
+  const ICON_ALIAS = {
+    '/favicon.ico':'/favicon.png',
+    '/apple-touch-icon.png':'/icon-180.png',
+    '/apple-touch-icon-precomposed.png':'/icon-180.png'
+  };
+  if (ICON_ALIAS[urlPath]) urlPath = ICON_ALIAS[urlPath];
   /* 海南项目体验（站内整条链路：项目列表 → 项目详情 → 预订 → 预订成功）。
      /experience 及其子路径都交给同一份前端入口，由前端路由接管；
      真实存在的静态文件（assets 等）照常直出，找不到才回退到 index.html。 */
@@ -1868,9 +1875,19 @@ function serveStatic(req, res){
     if (ext === '.html') headers['Cache-Control'] = 'no-cache';
     /* PWA 的 manifest 与 service worker 必须每次校验，避免 CDN/浏览器缓存旧版本导致装不上或更新不生效 */
     if (ext === '.webmanifest' || /[\\/]sw\.js$/.test(filePath)) headers['Cache-Control'] = 'no-cache';
-    /* 地图用的两个大文件（echarts ~1MB / 地理边界）内容极少变动：允许浏览器缓存，
+    /* 地图用的两个大文件（echarts ~1MB / 地理边界）内容极少变动：缓存时间再放长一些，
        避免每次进入地图子页面都重新下载一遍 */
-    if (/[\\/]island[\\/](echarts\.min\.js|hainan\.geojson\.js)$/.test(filePath)) headers['Cache-Control'] = 'public, max-age=86400';
+    if (/[\\/]island[\\/](echarts\.min\.js|hainan\.geojson\.js)$/.test(filePath)) headers['Cache-Control'] = 'public, max-age=2592000, stale-while-revalidate=86400';
+    /* 静态资源显式声明缓存：CDN 命中率与浏览器复用都依赖这个头（未声明的按不缓存处理） */
+    if (!headers['Cache-Control']){
+      if (/\.(png|jpg|jpeg|webp|svg|ico|woff2?|ttf)$/i.test(filePath)){
+        headers['Cache-Control'] = 'public, max-age=2592000, stale-while-revalidate=86400';   // 图片/图标/字体：30 天
+      } else if (/\.(css|js)$/i.test(filePath)){
+        headers['Cache-Control'] = 'public, max-age=604800, stale-while-revalidate=86400';    // CSS/JS：7 天
+      } else if (/\.json$/i.test(filePath)){
+        headers['Cache-Control'] = 'public, max-age=3600';                                    // 数据 JSON：1 小时
+      }
+    }
     sendMaybeGzip(req, res, 200, headers, out);
   });
 }
@@ -4707,6 +4724,13 @@ function buildAiExport(){
       res.writeHead(301, { Location: legacyTarget + qs, 'Cache-Control': 'no-cache' });
       return res.end();
     }
+  }
+
+  /* CDN 不支持 WebSocket 升级时，浏览器会把 /ws 请求降级成普通 GET 并反复重试；
+     普通 GET 直接回 200，避免这类请求被记为大量 4XX（真正的升级请求走 server.on('upgrade')，不经过此处） */
+  if (req.method === 'GET' && (p === '/ws' || p === '/ws/')){
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    return res.end('websocket endpoint');
   }
 
   /* ---- 静态资源 ---- */

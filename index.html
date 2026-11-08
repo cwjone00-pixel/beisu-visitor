@@ -1153,28 +1153,37 @@ const articlesState = { count: PH_COUNT.articles, max: 12, loading: false };
                                   : (operatorOnline ? 'botoff-online' : 'botoff-offline'));
   }
   detectState();
-  setInterval(detectState, 5000);   // 5s 轮询兜底（WebSocket 断线时仍能刷新）
+  setInterval(detectState, 20000);   // 20s 轮询兜底（WebSocket 不可用时也能刷新状态，避免高频请求）
 
-  /* WebSocket 实时推送：人工坐席上线/离线、机器人开关变更 → 立即刷新指示灯（无需等 5s 轮询） */
+  /* WebSocket 实时推送：人工坐席上线/离线、机器人开关变更 → 立即刷新指示灯（无需等轮询）
+     握手失败（例如 CDN 未开启 WebSocket）时最多重试 3 次即停止，改由 20s 轮询兜底，
+     避免每个页面持续产生无效请求 */
   (function connectStateWS(){
-    let ws = null;
-    try {
-      const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
-      ws = new WebSocket(proto + location.host + '/ws');
-    } catch(e){ return; }
-    ws.onmessage = function(ev){
-      try {
-        const d = JSON.parse(ev.data);
-        if (d && d.type === 'state'){
-          const botEnabled = d.botEnabled !== false;
-          const operatorOnline = !!d.operatorOnline;
-          window.setOrbState(botEnabled ? (operatorOnline ? 'both' : 'bot')
-                                        : (operatorOnline ? 'botoff-online' : 'botoff-offline'));
-        }
-      } catch(e){}
-    };
-    ws.onclose = function(){ setTimeout(connectStateWS, 3000); };   // 断线 3s 后重连
-    ws.onerror = function(){ try { ws.close(); } catch(e){} };
+    const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    let fails = 0;
+    function open(){
+      let ws = null;
+      try { ws = new WebSocket(proto + location.host + '/ws'); } catch(e){ return; }
+      ws.onopen = function(){ fails = 0; };
+      ws.onmessage = function(ev){
+        try {
+          const d = JSON.parse(ev.data);
+          if (d && d.type === 'state'){
+            const botEnabled = d.botEnabled !== false;
+            const operatorOnline = !!d.operatorOnline;
+            window.setOrbState(botEnabled ? (operatorOnline ? 'both' : 'bot')
+                                          : (operatorOnline ? 'botoff-online' : 'botoff-offline'));
+          }
+        } catch(e){}
+      };
+      ws.onclose = function(){
+        if (fails >= 3) return;
+        fails++;
+        setTimeout(open, 3000 * fails);
+      };
+      ws.onerror = function(){ try { ws.close(); } catch(e){} };
+    }
+    open();
   })();
 
   function drawOrb(now){
