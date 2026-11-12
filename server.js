@@ -159,6 +159,10 @@ function shapeData(raw){
     /* 文章资讯（后台录入的图文；draft 草稿 / published 已发布） */
     if (!Array.isArray(d.articles)) d.articles = [];
     d.articles = d.articles.map(a => normArticle(a, d.articles));
+    /* 后台已删除文章的 slug 墓碑：仓库 articles/*.json 同步时跳过，避免删除后重启又恢复 */
+    if (!Array.isArray(d.deletedArticleSlugs)) d.deletedArticleSlugs = [];
+    d.deletedArticleSlugs = d.deletedArticleSlugs
+      .map(s => String(s || '').trim()).filter(Boolean).slice(0, 500);
     /* 商业活动（后台录入的图文；与文章资讯分开存储，仅用于前端左侧「商业活动」板块展示） */
     if (!Array.isArray(d.events)) d.events = [];
     d.events = d.events.map(e => normEvent(e));
@@ -853,14 +857,15 @@ function seedArticles(){
   const d = loadData();
   const all = d.articles || [];
   all.forEach(a => { if (a && !Array.isArray(a.prevSlugs)) a.prevSlugs = []; });
+  const tombs = new Set(Array.isArray(d.deletedArticleSlugs) ? d.deletedArticleSlugs : []);
   let changed = 0;
   for (const f of files){
     let raw;
     try { raw = JSON.parse(fs.readFileSync(path.join(ARTICLES_DIR, f), 'utf-8')); }
     catch(e){ console.error('[articles] 读取失败 ' + f + ':', e.message); continue; }
     const slugIn = slugify(raw.slug);
-    const i18n = normArtI18n(raw);
-    if (!slugIn || !artHasTitle({ i18n })) { console.error('[articles] 跳过（缺少 slug 或标题）: ' + f); continue; }
+    if (!slugIn || !artHasTitle({ i18n: normArtI18n(raw) })) { console.error('[articles] 跳过（缺少 slug 或标题）: ' + f); continue; }
+    if (tombs.has(slugIn)) continue;   // 后台已删除：不再从仓库文件恢复
     const exist = all.find(a => a.slug === slugIn);
     const now = raw.updatedAt || Date.now();
     const item = normArticle(Object.assign({}, raw, {
@@ -4149,6 +4154,7 @@ function buildAiExport(){
     const art = normArticle({ ...body, id:undefined, createdAt:Date.now(), updatedAt:Date.now() }, d.articles);
     d.articles.unshift(art);
     pruneAliases(d.articles, art);                                                       // 该 slug 已被本文章启用，从其它文章的历史别名里摘除
+    d.deletedArticleSlugs = (d.deletedArticleSlugs || []).filter(s => s !== art.slug);  // 重新创建同 slug：撤销删除墓碑
     saveData(d);
     return send(res, 201, art);
   }
@@ -4165,11 +4171,19 @@ function buildAiExport(){
     }
     d.articles[i] = art;
     pruneAliases(d.articles, art);
+    d.deletedArticleSlugs = (d.deletedArticleSlugs || []).filter(s => s !== art.slug);  // 重新启用同 slug：撤销删除墓碑
     saveData(d);
     return send(res, 200, d.articles[i]);
   }
   if ((m = p.match(/^\/api\/admin\/articles\/([^/]+)$/)) && req.method === 'DELETE'){
     const d = loadData();
+    /* 记录被删文章的 slug 墓碑：重启时仓库 articles/*.json 不再把它同步回来 */
+    const doomed = d.articles.filter(a => a.id === m[1]);
+    if (doomed.length){
+      const tombs = new Set(Array.isArray(d.deletedArticleSlugs) ? d.deletedArticleSlugs : []);
+      doomed.forEach(a => { tombs.add(a.slug); (a.prevSlugs || []).forEach(s => tombs.add(s)); });
+      d.deletedArticleSlugs = Array.from(tombs).filter(Boolean).slice(-500);
+    }
     d.articles = d.articles.filter(a => a.id !== m[1]);
     saveData(d);
     return send(res, 200, { ok:true });
