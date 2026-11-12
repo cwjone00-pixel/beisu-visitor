@@ -141,6 +141,21 @@ function shapeData(raw){
     }
     /* 左侧菜单 5 项（名称 + 简介，三语）：只存后台改过的值，未改的项不落库 */
     d.menuTexts = normMenuTexts(d.menuTexts);
+    /* 左侧菜单项（可增删、可排序）：旧数据由默认 5 项 + menuTexts 覆盖生成 */
+    if (Array.isArray(d.menuItems)){
+      d.menuItems = normMenuItems(d.menuItems) || [];
+    } else {
+      d.menuItems = DEFAULT_MENU_ITEMS.map(function (it, i) {
+        const t = d.menuTexts || {};
+        return {
+          id: it.id,
+          action: it.action,
+          url: it.url,
+          label: mergeMenuLabel(it.label, t['m' + i] ? normLabel(t['m' + i]) : null),
+          desc: mergeMenuLabel(it.desc, t['m' + i + 'd'] ? normLabel(t['m' + i + 'd']) : null)
+        };
+      });
+    }
     /* 文章资讯（后台录入的图文；draft 草稿 / published 已发布） */
     if (!Array.isArray(d.articles)) d.articles = [];
     d.articles = d.articles.map(a => normArticle(a, d.articles));
@@ -464,6 +479,41 @@ function normMenuTexts(src){
     if (v.zh || v.en || v.ru) out[k] = v;
   });
   return out;
+}
+/* 左侧菜单项：可增删、可排序；每项 = 三语名称/简介 + 跳转行为。
+   action: island（站内 /island）/ rental（站内 /rental）/ path（自定义站内链接）/ none（仅展示） */
+const MENU_ACTIONS = ['island','rental','path','none'];
+const DEFAULT_MENU_ITEMS = [
+  { id:'island', action:'island', url:'', label:{zh:'全岛游',en:'Island-wide tours',ru:'Туры по всему острову'}, desc:{zh:'最高性价比的旅游体验',en:'The best-value travel experience',ru:'Лучшее соотношение цены и качества'} },
+  { id:'rent', action:'path', url:'/rent', label:{zh:'租房',en:'Rent a home',ru:'Аренда жилья'}, desc:{zh:'解决你的租房纠纷',en:'We help resolve rental disputes',ru:'Поможем решить споры по аренде'} },
+  { id:'car', action:'rental', url:'', label:{zh:'租车',en:'Rent a car',ru:'Аренда авто'}, desc:{zh:'租车协助 · 选门店挑车型，自驾出行',en:'Rental assistance — choose a branch and drive yourself',ru:'Помощь с арендой — выберите прокат и езжайте сами'} },
+  { id:'review', action:'path', url:'/experience', label:{zh:'海南项目体验评价',en:'Hainan project reviews',ru:'Отзывы о проектах Хайнаня'}, desc:{zh:'包括项目评价、体验分享和真实反馈',en:'Reviews, experience sharing & real feedback',ru:'Оценки, опыт и реальные отзывы'} },
+  { id:'partner', action:'none', url:'', label:{zh:'加入我们合作',en:'Partner with us',ru:'Сотрудничество'}, desc:{zh:'欢迎各类资源和项目合作',en:'Welcome resources & project cooperation',ru:'Приветствуем ресурсы и партнёрство'} }
+];
+function normMenuItem(it){
+  it = (it && typeof it === 'object') ? it : {};
+  const action = MENU_ACTIONS.indexOf(String(it.action || '')) >= 0 ? String(it.action) : 'none';
+  return {
+    id: String(it.id || '').trim().slice(0, 40) || crypto.randomUUID(),
+    label: normLabel(it.label),
+    desc: normLabel(it.desc),
+    action: action,
+    url: action === 'path' ? String(it.url || '').trim().slice(0, 200) : ''
+  };
+}
+function normMenuItems(src){
+  if (!Array.isArray(src)) return null;
+  return src.slice(0, 12).map(normMenuItem)
+    .filter(function (it) { return it.label.zh || it.label.en || it.label.ru || it.desc.zh || it.desc.en || it.desc.ru; });
+}
+/* 旧版 menuTexts（m0..m4 / m0d..m4d）按语种回填到默认项，历史改名不丢 */
+function mergeMenuLabel(def, ov){
+  ov = (ov && typeof ov === 'object') ? ov : {};
+  return {
+    zh: String(ov.zh || '').trim() || def.zh,
+    en: String(ov.en || '').trim() || def.en,
+    ru: String(ov.ru || '').trim() || def.ru
+  };
 }
 /* 关键词三语分存 {zh:[],en:[],ru:[]}；兼容旧平铺数组（按字符脚本归位，仅用于历史数据迁移） */
 function normKeywordMap(kw){
@@ -3299,7 +3349,7 @@ const server = http.createServer(async (req, res) => {
   /* ---- 全量配置（前端启动拉取） ---- */
   if (p === '/api/config' && req.method === 'GET'){
     const d = loadData();
-    return send(res, 200, { quickButtons: d.quickButtons, composerButtons: d.composerButtons || [], fallback: d.fallback, guide: d.guide, placeholder: d.placeholder, menuTexts: d.menuTexts || {} });
+    return send(res, 200, { quickButtons: d.quickButtons, composerButtons: d.composerButtons || [], fallback: d.fallback, guide: d.guide, placeholder: d.placeholder, menuTexts: d.menuTexts || {}, menuItems: d.menuItems || [] });
   }
 
   /* ---- 输入框占位提示（按在线状态区分，三语） ---- */
@@ -3336,6 +3386,20 @@ const server = http.createServer(async (req, res) => {
     d.menuTexts = normMenuTexts(body && body.texts);
     saveData(d);
     return send(res, 200, { ok:true, texts: d.menuTexts });
+  }
+
+  /* ---- 左侧菜单项（可增删、可排序；三语名称/简介 + 跳转行为） ---- */
+  if (p === '/api/menu-items' && req.method === 'GET'){
+    return send(res, 200, { items: loadData().menuItems || [] });
+  }
+  if (p === '/api/menu-items' && req.method === 'PUT'){
+    const body = await readBody(req);
+    const items = normMenuItems(body && body.items) || [];
+    if (!items.length) return send(res, 400, { ok:false, error:'至少保留一个菜单项' });
+    const d = loadData();
+    d.menuItems = items;
+    saveData(d);
+    return send(res, 200, { ok:true, items: d.menuItems });
   }
 
   /* ---- 图片媒体：上传（前端已压缩的 dataURL）与读取 ----

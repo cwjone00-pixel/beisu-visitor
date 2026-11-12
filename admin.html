@@ -372,12 +372,15 @@
     <button class="btn btn-primary" onclick="saveGuide()">保存引导文字</button>
   </div>
 
-  <!-- ⑤-2 左侧菜单文案（5 项：名称 + 简介描述，三语） -->
+  <!-- ⑤-2 左侧菜单项（可增删 / 可排序 / 三语） -->
   <div class="card">
-    <h2>左侧菜单 <span class="tag">游客端 5 个菜单项</span></h2>
-    <div class="desc">修改游客首页左侧菜单每一项的名称与简介描述；留空 = 使用页面默认文案，图标保持不变。跟随访客语种自动切换展示。</div>
-    <div id="menuTextGroups"></div>
-    <button class="btn btn-primary" onclick="saveMenuTexts()">保存菜单文案</button>
+    <h2>左侧菜单 <span class="tag">可增删 · 顺序可调</span></h2>
+    <div class="desc">游客首页左侧菜单可自由增删、调整顺序；每项填写三语名称与简介，并选择点击后的跳转目标。留空名称的项不会被保存。跟随访客语种自动切换展示。</div>
+    <div id="menuItemGroups"></div>
+    <div style="display:flex;gap:8px;margin-top:2px;">
+      <button class="btn btn-ghost" onclick="addMenuItem()">+ 新增菜单项</button>
+      <button class="btn btn-primary" onclick="saveMenuItems()">保存菜单</button>
+    </div>
   </div>
 
   <!-- ⑥ 输入框占位提示（按在线状态区分） -->
@@ -798,9 +801,9 @@ const API = {
   /* 首页引导文字（三语） */
   guideGet: () => fetch('/api/guide').then(r=>r.json()),
   guideSave: d => fetch('/api/guide', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
-  /* 左侧菜单文案（5 项名称 + 简介，三语） */
-  menuGet: () => fetch('/api/menu-texts').then(r=>r.json()),
-  menuSave: d => fetch('/api/menu-texts', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }),
+  /* 左侧菜单项（可增删、可排序；三语名称 + 简介） */
+  menuItemsGet: () => fetch('/api/menu-items').then(r=>r.json()),
+  menuItemsSave: d => fetch('/api/menu-items', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(d) }).then(r=>r.json()),
   /* 输入框快捷按钮（整体保存） */
   cbGet: () => fetch('/api/composer-buttons').then(r=>r.json()),
   cbSave: arr => fetch('/api/composer-buttons', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ buttons: arr }) }),
@@ -887,8 +890,8 @@ async function unlockAdmin(loggedInAs){
   loadFallback();
   loadLinkTpl();
   loadGuide();
-  renderMenuTextFields();
-  loadMenuTexts();
+  renderMenuItemsEditor();
+  loadMenuItems();
   loadPh();
   loadCb();
   loadArts();
@@ -2078,62 +2081,101 @@ async function saveGuide(){
   alert('引导文字已保存，游客端刷新后生效');
 }
 
-/* ================= 左侧菜单文案（5 项 × 名称/简介 × 三语） ================= */
-const MENU_TEXT_ITEMS = [
-  { no:'①', t:'m0', d:'m0d',
-    th:{ zh:'全岛游', en:'Island-wide tours', ru:'Туры по всему острову' },
-    dh:{ zh:'最高性价比的旅游体验', en:'The best-value travel experience', ru:'Лучшее соотношение цены и качества' } },
-  { no:'②', t:'m1', d:'m1d',
-    th:{ zh:'租房', en:'Rent a home', ru:'Аренда жилья' },
-    dh:{ zh:'解决你的租房纠纷', en:'We help resolve rental disputes', ru:'Поможем решить споры по аренде' } },
-  { no:'③', t:'m2', d:'m2d',
-    th:{ zh:'租车', en:'Rent a car', ru:'Аренда авто' },
-    dh:{ zh:'租车协助 · 选门店挑车型，自驾出行', en:'Rental assistance — choose a branch and drive yourself', ru:'Помощь с арендой — выберите прокат и езжайте сами' } },
-  { no:'④', t:'m3', d:'m3d',
-    th:{ zh:'海南项目体验评价', en:'Hainan project reviews', ru:'Отзывы о проектах Хайнаня' },
-    dh:{ zh:'包括项目评价、体验分享和真实反馈', en:'Reviews, experience sharing & real feedback', ru:'Оценки, опыт и реальные отзывы' } },
-  { no:'⑤', t:'m4', d:'m4d',
-    th:{ zh:'加入我们合作', en:'Partner with us', ru:'Сотрудничество' },
-    dh:{ zh:'欢迎各类资源和项目合作', en:'Welcome resources & project cooperation', ru:'Приветствуем ресурсы и партнёрство' } }
-];
+/* ================= 左侧菜单项（可增删 / 可排序 / 三语） ================= */
 const MENU_LANGS = [['zh','中文'],['en','English'],['ru','Русский']];
-function renderMenuTextFields(){
-  const box = document.getElementById('menuTextGroups');
-  if (!box) return;
-  box.innerHTML = MENU_TEXT_ITEMS.map(it => `
-    <div style="border:1px solid #e3e9f1;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
-      <div style="font-weight:600;margin-bottom:8px;">${it.no} ${esc(it.th.zh)}</div>
-      <div class="field" style="margin-bottom:8px;"><label>名称</label>
-        ${MENU_LANGS.map(([l, n]) => `<div class="tri-row"><span class="lang-chip">${n}</span><input class="input" id="mt_${it.t}_${l}" placeholder="${escAttr(it.th[l])}"></div>`).join('')}
-      </div>
-      <div class="field" style="margin:0;"><label>简介描述</label>
-        ${MENU_LANGS.map(([l, n]) => `<div class="tri-row"><span class="lang-chip">${n}</span><input class="input" id="mt_${it.d}_${l}" placeholder="${escAttr(it.dh[l])}"></div>`).join('')}
-      </div>
-    </div>`).join('');
-}
-async function loadMenuTexts(){
+const MENU_ACTION_OPTS = [
+  ['island','全岛游（站内 /island）'],
+  ['rental','租车（站内 /rental）'],
+  ['path','自定义站内链接'],
+  ['none','仅展示（无跳转）']
+];
+let menuItemsDraft = [];
+async function loadMenuItems(){
   try {
-    const r = await API.menuGet();
-    const t = (r && r.texts) || {};
-    MENU_TEXT_ITEMS.forEach(it => {
-      [it.t, it.d].forEach(k => {
-        MENU_LANGS.forEach(([l]) => {
-          const el = document.getElementById('mt_' + k + '_' + l);
-          if (el) el.value = (t[k] && t[k][l]) || '';
-        });
-      });
-    });
-  } catch(e){}
+    const r = await API.menuItemsGet();
+    menuItemsDraft = (r && Array.isArray(r.items)) ? r.items : [];
+  } catch(e){ menuItemsDraft = []; }
+  renderMenuItemsEditor();
 }
-async function saveMenuTexts(){
-  const texts = {};
-  MENU_TEXT_ITEMS.forEach(it => {
-    [it.t, it.d].forEach(k => {
-      texts[k] = { zh: val('mt_' + k + '_zh'), en: val('mt_' + k + '_en'), ru: val('mt_' + k + '_ru') };
-    });
-  });
-  await API.menuSave({ texts });
-  alert('菜单文案已保存，游客端刷新后生效');
+function collectMenuItems(){
+  menuItemsDraft = menuItemsDraft.map((it, i) => ({
+    id: it.id,
+    action: val('miAction_' + i) || 'none',
+    url: val('miUrl_' + i),
+    label: { zh: val('miName_zh_' + i), en: val('miName_en_' + i), ru: val('miName_ru_' + i) },
+    desc:  { zh: val('miDesc_zh_' + i), en: val('miDesc_en_' + i), ru: val('miDesc_ru_' + i) }
+  }));
+}
+function escInput(s){ return escAttr(String(s == null ? '' : s)); }
+function renderMenuItemsEditor(){
+  const box = document.getElementById('menuItemGroups');
+  if (!box) return;
+  if (!menuItemsDraft.length){
+    box.innerHTML = '<div class="desc" style="margin-bottom:10px;">暂无菜单项，点下方「新增菜单项」添加。</div>';
+    return;
+  }
+  box.innerHTML = menuItemsDraft.map((it, i) => {
+    const act = it.action || 'none';
+    const lb = it.label || {}, ds = it.desc || {};
+    return `
+    <div style="border:1px solid #e3e9f1;border-radius:10px;padding:10px 12px;margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+        <span style="font-weight:600;">菜单项 ${i + 1}</span>
+        <span style="flex:1"></span>
+        <button class="btn btn-ghost btn-sm" onclick="moveMenuItem(${i},-1)"${i === 0 ? ' disabled' : ''}>上移</button>
+        <button class="btn btn-ghost btn-sm" onclick="moveMenuItem(${i},1)"${i === menuItemsDraft.length - 1 ? ' disabled' : ''}>下移</button>
+        <button class="btn btn-danger btn-sm" onclick="removeMenuItem(${i})">删除</button>
+      </div>
+      <div class="field" style="margin-bottom:8px;"><label>名称</label>
+        ${MENU_LANGS.map(([l, n]) => `<div class="tri-row"><span class="lang-chip">${n}</span><input class="input" id="miName_${l}_${i}" placeholder="菜单名称" value="${escInput(lb[l])}"></div>`).join('')}
+      </div>
+      <div class="field" style="margin-bottom:8px;"><label>简介描述（可留空）</label>
+        ${MENU_LANGS.map(([l, n]) => `<div class="tri-row"><span class="lang-chip">${n}</span><input class="input" id="miDesc_${l}_${i}" placeholder="一句话简介" value="${escInput(ds[l])}"></div>`).join('')}
+      </div>
+      <div class="field" style="margin:0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <label style="min-width:48px;">跳转</label>
+        <select class="input" id="miAction_${i}" style="max-width:240px;" onchange="toggleMenuUrl(${i})">
+          ${MENU_ACTION_OPTS.map(([v, t]) => `<option value="${v}"${v === act ? ' selected' : ''}>${t}</option>`).join('')}
+        </select>
+        <input class="input" id="miUrl_${i}" style="max-width:260px;${act === 'path' ? '' : 'display:none;'}" placeholder="/rent 或 /experience" value="${escInput(it.url || '')}">
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleMenuUrl(i){
+  const sel = document.getElementById('miAction_' + i);
+  const inp = document.getElementById('miUrl_' + i);
+  if (sel && inp) inp.style.display = sel.value === 'path' ? '' : 'none';
+}
+function addMenuItem(){
+  collectMenuItems();
+  menuItemsDraft.push({ id:'', action:'none', url:'', label:{zh:'',en:'',ru:''}, desc:{zh:'',en:'',ru:''} });
+  renderMenuItemsEditor();
+}
+function removeMenuItem(i){
+  collectMenuItems();
+  menuItemsDraft.splice(i, 1);
+  renderMenuItemsEditor();
+}
+function moveMenuItem(i, dir){
+  collectMenuItems();
+  const j = i + dir;
+  if (j < 0 || j >= menuItemsDraft.length) return;
+  const t = menuItemsDraft[i]; menuItemsDraft[i] = menuItemsDraft[j]; menuItemsDraft[j] = t;
+  renderMenuItemsEditor();
+}
+async function saveMenuItems(){
+  collectMenuItems();
+  const items = menuItemsDraft.filter(it => it.label.zh || it.label.en || it.label.ru);
+  if (!items.length){ alert('至少保留一个菜单项'); return; }
+  const r = await API.menuItemsSave({ items });
+  if (r && r.ok){
+    menuItemsDraft = Array.isArray(r.items) ? r.items : items;
+    renderMenuItemsEditor();
+    alert('菜单已保存，游客端刷新后生效');
+  } else {
+    alert((r && r.error) || '保存失败，请重试');
+  }
 }
 
 /* ================= 输入框占位提示（按在线状态区分，三语） ================= */

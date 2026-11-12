@@ -114,13 +114,11 @@
 
   .menu{ display:flex; flex-direction:column; gap:2px; }
   .menu-item{
-    display:flex; align-items:flex-start; gap:9px; min-height:48px; padding:9px;
+    display:flex; align-items:center; min-height:48px; padding:9px 12px;
     border-radius:10px; font-size:13px; color:#3d434d; cursor:pointer; transition:background .15s;
   }
   .menu-item:hover{ background:rgba(20,40,80,.055); }
   .menu-item.active{ background:rgba(47,124,246,.10); color:#2b6fd8; }
-  .menu-item svg{ width:18px; height:18px; stroke:#5a6270; flex:none; margin-top:2px; }
-  .menu-item.active svg{ stroke:#2b6fd8; }
   .menu-text{ display:flex; flex-direction:column; gap:2px; min-width:0; }
   .menu-title{ font-size:13px; font-weight:600; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .menu-item.active .menu-title{ color:#2b6fd8; }
@@ -744,10 +742,9 @@
         <span class="brand-name">beisuas</span>
       </div>
 
-      <!-- 功能按钮组：全岛游 / 租房 / 租车 / 项目体验评价 / 合作 -->
+      <!-- 功能按钮组：全岛游 / 租房 / 租车 / 项目体验评价 / 合作（纯文字，无图标；名称可在后台「左侧菜单」修改） -->
       <nav class="menu" id="catMenu">
         <div class="menu-item" data-entry="island">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.6" cy="5.6" r="2.3"/><path d="M12 17c0-3.2.1-5.6.6-8.2"/><path d="M12.6 8.8c-1.5-1.7-3.5-2.4-5.7-2.1"/><path d="M12.6 8.8c1.5-1.7 3.5-2.4 5.7-2.1"/><path d="M12.6 8.8c-.2-2.3-.9-4.2-2-5.6"/><path d="M2.5 17.5c2.6-1.5 5.9-2.2 9.5-2.2s6.9.7 9.5 2.2"/></svg>
           <div class="menu-text">
             <span class="menu-title" data-i18n="m0">全岛游</span>
             <span class="menu-sub" data-i18n="m0d">最高性价比的旅游体验</span>
@@ -755,28 +752,24 @@
         </div>
         <!-- 租房：站内租房页（/rent → 顶栏 + iframe 内嵌三级海南地图），同一标签页打开 -->
         <div class="menu-item active" data-entry="path" data-url="/rent">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg>
           <div class="menu-text">
             <span class="menu-title" data-i18n="m1">租房</span>
             <span class="menu-sub" data-i18n="m1d">解决你的租房纠纷</span>
           </div>
         </div>
         <div class="menu-item" data-entry="rental">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="15" height="8" rx="2"/><path d="M18 11.5h2.5a1 1 0 0 1 1 1V15h-3.5"/><circle cx="7" cy="18" r="1.6"/><circle cx="16" cy="18" r="1.6"/><path d="M6 9V6.5h6"/></svg>
           <div class="menu-text">
             <span class="menu-title" data-i18n="m2">租车</span>
             <span class="menu-sub" data-i18n="m2d">租车协助 · 选门店挑车型，自驾出行</span>
           </div>
         </div>
         <div class="menu-item" data-entry="path" data-url="/experience">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20l8-4.5V8L12 3.5 4 8v7.5L12 20z"/><path d="M12 3.5V20M4 8l8 4.5L20 8"/></svg>
           <div class="menu-text">
             <span class="menu-title" data-i18n="m3">海南项目体验评价</span>
             <span class="menu-sub" data-i18n="m3d">包括项目评价、体验分享和真实反馈</span>
           </div>
         </div>
         <div class="menu-item">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.4"/><path d="M3.5 20c.5-3.4 2.7-5.4 5.5-5.4s5 2 5.5 5.4"/><path d="M16 5.5a2.5 2.5 0 0 1 0 5"/><path d="M18 14.6c1.9.8 2.9 2.6 3.1 5.2"/></svg>
           <div class="menu-text">
             <span class="menu-title" data-i18n="m4">加入我们合作</span>
             <span class="menu-sub" data-i18n="m4d">欢迎各类资源和项目合作</span>
@@ -1375,6 +1368,7 @@ function applyI18n(){
   document.querySelectorAll('.lang-opt').forEach(o => o.classList.toggle('active', o.dataset.lang === lang));
   renderHomeButtons();   // 后台配置的首页按钮按当前语种刷新
   renderComposerButtons();  // 输入框内快捷按钮按当前语种刷新
+  renderCatMenu();       // 左侧菜单按当前语种刷新
   applyHeroTitle();      // 后台配置的首页引导文字按当前语种刷新
   applyPlaceholder();    // 输入框占位提示按当前语种与在线状态刷新
   applyAuthState();      // 侧边栏登录状态 + 未登录门控按当前语种刷新
@@ -2089,7 +2083,7 @@ let homeButtons = [];     // 后台配置的首页快捷按钮 [{id,keyword,labe
 let composerBtns = [];    // 后台配置的输入框快捷按钮 [{id,keyword,label:{zh,en,ru}}]
 let guideText = null;     // 后台配置的首页引导文字 {zh,en,ru}；未配置时回退内置文案
 let phText = null;        // 后台配置的输入框占位提示 {bot:{zh,en,ru}, agent:{zh,en,ru}}；未配置时回退内置文案
-let menuTexts = null;     // 后台配置的左侧菜单文案 {m0..m4, m0d..m4d: {zh,en,ru}}；未配置时回退内置文案
+let menuItems = null;     // 后台配置的左侧菜单项（可增删、可排序，三语）；未配置时保留页面内置 5 项
 let chatLog = [];         // 服务端同步的对话记录 [{id,ts,role:'visitor'|'bot'|'agent', text? | reply:{zh,en,ru},quickButtons?,link?}]
 /* 会话 ID：同一标签页刷新后保持同一会话，便于后台人工介入接管 */
 let sessionId = sessionStorage.getItem('beisu_sid');
@@ -2110,28 +2104,35 @@ async function loadConfig(){
     composerBtns = Array.isArray(cfg.composerButtons) ? cfg.composerButtons : [];
     guideText = (cfg.guide && cfg.guide.text) || null;
     phText = (cfg.placeholder && typeof cfg.placeholder === 'object') ? cfg.placeholder : null;
-    menuTexts = (cfg.menuTexts && typeof cfg.menuTexts === 'object') ? cfg.menuTexts : null;
-  } catch(e){ homeButtons = []; composerBtns = []; guideText = null; phText = null; menuTexts = null; }
+    menuItems = (Array.isArray(cfg.menuItems) && cfg.menuItems.length) ? cfg.menuItems : null;
+  } catch(e){ homeButtons = []; composerBtns = []; guideText = null; phText = null; menuItems = null; }
   renderHomeButtons();
   renderComposerButtons();
   applyHeroTitle();
   applyPlaceholder();
-  applyMenuTexts();
+  renderCatMenu();
 }
-/* 左侧菜单文案：后台配置优先（三语），未配置的项保留页面内置文案 */
-function applyMenuTexts(){
-  if (!menuTexts) return;
-  ['zh','en','ru'].forEach(l => {
-    Object.keys(menuTexts).forEach(k => {
-      const v = menuTexts[k];
-      if (v && v[l]) I18N[l][k] = v[l];
-    });
-  });
-  const d = dict();
-  document.querySelectorAll('#catMenu [data-i18n]').forEach(el => {
-    const t = d[el.dataset.i18n];
-    if (t) el.textContent = t;
-  });
+/* 左侧菜单：按后台配置的菜单项渲染（可增删/排序）；无配置时保留页面内置 5 项 */
+function renderCatMenu(){
+  const nav = document.getElementById('catMenu');
+  if (!nav || !Array.isArray(menuItems) || !menuItems.length) return;
+  const path = location.pathname;
+  nav.innerHTML = menuItems.map(it => {
+    const title = labelOf(it.label, lang) || labelOf(it.label, 'zh');
+    const sub = labelOf(it.desc, lang) || labelOf(it.desc, 'zh');
+    let attrs = '';
+    if (it.action === 'island') attrs = ' data-entry="island"';
+    else if (it.action === 'rental') attrs = ' data-entry="rental"';
+    else if (it.action === 'path' && it.url) attrs = ' data-entry="path" data-url="' + escapeAttr(it.url) + '"';
+    // 高亮：当前路径命中该项链接；首页沿用原默认（租房项高亮）
+    const hit = it.action === 'path' && it.url && (path === '/' ? it.url === '/rent' : path.indexOf(it.url) === 0);
+    const active = hit ? ' active' : '';
+    return '<div class="menu-item' + active + '"' + attrs + '>' +
+      '<div class="menu-text">' +
+        '<span class="menu-title">' + escapeHtml(title) + '</span>' +
+        (sub ? '<span class="menu-sub">' + escapeHtml(sub) + '</span>' : '') +
+      '</div></div>';
+  }).join('');
 }
 /* 拉取后台录入的「已发布」文章，渲染到左侧「文章资讯」栏目（点击卡片打开其独立页面） */
 async function loadArticles(){
