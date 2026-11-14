@@ -2527,7 +2527,8 @@ const SUBPAGE_FILES = {
   'island':'island/camp.html', 'island/':'island/camp.html', 'island/index.html':'island/camp.html',
   'island/camp':'island/camp.html', 'island/camp.html':'island/camp.html',
   'island/spots':'island/camp-next.html', 'island/spots/':'island/camp-next.html',
-  'island/camp-next':'island/camp-next.html', 'island/camp-next.html':'island/camp-next.html'
+  'island/camp-next':'island/camp-next.html', 'island/camp-next.html':'island/camp-next.html',
+  'factory':'factory.html', 'factory/':'factory.html', 'factory.html':'factory.html'
 };
 /* 每个文件的规范链接（追加在 /ru、/en、/zh 之后） */
 const SUBPAGE_CANON = {
@@ -2538,7 +2539,8 @@ const SUBPAGE_CANON = {
   'rental/camp.html':'/rental/camp',
   'rental/camp-next.html':'/rental/camp-next',
   'island/camp.html':'/island/',
-  'island/camp-next.html':'/island/spots'
+  'island/camp-next.html':'/island/spots',
+  'factory.html':'/factory'
 };
 /* 各页面三语标题（服务端直出，避免爬虫看到中文标题） */
 const SUBPAGE_META = {
@@ -2565,6 +2567,9 @@ const SUBPAGE_META = {
   },
   '/island/spots': {
     zh:'全岛游 · 打卡点详情', en:'Island tour · spot details', ru:'Тур по острову · детали места'
+  },
+  '/factory': {
+    zh:'工厂介绍 · 校服与儿童冬装源头工厂', en:'Factory · school uniforms and kids winter wear', ru:'О производстве · школьная форма и детская зимняя одежда'
   }
 };
 /* 旧的单语地址 301 到俄语规范地址（保留查询参数），避免重复收录 */
@@ -2580,7 +2585,8 @@ const LEGACY_LANG_REDIRECT = {
   '/island':'/ru/island/', '/island/':'/ru/island/', '/island/index.html':'/ru/island/',
   '/island/camp':'/ru/island/', '/island/camp.html':'/ru/island/',
   '/island/spots':'/ru/island/spots', '/island/spots/':'/ru/island/spots',
-  '/island/camp-next':'/ru/island/spots', '/island/camp-next.html':'/ru/island/spots'
+  '/island/camp-next':'/ru/island/spots', '/island/camp-next.html':'/ru/island/spots',
+  '/factory':'/ru/factory', '/factory/':'/ru/factory', '/factory.html':'/ru/factory'
 };
 const SUBPAGE_CACHE = new Map();
 const SUBPAGE_SOURCE = new Map();
@@ -2612,7 +2618,7 @@ function subpageVariant(file, lang, canonPath){
     + 'var a=t&&t.closest?t.closest("a[href]"):null;if(!a)return;var u;'
     + 'try{u=new URL(a.href,location.origin);}catch(_){return;}'
     + 'if(u.origin!==location.origin)return;if(/^\\/[a-z]{2}\\//.test(u.pathname))return;'
-    + 'if(!/^\\/(rent|rental|island)(\\/|$)/.test(u.pathname))return;'
+    + 'if(!/^\\/(rent|rental|island|factory)(\\/|$)/.test(u.pathname))return;'
     + 'e.preventDefault();location.href="/"+window.__BEISU_FORCED_LANG+u.pathname+u.search+u.hash;'
     + '},true);})();<\/script>';
   html = html.replace(/<head(\s[^>]*)?>/i, function (m) { return m + routeScript; });

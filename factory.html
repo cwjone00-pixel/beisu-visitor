@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>工厂介绍 · beisuas</title>
+<meta name="description" content="校服与儿童冬装源头工厂：自有产线、OEM/ODM、批发合作。">
+<style>
+  :root{
+    --bg:#eef2f8; --card:#ffffff; --ink:#1b2230; --sub:#5b6470; --line:#e3e9f1;
+    --brand:#2f7cf6; --brand-2:#1e5ed8; --dark:#16233a; --soft:#f6f8fc;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    line-height:1.7; -webkit-font-smoothing:antialiased;
+  }
+  a{ color:inherit; text-decoration:none; }
+  img{ max-width:100%; display:block; }
+  .wrap{ width:min(1120px,92vw); margin:0 auto; }
+
+  /* 顶栏 */
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    background:rgba(255,255,255,.86); backdrop-filter:blur(10px);
+    border-bottom:1px solid rgba(227,233,241,.9);
+  }
+  .topbar-in{ display:flex; align-items:center; gap:18px; height:62px; }
+  .brand{ font-weight:700; font-size:18px; letter-spacing:.4px; }
+  .brand span{ color:var(--brand); }
+  .topnav{ display:flex; gap:18px; margin-left:10px; }
+  .topnav a{ font-size:14px; color:var(--sub); padding:6px 2px; }
+  .topnav a:hover{ color:var(--brand); }
+  .top-right{ margin-left:auto; display:flex; align-items:center; gap:8px; }
+  .lang{ display:flex; gap:4px; background:#eef2f8; border-radius:999px; padding:3px; }
+  .lang a{ font-size:12.5px; color:var(--sub); padding:5px 10px; border-radius:999px; }
+  .lang a.active{ background:#fff; color:var(--brand); font-weight:600; box-shadow:0 1px 3px rgba(20,40,80,.12); }
+  .top-cta{
+    font-size:13px; color:#fff; background:var(--brand); padding:8px 14px;
+    border-radius:10px; font-weight:600;
+  }
+  .top-cta:hover{ background:var(--brand-2); }
+
+  /* 主视觉 */
+  .hero{
+    position:relative; overflow:hidden;
+    background:
+      radial-gradient(900px 380px at 82% -10%, rgba(47,124,246,.22), transparent 60%),
+      radial-gradient(700px 320px at 8% 0%, rgba(47,124,246,.10), transparent 55%),
+      linear-gradient(180deg,#f7f9fd 0%, #eef2f8 100%);
+    border-bottom:1px solid var(--line);
+  }
+  .hero::after{
+    content:""; position:absolute; inset:0;
+    background-image:linear-gradient(rgba(27,34,48,.035) 1px, transparent 1px),
+                     linear-gradient(90deg, rgba(27,34,48,.035) 1px, transparent 1px);
+    background-size:44px 44px; pointer-events:none;
+    mask-image:linear-gradient(180deg, rgba(0,0,0,.5), transparent 78%);
+  }
+  .hero-in{ position:relative; z-index:1; padding:76px 0 68px; }
+  .eyebrow{
+    display:inline-block; font-size:12.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--brand); background:rgba(47,124,246,.10); border:1px solid rgba(47,124,246,.18);
+    padding:6px 12px; border-radius:999px; font-weight:600;
+  }
+  .hero h1{ font-size:clamp(28px,4.2vw,46px); line-height:1.25; margin:18px 0 14px; letter-spacing:.2px; }
+  .hero p.lead{ font-size:clamp(15px,1.6vw,17.5px); color:var(--sub); max-width:720px; margin:0 0 28px; }
+  .hero-actions{ display:flex; flex-wrap:wrap; gap:12px; }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    font-size:14.5px; font-weight:600; padding:12px 20px; border-radius:12px;
+    border:1px solid transparent; cursor:pointer; transition:.18s;
+  }
+  .btn-primary{ background:var(--brand); color:#fff; box-shadow:0 8px 20px rgba(47,124,246,.22); }
+  .btn-primary:hover{ background:var(--brand-2); transform:translateY(-1px); }
+  .btn-ghost{ background:#fff; color:var(--ink); border-color:var(--line); }
+  .btn-ghost:hover{ border-color:#c9d6e8; }
+
+  /* 数据条 */
+  .stats{ margin-top:42px; display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .stat{
+    background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px 18px;
+    box-shadow:0 6px 18px rgba(20,40,80,.04);
+  }
+  .stat b{ display:block; font-size:clamp(22px,2.6vw,30px); letter-spacing:.5px; color:var(--dark); }
+  .stat span{ font-size:13px; color:var(--sub); }
+
+  /* 通用区块 */
+  section.block{ padding:66px 0; }
+  section.block.alt{ background:#fff; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
+  .sec-head{ max-width:760px; margin-bottom:30px; }
+  .sec-head .kicker{ font-size:12.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--brand); font-weight:700; }
+  .sec-head h2{ font-size:clamp(23px,2.8vw,32px); margin:8px 0 10px; letter-spacing:.2px; }
+  .sec-head p{ margin:0; color:var(--sub); font-size:15px; }
+
+  .two-col{ display:grid; grid-template-columns:1.05fr .95fr; gap:28px; align-items:stretch; }
+  .panel{ background:#fff; border:1px solid var(--line); border-radius:18px; padding:26px; }
+  .panel h3{ margin:0 0 10px; font-size:18px; }
+  .panel p{ margin:0 0 14px; color:var(--sub); font-size:14.5px; }
+  .checklist{ list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  .checklist li{ position:relative; padding-left:26px; font-size:14.5px; color:#3d4453; }
+  .checklist li::before{
+    content:""; position:absolute; left:0; top:7px; width:15px; height:15px; border-radius:50%;
+    background:rgba(47,124,246,.12); border:1px solid rgba(47,124,246,.35);
+  }
+  .checklist li::after{
+    content:""; position:absolute; left:4.5px; top:10.5px; width:5px; height:8px;
+    border-right:2px solid var(--brand); border-bottom:2px solid var(--brand); transform:rotate(40deg);
+  }
+  .visual{
+    border-radius:18px; border:1px solid var(--line); overflow:hidden; min-height:260px;
+    background:
+      radial-gradient(400px 200px at 70% 18%, rgba(47,124,246,.18), transparent 70%),
+      linear-gradient(160deg,#f8fbff 0%, #eaf1fb 100%);
+    display:flex; flex-direction:column; justify-content:flex-end; gap:12px; padding:24px;
+  }
+  .visual-lines{ display:grid; gap:10px; }
+  .line-chip{
+    background:rgba(255,255,255,.9); border:1px solid var(--line); border-radius:12px;
+    padding:12px 14px; font-size:13.5px; color:#3d4453; display:flex; align-items:center; gap:10px;
+  }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--brand); flex:none; }
+
+  /* 产品品类 */
+  .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .cat{
+    background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px 20px;
+    transition:.18s; position:relative; overflow:hidden;
+  }
+  .cat:hover{ transform:translateY(-2px); box-shadow:0 12px 26px rgba(20,40,80,.08); border-color:#d6e2f3; }
+  .cat .ico{
+    width:42px; height:42px; border-radius:12px; margin-bottom:14px;
+    background:linear-gradient(160deg, rgba(47,124,246,.16), rgba(47,124,246,.06));
+    display:flex; align-items:center; justify-content:center;
+  }
+  .cat .ico svg{ width:22px; height:22px; stroke:var(--brand); fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .cat h3{ margin:0 0 6px; font-size:16px; }
+  .cat p{ margin:0; font-size:13.5px; color:var(--sub); }
+
+  /* 资质 */
+  .chips{ display:flex; flex-wrap:wrap; gap:10px; }
+  .chip{
+    background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 16px;
+    font-size:13.5px; color:#3d4453; display:flex; align-items:center; gap:9px;
+  }
+  .chip svg{ width:17px; height:17px; stroke:var(--brand); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+
+  /* 质检流程 */
+  .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; counter-reset:step; }
+  .step{
+    background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px 18px; position:relative;
+  }
+  .step b.no{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:26px; height:26px; border-radius:8px; background:rgba(47,124,246,.10);
+    color:var(--brand); font-size:12.5px; margin-bottom:10px;
+  }
+  .step h4{ margin:0 0 6px; font-size:15px; }
+  .step p{ margin:0; font-size:13.5px; color:var(--sub); }
+
+  /* 合作方式 */
+  .coop{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+  .coop-item{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px; display:flex; gap:14px; }
+  .coop-item .k{ font-size:12.5px; color:var(--sub); }
+  .coop-item .v{ font-size:15px; font-weight:600; }
+  .coop-item .bar{ width:4px; border-radius:4px; background:rgba(47,124,246,.35); flex:none; }
+
+  /* 联系 */
+  .contact{
+    background:
+      radial-gradient(600px 260px at 85% 10%, rgba(47,124,246,.35), transparent 65%),
+      linear-gradient(160deg,#182a46 0%, #16233a 60%, #141f33 100%);
+    color:#fff; border-radius:22px; padding:40px; display:grid; gap:22px;
+  }
+  .contact h2{ margin:0; font-size:clamp(22px,2.6vw,30px); }
+  .contact p{ margin:0; color:rgba(255,255,255,.72); font-size:15px; max-width:760px; }
+  .contact .btns{ display:flex; flex-wrap:wrap; gap:12px; }
+  .contact .btn-ghost{ background:rgba(255,255,255,.10); color:#fff; border-color:rgba(255,255,255,.22); }
+  .contact .btn-ghost:hover{ background:rgba(255,255,255,.16); }
+
+  footer{ padding:34px 0 46px; color:var(--sub); font-size:13px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+
+  @media (max-width:900px){
+    .stats{ grid-template-columns:repeat(2,1fr); }
+    .two-col{ grid-template-columns:1fr; }
+    .grid-3{ grid-template-columns:repeat(2,1fr); }
+    .steps{ grid-template-columns:repeat(2,1fr); }
+    .coop{ grid-template-columns:1fr; }
+    .topnav{ display:none; }
+    .hero-in{ padding:54px 0 48px; }
+    .contact{ padding:28px; }
+  }
+  @media (max-width:560px){
+    .grid-3{ grid-template-columns:1fr; }
+    .top-cta{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="/ru">beisuas<span>.</span></a>
+    <nav class="topnav">
+      <a href="#factory" data-t="navFactory">工厂与产线</a>
+      <a href="#products" data-t="navProducts">产品品类</a>
+      <a href="#coop" data-t="navCoop">合作方式</a>
+      <a href="#contact" data-t="navContact">联系我们</a>
+    </nav>
+    <div class="top-right">
+      <div class="lang">
+        <a data-lang="zh" href="/zh/factory">中文</a>
+        <a data-lang="en" href="/en/factory">English</a>
+        <a data-lang="ru" href="/ru/factory">Русский</a>
+      </div>
+      <a class="top-cta" href="#contact" data-t="navQuote">获取报价</a>
+    </div>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap hero-in">
+    <span class="eyebrow" data-t="heroEyebrow">源头工厂 · OEM / ODM</span>
+    <h1 data-t="heroTitle">校服与儿童冬装，从中国工厂直达俄罗斯</h1>
+    <p class="lead" data-t="heroLead">自有裁剪、车缝、后整与质检产线，专注俄罗斯校服套装、儿童派克服与棉服的批发与贴牌生产。</p>
+    <div class="hero-actions">
+      <a class="btn btn-primary" href="#contact" data-t="heroCta1">获取批发报价</a>
+      <a class="btn btn-ghost" href="/ru" id="homeLink" data-t="heroCta2">返回首页咨询</a>
+    </div>
+    <div class="stats" id="stats"></div>
+  </div>
+</section>
+
+<section class="block alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker" data-t="facKicker">工厂实力</div>
+      <h2 data-t="facTitle">工厂与产线</h2>
+      <p data-t="facLead">从面料入库到成衣出库，关键工序在自有厂区内完成，订单节奏可控、品质可追溯。</p>
+    </div>
+    <div class="two-col" id="factory">
+      <div class="panel">
+        <h3 data-t="facSub1">一体化生产</h3>
+        <p data-t="facText">裁剪、车缝、锁钉、整烫与包装分线作业，可根据订单结构灵活调配产能；自有版房与打样组，支持来图来样开发。</p>
+        <ul class="checklist" id="facList"></ul>
+      </div>
+      <div class="visual">
+        <div class="visual-lines" id="facLines"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker" data-t="prdKicker">产品</div>
+      <h2 data-t="prdTitle">产品品类</h2>
+      <p data-t="prdLead">围绕校服与儿童冬季外套两条主线，可按款式、面料与尺码段定制。</p>
+    </div>
+    <div class="grid-3" id="products"></div>
+  </div>
+</section>
+
+<section class="block alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker" data-t="certKicker">资质与标准</div>
+      <h2 data-t="certTitle">资质认证与合规</h2>
+      <p data-t="certLead">按订单目的地标准组织生产，配合客户验厂与第三方检测。</p>
+    </div>
+    <div class="chips" id="certs"></div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker" data-t="qcKicker">质量控制</div>
+      <h2 data-t="qcTitle">四道质检，逐件可追溯</h2>
+      <p data-t="qcLead">从来料到出货设置四道关口，检验记录随订单留档。</p>
+    </div>
+    <div class="steps" id="steps"></div>
+  </div>
+</section>
+
+<section class="block alt">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker" data-t="coopKicker">合作方式</div>
+      <h2 data-t="coopTitle">批发与贴牌合作</h2>
+      <p data-t="coopLead">面向俄罗斯批发商、校服经销商与品牌方，支持长期供货与按季开发。</p>
+    </div>
+    <div class="coop" id="coop"></div>
+  </div>
+</section>
+
+<section class="block" id="contact">
+  <div class="wrap">
+    <div class="contact">
+      <div>
+        <h2 data-t="ctTitle">联系与询盘</h2>
+        <p data-t="ctLead">告诉我们款式、数量与目标市场，我们会按订单给出面料建议、报价与交期。</p>
+      </div>
+      <div class="btns">
+        <a class="btn btn-primary" href="/ru" id="chatLink" data-t="ctBtn1">返回首页在线咨询</a>
+        <a class="btn btn-ghost" href="#products" data-t="ctBtn2">查看产品品类</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+    <span>© beisuas</span>
+    <span data-t="footNote">校服 · 儿童冬装 · OEM / ODM 批发</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var LANG = window.__BEISU_FORCED_LANG || (/^\/(ru|en|zh)\//.test(location.pathname) ? location.pathname.split('/')[1] : 'ru');
+  if (['ru','en','zh'].indexOf(LANG) < 0) LANG = 'ru';
+
+  var T = {
+    zh: {
+      navFactory:'工厂与产线', navProducts:'产品品类', navCoop:'合作方式', navContact:'联系我们', navQuote:'获取报价',
+      heroEyebrow:'源头工厂 · OEM / ODM',
+      heroTitle:'校服与儿童冬装，从中国工厂直达俄罗斯',
+      heroLead:'自有裁剪、车缝、后整与质检产线，专注俄罗斯校服套装、儿童派克服与棉服的批发与贴牌生产。',
+      heroCta1:'获取批发报价', heroCta2:'返回首页咨询',
+      stats:[['12,000 m²','生产基地面积'],['8 条','车缝生产线'],['500+','熟练工人'],['80,000 件','月产能']],
+      facKicker:'工厂实力', facTitle:'工厂与产线',
+      facLead:'从面料入库到成衣出库，关键工序在自有厂区内完成，订单节奏可控、品质可追溯。',
+      facSub1:'一体化生产',
+      facText:'裁剪、车缝、锁钉、整烫与包装分线作业，可根据订单结构灵活调配产能；自有版房与打样组，支持来图来样开发。',
+      facList:['自有版房与打样组，来图来样开发','电脑裁床 + 流水线车缝，尺码段齐全','整烫、包装独立车间，出货前统一整理','订单进度可视化跟单，按周反馈'],
+      facLines:['面料入库检验','裁剪 / 车缝 / 锁钉流水线','整烫包装与出货区'],
+      prdKicker:'产品', prdTitle:'产品品类',
+      prdLead:'围绕校服与儿童冬季外套两条主线，可按款式、面料与尺码段定制。',
+      products:[
+        ['校服套装','西装外套 + 裙裤 / 长裤，按学校配色定制'],
+        ['校服衬衫','长袖 / 短袖，纯棉与混纺可选'],
+        ['针织开衫','毛背心与开衫，校徽刺绣可定制'],
+        ['运动校服','针织运动套装，适合日常与体育课'],
+        ['儿童派克服','防风面料 + 加厚内胆，冬季主推'],
+        ['儿童棉服','棉服 / 羽绒服，尺码段覆盖幼儿园至中学']
+      ],
+      certKicker:'资质与标准', certTitle:'资质认证与合规',
+      certLead:'按订单目的地标准组织生产，配合客户验厂与第三方检测。',
+      certs:['质量管理体系 · 按 ISO 9001 流程组织生产','客户验厂支持 · 可按 BSCI 要求配合','面料检测 · OEKO-TEX 等第三方报告','俄罗斯市场 · 可按 GOST / TR CU 要求标识'],
+      qcKicker:'质量控制', qcTitle:'四道质检，逐件可追溯',
+      qcLead:'从来料到出货设置四道关口，检验记录随订单留档。',
+      steps:[['来料检验','面料与辅料逐批抽检，色差、克重、缩水率先行确认。'],['过程巡检','裁片、车缝、锁钉逐道巡检，问题当线纠正。'],['成品全检','尺寸、色差、线头、五金逐件检查。'],['出货抽检','按 AQL 抽检并留档，随货提供检验记录。']],
+      coopKicker:'合作方式', coopTitle:'批发与贴牌合作',
+      coopLead:'面向俄罗斯批发商、校服经销商与品牌方，支持长期供货与按季开发。',
+      coop:[['合作模式','OEM / ODM，来图来样或贴牌生产'],['起订量','单款单色 300 件起，可按款式协商'],['打样周期','7–10 天出样，视工艺复杂度'],['大货交期','常规 30–45 天，旺季顺延'],['付款方式','30% 定金 + 尾款见提单副本'],['包装与标识','可按客户要求做吊牌、洗水标与外箱']],
+      ctTitle:'联系与询盘', ctLead:'告诉我们款式、数量与目标市场，我们会按订单给出面料建议、报价与交期。',
+      ctBtn1:'返回首页在线咨询', ctBtn2:'查看产品品类',
+      footNote:'校服 · 儿童冬装 · OEM / ODM 批发'
+    },
+    en: {
+      navFactory:'Factory', navProducts:'Products', navCoop:'Cooperation', navContact:'Contact', navQuote:'Get a quote',
+      heroEyebrow:'Source factory · OEM / ODM',
+      heroTitle:'School uniforms and kids’ winter wear, straight from our factory',
+      heroLead:'In-house cutting, sewing, finishing and QC lines for Russian school uniform sets, kids’ parkas and padded coats — wholesale and private label.',
+      heroCta1:'Get wholesale pricing', heroCta2:'Back to home chat',
+      stats:[['12,000 m²','Production area'],['8','Sewing lines'],['500+','Skilled workers'],['80,000 pcs','Monthly capacity']],
+      facKicker:'Capability', facTitle:'Factory & production lines',
+      facLead:'From fabric intake to packed garments, key processes run in our own plant — controllable lead times and traceable quality.',
+      facSub1:'Integrated production',
+      facText:'Cutting, sewing, bartacking, pressing and packing are organised in separate lines so capacity can be reallocated by order mix. Our own pattern room and sampling team support development from sketches or samples.',
+      facList:['Own pattern room & sampling team','Computerised cutting + line sewing, full size range','Separate pressing and packing workshops','Visible order tracking with weekly updates'],
+      facLines:['Fabric intake & inspection','Cutting / sewing / bartacking lines','Pressing, packing & dispatch'],
+      prdKicker:'Products', prdTitle:'Product categories',
+      prdLead:'Two core lines — school uniforms and kids’ winter outerwear — customisable by style, fabric and size range.',
+      products:[
+        ['Uniform sets','Blazer + skirt / trousers, school colours'],
+        ['School shirts','Long / short sleeve, cotton and blends'],
+        ['Knitwear','Cardigans and vests, custom embroidery'],
+        ['Sport uniforms','Knit tracksuits for daily wear and PE'],
+        ['Kids’ parkas','Windproof shell + thick lining, winter focus'],
+        ['Padded coats','Padded / down coats, kindergarten to middle school']
+      ],
+      certKicker:'Standards', certTitle:'Compliance & certifications',
+      certLead:'Production is organised to the destination market’s standards, with factory audits and third-party testing supported.',
+      certs:['Quality system · ISO 9001-based process control','Factory audit support · BSCI requirements','Fabric testing · OEKO-TEX and other third-party reports','Russia market · GOST / TR CU labelling on request'],
+      qcKicker:'Quality control', qcTitle:'Four QC gates, traceable per order',
+      qcLead:'Four checkpoints from incoming fabric to shipment, with records kept per order.',
+      steps:[['Incoming inspection','Batch sampling of fabric and trims: shade, weight, shrinkage.'],['In-line inspection','Cut panels, sewing and bartacks checked line by line.'],['Final inspection','Measurements, shade, threads and hardware checked piece by piece.'],['Pre-shipment AQL','AQL sampling with records provided with the shipment.']],
+      coopKicker:'Cooperation', coopTitle:'Wholesale & private label',
+      coopLead:'Working with Russian wholesalers, uniform distributors and brands — seasonal development and long-term supply.',
+      coop:[['Model','OEM / ODM, from samples or private label'],['MOQ','From 300 pcs per style/colour, negotiable'],['Sampling','7–10 days, depending on complexity'],['Bulk lead time','30–45 days, longer in peak season'],['Payment','30% deposit + balance against B/L copy'],['Packing & labels','Hangtags, care labels and cartons to your spec']],
+      ctTitle:'Contact & inquiry', ctLead:'Tell us the style, quantity and target market — we will come back with fabric options, pricing and lead time.',
+      ctBtn1:'Back to home chat', ctBtn2:'View product categories',
+      footNote:'School uniforms · Kids’ winter wear · OEM / ODM'
+    },
+    ru: {
+      navFactory:'Производство', navProducts:'Продукция', navCoop:'Сотрудничество', navContact:'Контакты', navQuote:'Запросить цену',
+      heroEyebrow:'Собственное производство · OEM / ODM',
+      heroTitle:'Школьная форма и детская зимняя одежда напрямую с фабрики',
+      heroLead:'Собственные линии раскроя, пошива, отделки и контроля качества: школьная форма, детские парки и утеплённые куртки для России — оптом и под собственным брендом.',
+      heroCta1:'Получить оптовую цену', heroCta2:'Вернуться на главную',
+      stats:[['12 000 м²','Производственная площадь'],['8','Швейных линий'],['500+','Опытных сотрудников'],['80 000 шт.','Выпуск в месяц']],
+      facKicker:'Возможности', facTitle:'Фабрика и производственные линии',
+      facLead:'От приёмки ткани до упаковки готовых изделий — ключевые процессы на собственной площадке: управляемые сроки и прослеживаемое качество.',
+      facSub1:'Полный цикл производства',
+      facText:'Раскрой, пошив, закрепки, ВТО и упаковка организованы отдельными линиями, поэтому мощности перераспределяются под структуру заказа. Своё конструкторское бюро и образцы — разработка по эскизам или образцам.',
+      facList:['Своё КБ и группа образцов','Раскрой на автоматическом раскройном комплексе + поточный пошив','Отдельные цеха ВТО и упаковки','Прозрачный контроль заказа с еженедельными отчётами'],
+      facLines:['Приёмка и проверка ткани','Раскрой / пошив / закрепки','ВТО, упаковка и отгрузка'],
+      prdKicker:'Продукция', prdTitle:'Категории продукции',
+      prdLead:'Два основных направления — школьная форма и детская зимняя верхняя одежда; подбор по модели, ткани и размерному ряду.',
+      products:[
+        ['Комплекты формы','Пиджак + юбка / брюки, цвета школы'],
+        ['Рубашки','Длинный / короткий рукав, хлопок и смеси'],
+        ['Трикотаж','Кардиганы и жилеты, вышивка по заказу'],
+        ['Спортивная форма','Трикотажные костюмы для повседневки и физкультуры'],
+        ['Детские парки','Ветрозащитная ткань + тёплый утеплитель'],
+        ['Утеплённые куртки','Куртки на утеплителе / пуху, от сада до школы']
+      ],
+      certKicker:'Стандарты', certTitle:'Сертификация и соответствие',
+      certLead:'Производство организуется под стандарты страны назначения, поддерживаем аудит фабрики и независимые испытания.',
+      certs:['Система качества · процессы по ISO 9001','Поддержка аудита фабрики · требования BSCI','Испытания тканей · отчёты OEKO-TEX и др.','Рынок РФ · маркировка по GOST / TR CU по запросу'],
+      qcKicker:'Контроль качества', qcTitle:'Четыре этапа контроля, прослеживаемость по заказу',
+      qcLead:'Четыре контрольных точки от приёмки ткани до отгрузки, записи хранятся по каждому заказу.',
+      steps:[['Входной контроль','Выборочная проверка ткани и фурнитуры: оттенок, плотность, усадка.'],['Контроль в процессе','Проверка кроя, пошива и закрепок по линиям.'],['Финальный контроль','Промеры, оттенок, нитки и фурнитура — поиздельно.'],['Перед отгрузкой','Выборка по AQL, протоколы передаются с партией.']],
+      coopKicker:'Сотрудничество', coopTitle:'Опт и производство под брендом',
+      coopLead:'Работаем с оптовиками, дистрибьюторами формы и брендами — сезонная разработка и долгосрочные поставки.',
+      coop:[['Формат','OEM / ODM: по образцам или под вашим брендом'],['Минимальный заказ','От 300 шт. на модель/цвет, обсуждается'],['Образцы','7–10 дней в зависимости от сложности'],['Срок партии','30–45 дней, в сезон дольше'],['Оплата','30% предоплата + остаток против копии B/L'],['Упаковка и маркировка','Бирки, ярлыки и коробки по вашему ТЗ']],
+      ctTitle:'Контакты и запрос', ctLead:'Сообщите модель, количество и рынок сбыта — предложим ткани, цену и сроки.',
+      ctBtn1:'Вернуться на главную в чат', ctBtn2:'Смотреть продукцию',
+      footNote:'Школьная форма · Детняя зимняя одежда · OEM / ODM'
+    }
+  };
+
+  var t = T[LANG] || T.ru;
+  document.documentElement.lang = (LANG === 'zh') ? 'zh-CN' : LANG;
+
+  function setText(){
+    document.querySelectorAll('[data-t]').forEach(function(el){
+      var k = el.getAttribute('data-t');
+      if (typeof t[k] === 'string') el.textContent = t[k];
+    });
+    document.title = (LANG === 'zh' ? '工厂介绍' : LANG === 'en' ? 'Factory' : 'О производстве') + ' · beisuas';
+    /* 首页 / 在线咨询链接带语种前缀 */
+    var home = '/' + LANG;
+    var h = document.getElementById('homeLink'); if (h) h.setAttribute('href', home);
+    var c = document.getElementById('chatLink'); if (c) c.setAttribute('href', home);
+    document.querySelectorAll('.lang a').forEach(function(a){
+      a.classList.toggle('active', a.getAttribute('data-lang') === LANG);
+    });
+  }
+
+  function renderStats(){
+    var box = document.getElementById('stats'); if (!box) return;
+    box.innerHTML = (t.stats || []).map(function(s){
+      return '<div class="stat"><b>' + s[0] + '</b><span>' + s[1] + '</span></div>';
+    }).join('');
+  }
+  function renderFactory(){
+    var list = document.getElementById('facList');
+    if (list) list.innerHTML = (t.facList || []).map(function(x){ return '<li>' + x + '</li>'; }).join('');
+    var lines = document.getElementById('facLines');
+    if (lines) lines.innerHTML = (t.facLines || []).map(function(x){
+      return '<div class="line-chip"><span class="dot"></span><span>' + x + '</span></div>';
+    }).join('');
+  }
+  var ICONS = [
+    '<path d="M8 4l4 2 4-2 3 5-3 1v8H8v-8L5 9z"/>',
+    '<path d="M6 4h12M7 4l1 5v11h8V9l1-5"/><path d="M10 4v4M14 4v4"/>',
+    '<path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z"/>',
+    '<circle cx="12" cy="7" r="3"/><path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>',
+    '<path d="M5 10l7-6 7 6v9a1 1 0 0 1-1 1h-4v-6H10v6H6a1 1 0 0 1-1-1z"/>',
+    '<path d="M4 8h16v10H4z"/><path d="M4 12h16M9 8v10"/>'
+  ];
+  function renderProducts(){
+    var box = document.getElementById('products'); if (!box) return;
+    box.innerHTML = (t.products || []).map(function(p, i){
+      return '<div class="cat"><div class="ico"><svg viewBox="0 0 24 24">' + ICONS[i % ICONS.length] + '</svg></div>' +
+        '<h3>' + p[0] + '</h3><p>' + p[1] + '</p></div>';
+    }).join('');
+  }
+  function renderCerts(){
+    var box = document.getElementById('certs'); if (!box) return;
+    var icon = '<svg viewBox="0 0 24 24"><path d="M20 7L10 17l-5-5"/></svg>';
+    box.innerHTML = (t.certs || []).map(function(x){ return '<div class="chip">' + icon + '<span>' + x + '</span></div>'; }).join('');
+  }
+  function renderSteps(){
+    var box = document.getElementById('steps'); if (!box) return;
+    box.innerHTML = (t.steps || []).map(function(s, i){
+      return '<div class="step"><b class="no">' + (i + 1) + '</b><h4>' + s[0] + '</h4><p>' + s[1] + '</p></div>';
+    }).join('');
+  }
+  function renderCoop(){
+    var box = document.getElementById('coop'); if (!box) return;
+    box.innerHTML = (t.coop || []).map(function(c){
+      return '<div class="coop-item"><span class="bar"></span><div><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div></div>';
+    }).join('');
+  }
+
+  setText(); renderStats(); renderFactory(); renderProducts(); renderCerts(); renderSteps(); renderCoop();
+})();
+</script>
+</body>
+</html>
