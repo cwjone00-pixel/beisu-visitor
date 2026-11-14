@@ -1615,11 +1615,11 @@ function authGoto(view){
     refreshLinks();   // 展示已绑定的第三方身份
   }
 }
-/* 游客提示：以游客身份进入时展示升级提示，并隐藏游客入口按钮（避免重复点击） */
+/* 游客提示：以游客身份进入时展示升级提示；游客入口按钮始终显示，方便随时以游客身份进入/切换 */
 function applyGuestTip(){
   const asGuest = !!(currentUser && currentUser.isGuest);
   const tip = $('lgGuestTip'); if (tip) tip.classList.toggle('show', asGuest);
-  const btn = $('lgGuestBtn'); if (btn) btn.style.display = asGuest ? 'none' : '';
+  const btn = $('lgGuestBtn'); if (btn) btn.style.display = '';   // 始终显示「免注册，以游客身份进入」
 }
 /* 侧边栏入口：未登录 → 登录/注册；已登录 → 我的账号；游客 → 登录/注册（可升级为完整账号） */
 function authOpen(){
