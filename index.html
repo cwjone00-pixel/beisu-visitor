@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>beisuas — Хайнань для туристов: жильё, авто, туры и помощь на русском</title>
+<title>beisuas</title>
 <meta name="description" content="beisuas — помощь туристам на Хайнане: аренда жилья и автомобилей, туры по острову, трансферы, советы и ответы на вопросы в онлайн-чате на русском языке.">
 <link rel="canonical" href="https://beisuas.com/">
 <script>
@@ -778,11 +778,11 @@
       </nav>
 
       <!-- 商业活动 -->
-      <div class="sec-label" data-i18n="secEvents">商业活动</div>
+      <div class="sec-label" id="secEventsLabel" data-i18n="secEvents">商业活动</div>
       <div id="eventsCards"></div>
 
       <!-- 文章资讯 -->
-      <div class="sec-label" data-i18n="secArticles">文章资讯</div>
+      <div class="sec-label" id="secArticlesLabel" data-i18n="secArticles">文章资讯</div>
       <div class="articles-scroll" id="articlesScroll">
         <div id="articlesCards"></div>
       </div>
@@ -1271,7 +1271,7 @@ const I18N = {
     authGuestBtn:'免注册，以游客身份进入', authGuestName:'游客', authGuestDone:'已以游客身份进入',
     authGuestTip:'当前为游客浏览模式，仅开放浏览与机器人问答；注册或登录可解锁完整功能',
     imgUploading:'图片处理中，请稍候…', imgFail:'图片上传失败，请重试', imgTooLarge:'图片过大，请换一张', imgTypeErr:'请选择图片文件',
-    vtDesktop:'电脑', vtMobile:'手机', consultCta:'点此咨询', siteTitle:'beisuas · 海南旅游助手：租房、租车、全岛游与游客咨询'
+    vtDesktop:'电脑', vtMobile:'手机', consultCta:'点此咨询', siteTitle:'beisuas'
   },
   en: {
     brandTitle:'beisuas', m0:'Island-wide tours', m0d:'The best-value travel experience', m1:'Rent a home', m1d:'We help resolve rental disputes', m2:'Rent a car', m2d:'Rental assistance — choose a branch and drive yourself', m3:'Hainan project reviews', m3d:'Reviews, experience sharing & real feedback', m4:'Partner with us', m4d:'Welcome resources & project cooperation',
@@ -1308,7 +1308,7 @@ const I18N = {
     authGuestBtn:'Continue as guest (no sign-up)', authGuestName:'Guest', authGuestDone:'Entered as guest',
     authGuestTip:'You are browsing as a guest — browsing and robot Q&A only. Sign up or sign in to unlock all features.',
     imgUploading:'Processing image, please wait…', imgFail:'Image upload failed, please try again', imgTooLarge:'Image is too large, please pick another', imgTypeErr:'Please choose an image file',
-    vtDesktop:'Desktop', vtMobile:'Phone', consultCta:'Ask a question', siteTitle:'beisuas — Hainan travel help: housing, car rental, island tours'
+    vtDesktop:'Desktop', vtMobile:'Phone', consultCta:'Ask a question', siteTitle:'beisuas'
   },
   ru: {
     brandTitle:'beisuas', m0:'Туры по всему острову', m0d:'Лучшее соотношение цены и качества', m1:'Аренда жилья', m1d:'Поможем решить споры по аренде', m2:'Аренда авто', m2d:'Помощь с арендой — выберите прокат и езжайте сами', m3:'Отзывы о проектах Хайнаня', m3d:'Оценки, опыт и реальные отзывы', m4:'Сотрудничество', m4d:'Приветствуем ресурсы и партнёрство',
@@ -1345,7 +1345,7 @@ const I18N = {
     authGuestBtn:'Продолжить как гость (без регистрации)', authGuestName:'Гость', authGuestDone:'Вы вошли как гость',
     authGuestTip:'Вы просматриваете сайт как гость — доступны только просмотр и ответы бота. Зарегистрируйтесь или войдите, чтобы открыть все функции.',
     imgUploading:'Обработка изображения, подождите…', imgFail:'Не удалось загрузить изображение, попробуйте ещё раз', imgTooLarge:'Изображение слишком большое, выберите другое', imgTypeErr:'Выберите файл изображения',
-    vtDesktop:'ПК', vtMobile:'Телефон', consultCta:'Написать нам в чат', siteTitle:'beisuas — Хайнань для туристов: жильё, авто, туры и помощь на русском'
+    vtDesktop:'ПК', vtMobile:'Телефон', consultCta:'Написать нам в чат', siteTitle:'beisuas'
   }
 };
 /* 默认语种：已手动选择 > 俄语（站点面向俄罗斯游客，默认俄语，不再按浏览器/IP 判断） */
@@ -1505,42 +1505,31 @@ function makeRealCard(item, section){
 }
 function renderEvents(){
   const wrap = $('eventsCards');
+  const label = $('secEventsLabel');
   wrap.innerHTML = '';
-  if (DATA.events.length){
-    DATA.events.forEach(it => wrap.appendChild(makeRealCard(it, 'events')));
-  } else {
-    for (let i = 0; i < PH_COUNT.events; i++) wrap.appendChild(makePlaceholderCard('events'));
+  if (!DATA.events.length){
+    if (label) label.style.display = 'none';   // 后台已清空：整块隐藏，不留占位卡片
+    return;
   }
+  if (label) label.style.display = '';
+  DATA.events.forEach(it => wrap.appendChild(makeRealCard(it, 'events')));
 }
 function renderArticles(){
   const wrap = $('articlesCards');
+  const label = $('secArticlesLabel');
+  const scroll = $('articlesScroll');
   wrap.innerHTML = '';
-  if (DATA.articles.length){
-    DATA.articles.forEach(it => wrap.appendChild(makeRealCard(it, 'articles')));
+  if (!DATA.articles.length){
+    if (label) label.style.display = 'none';   // 后台已清空：整块隐藏，不留骨架占位
+    if (scroll) scroll.style.display = 'none';
     return;
   }
-  for (let i = 0; i < articlesState.count; i++) wrap.appendChild(makePlaceholderCard('articles'));
+  if (label) label.style.display = '';
+  if (scroll) scroll.style.display = '';
+  DATA.articles.forEach(it => wrap.appendChild(makeRealCard(it, 'articles')));
 }
-/* 文章资讯区块：纵向滚动到底自动加载更多占位卡片（内容不满一屏时自动补充直至出现滚动） */
-function loadMoreArticles(){
-  if (DATA.articles.length) return;
-  const el = $('articlesScroll');
-  const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
-  const noOverflow = el.scrollHeight <= el.clientHeight + 4;
-  if ((!atBottom && !noOverflow) || articlesState.loading || articlesState.count >= articlesState.max) return;
-  articlesState.loading = true;
-  const spin = document.createElement('div');
-  spin.className = 'spin-row';
-  spin.innerHTML = '<div class="spinner"></div>';
-  $('articlesCards').appendChild(spin);
-  setTimeout(() => {
-    spin.remove();
-    articlesState.count = Math.min(articlesState.count + 2, articlesState.max);
-    renderArticles();
-    articlesState.loading = false;
-    loadMoreArticles(); // 若仍不满一屏则继续补足
-  }, 500);
-}
+/* 无文章时不再填充占位卡片；有文章时也无需懒加载占位 */
+function loadMoreArticles(){}
 $('articlesScroll').addEventListener('scroll', loadMoreArticles);
 
 /* ---------------- 卡片弹窗 ---------------- */
