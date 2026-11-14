@@ -1453,7 +1453,10 @@ $('catMenu').addEventListener('click', e => {
      其余菜单项保持原有行为。 */
   if (item.dataset.entry === 'island') location.href = '/island';
   if (item.dataset.entry === 'rental') location.href = '/rental';
-  if (item.dataset.entry === 'path' && item.dataset.url) location.href = item.dataset.url;
+  if (item.dataset.entry === 'path' && item.dataset.url) {
+    /* 工厂介绍页有三语独立地址：按当前语种跳转，避免英文/中文访客落到俄语页 */
+    location.href = item.dataset.url === '/factory' ? '/' + lang + '/factory' : item.dataset.url;
+  }
 });
 
 function makePlaceholderCard(section){
