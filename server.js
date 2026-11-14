@@ -2491,12 +2491,8 @@ function homeVariant(lang, canonicalPath){
       const v = dict[key];
       return (typeof v === 'string' && v) ? open + escHtml(v) + close : all;
     });
-  html = html.replace(/<([a-zA-Z0-9]+)([^>]*\sdata-i18n-ph="([^"]+)"[^>]*)>/g,
-    function (all, tag, attrs, key) {
-      const v = dict[key];
-      if (typeof v !== 'string' || !v) return all;
-      return all.replace(/placeholder="[^"]*"/, 'placeholder="' + escHtml(v) + '"');
-    });
+  /* 输入框占位提示不在这里预填：后台配置（按在线状态/语种）由前端在 /api/config 返回后设置，
+     避免先显示默认文案、随后被替换造成的闪烁 */
   /* 当前语种的切换按钮标记为选中态（其余保持普通链接） */
   html = html.replace(/<a class="lang-opt( active)?" data-lang="([^"]+)" href="([^"]+)">/g,
     function (all, on, code, href) {
