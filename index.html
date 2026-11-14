@@ -1507,11 +1507,8 @@ function renderEvents(){
   const wrap = $('eventsCards');
   const label = $('secEventsLabel');
   wrap.innerHTML = '';
-  if (!DATA.events.length){
-    if (label) label.style.display = 'none';   // 后台已清空：整块隐藏，不留占位卡片
-    return;
-  }
-  if (label) label.style.display = '';
+  if (label) label.style.display = '';   // 框架保留：板块标题始终显示
+  if (!DATA.events.length) return;       // 后台已清空：只清内容，不留占位卡片
   DATA.events.forEach(it => wrap.appendChild(makeRealCard(it, 'events')));
 }
 function renderArticles(){
@@ -1519,13 +1516,9 @@ function renderArticles(){
   const label = $('secArticlesLabel');
   const scroll = $('articlesScroll');
   wrap.innerHTML = '';
-  if (!DATA.articles.length){
-    if (label) label.style.display = 'none';   // 后台已清空：整块隐藏，不留骨架占位
-    if (scroll) scroll.style.display = 'none';
-    return;
-  }
-  if (label) label.style.display = '';
-  if (scroll) scroll.style.display = '';
+  if (label) label.style.display = '';   // 框架保留：板块标题始终显示
+  if (scroll) scroll.style.display = ''; // 框架保留：滚动容器不隐藏
+  if (!DATA.articles.length) return;     // 后台已清空：只清内容，不留骨架占位
   DATA.articles.forEach(it => wrap.appendChild(makeRealCard(it, 'articles')));
 }
 /* 无文章时不再填充占位卡片；有文章时也无需懒加载占位 */
