@@ -826,7 +826,7 @@
               <div class="status-item"><span class="status-dot" id="dotOperator"></span><span class="status-label" data-i18n="lbOperator">Operator</span></div>
             </div>
           </div>
-          <h1 class="hero-title" data-i18n="heroTitle">请问你过来有什么需求？</h1>
+          <h1 class="hero-title" data-i18n="heroTitle" style="visibility:hidden">请问你过来有什么需求？</h1>
 
           <!-- 首页快捷按钮：由后台 /api/config 配置，前端零硬编码 -->
           <div class="quick-needs" id="homeQuick"></div>
@@ -839,7 +839,7 @@
         <!-- 输入行用 form 包裹：手机键盘的「发送 / Go」动作键会触发提交，不再只依赖回车；发送按钮可点按发送 -->
         <form class="input-line" id="inputLine" autocomplete="off">
           <div class="input-wrap">
-            <input id="composerInput" type="text" data-i18n-ph="inputPh" placeholder="输入信息..." autocomplete="off" enterkeyhint="send">
+            <input id="composerInput" type="text" data-i18n-ph="inputPh" placeholder="" autocomplete="off" enterkeyhint="send">
             <!-- 占位提示超出输入框宽度时，用该覆盖层左右往返滚动展示整句 -->
             <div class="input-ph-marquee" id="inputPhMarquee" aria-hidden="true"><span></span></div>
           </div>
@@ -1359,7 +1359,7 @@ const dict = () => I18N[lang];
 function applyI18n(){
   const d = dict();
   document.querySelectorAll('[data-i18n]').forEach(el => { el.textContent = d[el.dataset.i18n] || el.textContent; });
-  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = d[el.dataset.i18nPh] || ''; });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => { el.placeholder = configReady ? (d[el.dataset.i18nPh] || '') : ''; });
   document.querySelectorAll('[data-i18n-title]').forEach(el => { el.title = d[el.dataset.i18nTitle] || ''; });
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : lang;
   /* 咨询入口按钮的语言标记随当前语种更新（文案本身由上面的 data-i18n 统一刷新） */
@@ -2083,6 +2083,7 @@ let homeButtons = [];     // 后台配置的首页快捷按钮 [{id,keyword,labe
 let composerBtns = [];    // 后台配置的输入框快捷按钮 [{id,keyword,label:{zh,en,ru}}]
 let guideText = null;     // 后台配置的首页引导文字 {zh,en,ru}；未配置时回退内置文案
 let phText = null;        // 后台配置的输入框占位提示 {bot:{zh,en,ru}, agent:{zh,en,ru}}；未配置时回退内置文案
+let configReady = false;  // /api/config 是否已返回（成功或失败）；未返回前不渲染默认内容，避免闪现旧菜单/旧文案
 let menuItems = null;     // 后台配置的左侧菜单项（可增删、可排序，三语）；未配置时保留页面内置 5 项
 let chatLog = [];         // 服务端同步的对话记录 [{id,ts,role:'visitor'|'bot'|'agent', text? | reply:{zh,en,ru},quickButtons?,link?}]
 /* 会话 ID：同一标签页刷新后保持同一会话，便于后台人工介入接管 */
@@ -2106,6 +2107,7 @@ async function loadConfig(){
     phText = (cfg.placeholder && typeof cfg.placeholder === 'object') ? cfg.placeholder : null;
     menuItems = (Array.isArray(cfg.menuItems) && cfg.menuItems.length) ? cfg.menuItems : null;
   } catch(e){ homeButtons = []; composerBtns = []; guideText = null; phText = null; menuItems = null; }
+  configReady = true;   // 配置拉取完成（成功或失败）后才渲染菜单/引导文字/占位提示，避免旧默认内容闪现
   renderHomeButtons();
   renderComposerButtons();
   applyHeroTitle();
@@ -2116,6 +2118,7 @@ async function loadConfig(){
 function renderCatMenu(){
   const nav = document.getElementById('catMenu');
   if (!nav) return;
+  if (!configReady) return;   // 配置未返回：保持隐藏，避免内置默认项闪现
   if (!Array.isArray(menuItems) || !menuItems.length){
     nav.style.visibility = '';   // 配置拉取失败/未配置：显示内置菜单
     return;
@@ -2174,15 +2177,16 @@ function renderComposerButtons(){
 /* 首页引导文字：后台配置优先（按当前语种展示），未配置时回退内置三语文案 */
 function applyHeroTitle(){
   const el = document.querySelector('.hero-title');
-  if (!el) return;
+  if (!el || !configReady) return;   // 配置未返回：保持隐藏，避免先显示默认引导文字
   const t = guideText ? (guideText[lang] || guideText.zh || '') : '';
   el.textContent = t || dict().heroTitle || '';
+  el.style.visibility = '';
 }
 /* 输入框占位提示：人工在线（机器人开+人工在线 / 机器人关+人工在线）显示人工文案，
    其余状态（仅机器人在线 / 全部离线）显示机器人文案；后台配置优先，未配置回退内置文案 */
 function applyPlaceholder(){
   const el = $('composerInput');
-  if (!el) return;
+  if (!el || !configReady) return;   // 配置未返回：先不显示默认占位提示
   if (!currentUser){ setComposerPlaceholder(''); return; }   // 未登录：输入框留空，不展示任何提示文字
   const st = window.getOrbState ? window.getOrbState() : 'bot';   // 球体模块内的闭包状态
   const opOn = st === 'both' || st === 'botoff-online';
