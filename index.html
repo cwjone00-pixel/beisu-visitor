@@ -1505,24 +1505,42 @@ function makeRealCard(item, section){
 }
 function renderEvents(){
   const wrap = $('eventsCards');
-  const label = $('secEventsLabel');
   wrap.innerHTML = '';
-  if (label) label.style.display = '';   // 框架保留：板块标题始终显示
-  if (!DATA.events.length) return;       // 后台已清空：只清内容，不留占位卡片
-  DATA.events.forEach(it => wrap.appendChild(makeRealCard(it, 'events')));
+  if (DATA.events.length){
+    DATA.events.forEach(it => wrap.appendChild(makeRealCard(it, 'events')));
+  } else {
+    for (let i = 0; i < PH_COUNT.events; i++) wrap.appendChild(makePlaceholderCard('events'));
+  }
 }
 function renderArticles(){
   const wrap = $('articlesCards');
-  const label = $('secArticlesLabel');
-  const scroll = $('articlesScroll');
   wrap.innerHTML = '';
-  if (label) label.style.display = '';   // 框架保留：板块标题始终显示
-  if (scroll) scroll.style.display = ''; // 框架保留：滚动容器不隐藏
-  if (!DATA.articles.length) return;     // 后台已清空：只清内容，不留骨架占位
-  DATA.articles.forEach(it => wrap.appendChild(makeRealCard(it, 'articles')));
+  if (DATA.articles.length){
+    DATA.articles.forEach(it => wrap.appendChild(makeRealCard(it, 'articles')));
+    return;
+  }
+  for (let i = 0; i < articlesState.count; i++) wrap.appendChild(makePlaceholderCard('articles'));
 }
-/* 无文章时不再填充占位卡片；有文章时也无需懒加载占位 */
-function loadMoreArticles(){}
+/* 文章资讯区块：纵向滚动到底自动加载更多占位卡片（内容不满一屏时自动补充直至出现滚动） */
+function loadMoreArticles(){
+  if (DATA.articles.length) return;
+  const el = $('articlesScroll');
+  const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 24;
+  const noOverflow = el.scrollHeight <= el.clientHeight + 4;
+  if ((!atBottom && !noOverflow) || articlesState.loading || articlesState.count >= articlesState.max) return;
+  articlesState.loading = true;
+  const spin = document.createElement('div');
+  spin.className = 'spin-row';
+  spin.innerHTML = '<div class="spinner"></div>';
+  $('articlesCards').appendChild(spin);
+  setTimeout(() => {
+    spin.remove();
+    articlesState.count = Math.min(articlesState.count + 2, articlesState.max);
+    renderArticles();
+    articlesState.loading = false;
+    loadMoreArticles(); // 若仍不满一屏则继续补足
+  }, 500);
+}
 $('articlesScroll').addEventListener('scroll', loadMoreArticles);
 
 /* ---------------- 卡片弹窗 ---------------- */
