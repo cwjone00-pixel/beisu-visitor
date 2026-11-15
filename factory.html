@@ -243,8 +243,6 @@
     <a class="brand" href="/ru">beisuas<span>.</span></a>
     <nav class="topnav">
       <a href="#company" data-t="navCompany">公司信息</a>
-      <a href="#factory" data-t="navFactory">工厂与产线</a>
-      <a href="#products" data-t="navProducts">产品品类</a>
       <a href="#certs" data-t="navCerts">资质证书</a>
       <a href="#coop" data-t="navCoop">合作方式</a>
     </nav>
@@ -283,35 +281,6 @@
       <p data-t="coLead">以下信息以公开工商登记与官方备案为准，可在合同、名片与官网上统一使用。</p>
     </div>
     <div class="company" id="companyRows"></div>
-  </div>
-</section>
-
-<section class="block" id="factory">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker" data-t="facKicker">工厂实力</div>
-      <h2 data-t="facTitle">工厂与产线</h2>
-      <p data-t="facLead">厂区位于宁化华侨经济开发区智能制造产业园，覆盖裁剪、缝制、整烫、后整总检与包装的完整工序。</p>
-    </div>
-    <div class="two-col">
-      <div class="panel">
-        <h3 data-t="facSub1">智能吊挂生产线</h3>
-        <p data-t="facText">现已建成 7 条智能吊挂服装生产线，规划生产线 10 条，可按订单结构调配产能；主要生产棉服、校服、冲锋衣等定制类服饰。</p>
-        <ul class="checklist" id="facList"></ul>
-      </div>
-      <div class="visual"><div id="facLines" style="display:grid;gap:11px"></div></div>
-    </div>
-  </div>
-</section>
-
-<section class="block alt" id="products">
-  <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker" data-t="prdKicker">产品</div>
-      <h2 data-t="prdTitle">产品品类</h2>
-      <p data-t="prdLead">以定制类服饰为主，可按客户款式、面料与尺码段组织生产。</p>
-    </div>
-    <div class="grid-3" id="productsBox"></div>
   </div>
 </section>
 
@@ -363,7 +332,7 @@
       </div>
       <div class="btns">
         <a class="btn btn-primary" href="/ru" id="chatLink" data-t="ctBtn1">返回首页在线咨询</a>
-        <a class="btn btn-ghost" href="#products" data-t="ctBtn2">查看产品品类</a>
+        <a class="btn btn-ghost" href="#certs" data-t="ctBtn2">查看资质证书</a>
       </div>
     </div>
   </div>
@@ -471,7 +440,7 @@
       coopNote:'面向俄罗斯及海外批发客户的合作方向：可按目标市场的尺码段、款式与标签要求组织生产，出口相关手续与物流在合作前确认。',
       ctTitle:'联系与询盘',
       ctLead:'告诉我们款式、数量与目标市场，我们会按订单给出面料建议、报价与交期。',
-      ctBtn1:'返回首页在线咨询', ctBtn2:'查看产品品类',
+      ctBtn1:'返回首页在线咨询', ctBtn2:'查看资质证书',
       footNote:'棉服 · 校服 · 冲锋衣 · 定制类服饰'
     },
     en: {
@@ -555,7 +524,7 @@
       coopNote:'Cooperation direction for Russian and overseas wholesale customers: production can follow the target market’s size range, styling and labelling requirements. Export procedures and logistics are confirmed before cooperation.',
       ctTitle:'Contact & inquiry',
       ctLead:'Tell us the style, quantity and target market — we will come back with fabric options, pricing and lead time.',
-      ctBtn1:'Back to home chat', ctBtn2:'View product categories',
+      ctBtn1:'Back to home chat', ctBtn2:'View certificates',
       footNote:'Padded coats · School uniforms · Shell jackets · Custom garments'
     },
     ru: {
@@ -639,7 +608,7 @@
       coopNote:'Направление сотрудничества с оптовыми клиентами из России и других стран: производство под размерный ряд, модели и маркировку целевого рынка. Экспортные процедуры и логистика согласуются до начала сотрудничества.',
       ctTitle:'Контакты и запрос',
       ctLead:'Сообщите модель, количество и рынок сбыта — предложим ткани, цену и сроки.',
-      ctBtn1:'Вернуться на главную в чат', ctBtn2:'Смотреть продукцию',
+      ctBtn1:'Вернуться на главную в чат', ctBtn2:'Смотреть сертификаты',
       footNote:'Утеплённая одежда · Школьная форма · Куртки · Пошив на заказ'
     }
   };
@@ -674,7 +643,7 @@
     if (!d || typeof d !== 'object') return t;
     var fb = t, out = {};
     var sec = function (k) { return (d[k] && typeof d[k] === 'object') ? d[k] : {}; };
-    var hero = sec('hero'), fac = sec('factory'), prd = sec('products');
+    var hero = sec('hero');
     var cs = sec('certs'), qc = sec('qc'), cp = sec('coop'), ct = sec('contact');
     out.heroEyebrow = pick(hero.eyebrow, fb.heroEyebrow);
     out.heroTitle = pick(hero.title, fb.heroTitle);
@@ -684,15 +653,6 @@
     out.heroCta2 = pick(hero.cta2, fb.heroCta2);
     out.stats = pickList(d.stats, fb.stats, function (s) { return [pick(s.value), pick(s.label)]; });
     out.company = pickList(d.company, fb.company, function (r) { return [pick(r.label), pick(r.value)]; });
-    out.facTitle = pick(fac.title, fb.facTitle);
-    out.facLead = pick(fac.lead, fb.facLead);
-    out.facSub1 = pick(fac.sub, fb.facSub1);
-    out.facText = pick(fac.text, fb.facText);
-    out.facList = pickList(fac.list, fb.facList, function (x) { return pick(x); });
-    out.facLines = pickList(fac.steps, fb.facLines, function (x) { return pick(x); });
-    out.prdTitle = pick(prd.title, fb.prdTitle);
-    out.prdLead = pick(prd.lead, fb.prdLead);
-    out.products = pickList(prd.items, fb.products, function (p) { return [pick(p.name), pick(p.desc)]; });
     out.certTitle = pick(cs.title, fb.certTitle);
     out.certLead = pick(cs.lead, fb.certLead);
     var live = (Array.isArray(cs.items) ? cs.items : []).filter(function (c) { return c && c.visible !== false; });
@@ -742,30 +702,6 @@
       return '<div class="row"><div class="k">' + esc(r[0]) + '</div><div class="v">' + esc(r[1]) + '</div></div>';
     }).join('');
   }
-  function renderFactory(){
-    var list = el('facList');
-    if (list) list.innerHTML = (t.facList || []).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('');
-    var lines = el('facLines');
-    if (lines) lines.innerHTML = (t.facLines || []).map(function(x){
-      return '<div class="line-chip"><span class="dot"></span><span>' + esc(x) + '</span></div>';
-    }).join('');
-  }
-  var ICONS = [
-    '<path d="M8 4l4 2 4-2 3 5-3 1v8H8v-8L5 9z"/>',
-    '<path d="M6 4h12M7 4l1 5v11h8V9l1-5"/><path d="M10 4v4M14 4v4"/>',
-    '<path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z"/>',
-    '<path d="M5 10l7-6 7 6v9a1 1 0 0 1-1 1h-4v-6H10v6H6a1 1 0 0 1-1-1z"/>',
-    '<circle cx="12" cy="7" r="3"/><path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>',
-    '<path d="M4 8h16v10H4z"/><path d="M4 12h16M9 8v10"/>'
-  ];
-  function renderProducts(){
-    var box = el('productsBox'); if (!box) return;
-    box.innerHTML = (t.products || []).map(function(p, i){
-      return '<div class="cat"><div class="ico"><svg viewBox="0 0 24 24">' + ICONS[i % ICONS.length] + '</svg></div>' +
-        '<h3>' + esc(p[0]) + '</h3><p>' + esc(p[1]) + '</p></div>';
-    }).join('');
-  }
-
   /* ---- 资质证书：横向无缝滚动（JS 驱动 scrollLeft，便于悬停/触摸暂停与手动滑动） ---- */
   var certList = [], marqueeState = null;
   var SHOT_ICON = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg>';
@@ -907,7 +843,7 @@
   }
 
   function renderAll(){
-    setText(); renderStats(); renderCompany(); renderFactory(); renderProducts(); renderCerts(); renderSteps(); renderCoop();
+    setText(); renderStats(); renderCompany(); renderCerts(); renderSteps(); renderCoop();
   }
   renderAll();
 

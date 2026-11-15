@@ -2392,7 +2392,6 @@ function facReady(){
   });
   ['stats','company'].forEach(function(k){ if (!Array.isArray(FACTORY[k])) FACTORY[k] = []; });
   ['list','steps'].forEach(function(k){ if (!Array.isArray(FACTORY.factory[k])) FACTORY.factory[k] = []; });
-  if (!Array.isArray(FACTORY.products.items)) FACTORY.products.items = [];
   if (!Array.isArray(FACTORY.certs.items)) FACTORY.certs.items = [];
   if (!Array.isArray(FACTORY.qc.steps)) FACTORY.qc.steps = [];
   if (!Array.isArray(FACTORY.coop.items)) FACTORY.coop.items = [];
@@ -2498,20 +2497,8 @@ function renderFactoryEditor(){
   });
   h.push('</div>');
 
-  /* 工厂与产线 */
-  var facBox = document.createElement('div');
-  facBox.style.cssText = 'padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;';
-  facBox.innerHTML = '<h3 style="margin:0 0 6px;font-size:14.5px;">工厂与产线</h3>';
-  [['区块标题','factory.title'],['区块说明','factory.lead'],['小标题','factory.sub'],['正文','factory.text']].forEach(function(x){
-    facBox.appendChild(triHTML(x[1], x[0]));
-  });
-  h.push(facBox.outerHTML);
-
-  /* 列表型：工厂要点 / 流程步骤 / 产品 / 质检 / 合作 */
+  /* 列表型：质检步骤 / 合作条款 */
   var defs = [
-    ['工厂要点（列表）','factory.list','工厂要点'],
-    ['流程步骤（列表）','factory.steps','流程步骤'],
-    ['产品品类','products.items','产品', ['名称|name','说明|desc']],
     ['质量控制步骤','qc.steps','步骤', ['标题|title','说明|desc']],
     ['合作方式条款','coop.items','条款', ['名称|k','内容|v']]
   ];
@@ -2547,8 +2534,7 @@ function renderFactoryEditor(){
   var heads = document.createElement('div');
   heads.style.cssText = 'padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;';
   heads.innerHTML = '<h3 style="margin:0 0 6px;font-size:14.5px;">区块标题与说明</h3>';
-  [['产品品类标题','products.title'],['产品品类说明','products.lead'],
-   ['资质证书标题','certs.title'],['资质证书说明','certs.lead'],
+  [['资质证书标题','certs.title'],['资质证书说明','certs.lead'],
    ['质量控制标题','qc.title'],['质量控制说明','qc.lead'],
    ['合作方式标题','coop.title'],['合作方式说明','coop.lead']].forEach(function(x){
     heads.appendChild(triHTML(x[1], x[0]));
@@ -2641,8 +2627,6 @@ function arrOf(path){
 function newItem(path){
   if (path === 'stats') return { value:{}, label:{} };
   if (path === 'company') return { label:{}, value:{} };
-  if (path === 'factory.list' || path === 'factory.steps') return { zh:'', en:'', ru:'' };
-  if (path === 'products.items') return { name:{}, desc:{} };
   if (path === 'qc.steps') return { title:{}, desc:{} };
   if (path === 'coop.items') return { k:{}, v:{} };
   if (path === 'certs.items') return {
