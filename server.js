@@ -510,6 +510,106 @@ function normMenuItems(src){
   return src.slice(0, 12).map(normMenuItem)
     .filter(function (it) { return it.label.zh || it.label.en || it.label.ru || it.desc.zh || it.desc.en || it.desc.ru; });
 }
+/* ---------------- 工厂介绍页内容（三语） ----------------
+   结构：hero / stats / company / factory / products / certs / qc / coop / contact
+   每个文案字段都是 { zh, en, ru }，前台按 URL 语种取，缺语种回退 ru → zh → en */
+function normTri(v){
+  v = (v && typeof v === 'object') ? v : {};
+  return {
+    zh: String(v.zh || '').trim().slice(0, 4000),
+    en: String(v.en || '').trim().slice(0, 4000),
+    ru: String(v.ru || '').trim().slice(0, 4000)
+  };
+}
+function normTriText(v){   // 纯文本条目（流程步骤等）
+  if (typeof v === 'string') return normTri({ zh: v, en: v, ru: v });
+  return normTri(v);
+}
+function hasText(v){
+  if (typeof v === 'string') return !!v.trim();
+  if (Array.isArray(v)) return v.some(hasText);
+  if (v && typeof v === 'object') return Object.keys(v).some(function (k) { return hasText(v[k]); });
+  return false;
+}
+function normTriArr(src, max, fn){
+  if (!Array.isArray(src)) return [];
+  const out = [];
+  src.slice(0, max).forEach(function (item) {
+    const v = fn(item);
+    if (v && hasText(v)) out.push(v);
+  });
+  return out;
+}
+function normFactory(src){
+  if (!src || typeof src !== 'object') return null;
+  const S = function (k) { return (src[k] && typeof src[k] === 'object') ? src[k] : {}; };
+  const hero = S('hero'), fac = S('factory'), prd = S('products'), cs = S('certs');
+  const qc = S('qc'), cp = S('coop'), ct = S('contact');
+  return {
+    hero: {
+      eyebrow: normTri(hero.eyebrow), title: normTri(hero.title), legal: normTri(hero.legal),
+      lead: normTri(hero.lead), cta1: normTri(hero.cta1), cta2: normTri(hero.cta2),
+      /* 首屏背景视频（三语共用）：站内媒体或外部 mp4 链接 */
+      videoUrl: /^(\/api\/media\/[A-Za-z0-9_-]{8,64}|https?:\/\/[^\s"']+)$/.test(String(hero.videoUrl || '')) ? String(hero.videoUrl) : '',
+      videoPoster: /^\/api\/media\/[A-Za-z0-9_-]{8,64}$/.test(String(hero.videoPoster || '')) ? String(hero.videoPoster) : '',
+      overlay: (function () { const n = Number(hero.overlay); return isFinite(n) ? Math.min(0.85, Math.max(0.15, n)) : 0.5; })()
+    },
+    stats: normTriArr(src.stats, 8, function (s) {
+      s = (s && typeof s === 'object') ? s : {};
+      return { value: normTri(s.value), label: normTri(s.label) };
+    }),
+    company: normTriArr(src.company, 30, function (r) {
+      r = (r && typeof r === 'object') ? r : {};
+      return { label: normTri(r.label), value: normTri(r.value) };
+    }),
+    factory: {
+      title: normTri(fac.title), lead: normTri(fac.lead), sub: normTri(fac.sub), text: normTri(fac.text),
+      list: normTriArr(fac.list, 20, normTriText),
+      steps: normTriArr(fac.steps, 12, normTriText)
+    },
+    products: {
+      title: normTri(prd.title), lead: normTri(prd.lead),
+      items: normTriArr(prd.items, 24, function (p) {
+        p = (p && typeof p === 'object') ? p : {};
+        return { name: normTri(p.name), desc: normTri(p.desc) };
+      })
+    },
+    certs: {
+      title: normTri(cs.title), lead: normTri(cs.lead),
+      items: normTriArr(cs.items, 24, function (c) {
+        c = (c && typeof c === 'object') ? c : {};
+        const item = {
+          id: String(c.id || '').trim().slice(0, 40) || crypto.randomUUID(),
+          name: normTri(c.name), org: normTri(c.org), no: normTri(c.no), date: normTri(c.date),
+          status: normTri(c.status),
+          tone: c.tone === 'wait' ? 'wait' : 'ok',
+          img: /^\/api\/media\/[A-Za-z0-9_-]{8,64}$/.test(String(c.img || '')) ? String(c.img) : '',
+          visible: c.visible !== false
+        };
+        return item;
+      })
+    },
+    qc: {
+      title: normTri(qc.title), lead: normTri(qc.lead),
+      steps: normTriArr(qc.steps, 12, function (s) {
+        s = (s && typeof s === 'object') ? s : {};
+        return { title: normTri(s.title), desc: normTri(s.desc) };
+      })
+    },
+    coop: {
+      title: normTri(cp.title), lead: normTri(cp.lead),
+      items: normTriArr(cp.items, 16, function (c) {
+        c = (c && typeof c === 'object') ? c : {};
+        return { k: normTri(c.k), v: normTri(c.v) };
+      }),
+      note: normTri(cp.note)
+    },
+    contact: {
+      title: normTri(ct.title), lead: normTri(ct.lead), cta1: normTri(ct.cta1), cta2: normTri(ct.cta2)
+    }
+  };
+}
+
 /* 旧版 menuTexts（m0..m4 / m0d..m4d）按语种回填到默认项，历史改名不丢 */
 function mergeMenuLabel(def, ov){
   ov = (ov && typeof ov === 'object') ? ov : {};
@@ -2701,6 +2801,7 @@ const server = http.createServer(async (req, res) => {
       (p === '/api/bot-switch' && req.method === 'GET') ||
       (p === '/api/reply-seq' && req.method === 'GET') ||
       (p.startsWith('/api/media/') && req.method === 'GET') ||
+      (p === '/api/factory' && req.method === 'GET') ||          // 工厂介绍页内容（游客只读）
       (p === '/api/booking/note' && req.method === 'POST') ||   // 官网预订成功页跨域写入清单，无本站登录态
       (p === '/api/bookings' && req.method === 'POST') ||       // 站内「海南项目体验」预订表单提交
       (p === '/api/settings' && req.method === 'GET') ||        // 站内体验页页脚联系方式（游客只读）
@@ -3407,6 +3508,34 @@ const server = http.createServer(async (req, res) => {
     d.menuItems = items;
     saveData(d);
     return send(res, 200, { ok:true, items: d.menuItems });
+  }
+
+  /* ---- 工厂介绍页内容：三语结构化数据（前台 /ru|/en|/zh/factory 统一读取） ---- */
+  if (p === '/api/factory' && req.method === 'GET'){
+    const d = loadData();
+    return send(res, 200, { factory: d.factory || null });
+  }
+  if (p === '/api/admin/factory' && req.method === 'PUT'){
+    const body = await readBody(req, 1024 * 1024);
+    const factory = normFactory(body && body.factory);
+    if (!factory) return send(res, 400, { ok:false, error:'内容格式不正确' });
+    const d = loadData();
+    d.factory = factory;
+    saveData(d);
+    return send(res, 200, { ok:true, factory: d.factory });
+  }
+
+  /* ---- 首屏背景视频上传（仅后台）：MP4 / WebM，建议 ≤ 8MB ---- */
+  if (p === '/api/admin/factory/video' && req.method === 'POST'){
+    const body = await readBody(req, 14 * 1024 * 1024);
+    if (body && body.__tooLarge) return send(res, 413, { ok:false, error:'视频过大，请上传压缩版（建议 ≤ 8MB）' });
+    const m = /^data:(video\/(?:mp4|webm));base64,([A-Za-z0-9+/=]+)$/.exec(String(body.dataUrl || ''));
+    if (!m) return send(res, 400, { ok:false, error:'仅支持 MP4 / WebM 视频' });
+    let buf;
+    try { buf = Buffer.from(m[2], 'base64'); } catch(e){ return send(res, 400, { ok:false, error:'视频格式不正确' }); }
+    if (!buf.length || buf.length > 8 * 1024 * 1024) return send(res, 413, { ok:false, error:'视频超过 8MB，请压缩后再上传' });
+    const id = await saveMedia(buf, m[1]);
+    return send(res, 200, { ok:true, url:'/api/media/' + id });
   }
 
   /* ---- 图片媒体：上传（前端已压缩的 dataURL）与读取 ----

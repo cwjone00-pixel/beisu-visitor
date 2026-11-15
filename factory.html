@@ -56,7 +56,25 @@
     background-size:44px 44px; pointer-events:none;
     mask-image:linear-gradient(180deg, rgba(0,0,0,.5), transparent 78%);
   }
-  .hero-in{ position:relative; z-index:1; padding:72px 0 64px; }
+  .hero-in{ position:relative; z-index:2; padding:72px 0 64px; }
+  /* 首屏背景视频 / 封面图（通栏铺满，object-fit: cover） */
+  .hero-media{ position:absolute; inset:0; z-index:0; background-position:center; background-size:cover; background-repeat:no-repeat; }
+  .hero-media video{ width:100%; height:100%; object-fit:cover; display:block; }
+  .hero-shade{ position:absolute; inset:0; z-index:1; background:rgba(10,18,30,.5); pointer-events:none; }
+  .hero--media::after{ opacity:.25; }
+  .hero--media h1{ color:#fff; }
+  .hero--media .legal{ color:#fff; }
+  .hero--media p.lead{ color:rgba(255,255,255,.86); }
+  .hero--media .eyebrow{ color:#fff; background:rgba(255,255,255,.16); border-color:rgba(255,255,255,.30); }
+  .hero--media .btn-ghost{ background:rgba(255,255,255,.14); color:#fff; border-color:rgba(255,255,255,.34); }
+  .hero--media .btn-ghost:hover{ background:rgba(255,255,255,.22); }
+  .hero--media .btn-primary{ box-shadow:0 8px 22px rgba(0,0,0,.25); }
+  .hero--media .stat{
+    background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.26);
+    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); box-shadow:none;
+  }
+  .hero--media .stat b{ color:#fff; }
+  .hero--media .stat span{ color:rgba(255,255,255,.80); }
   .eyebrow{
     display:inline-block; font-size:12.5px; letter-spacing:.12em; text-transform:uppercase;
     color:var(--brand); background:rgba(47,124,246,.10); border:1px solid rgba(47,124,246,.18);
@@ -122,26 +140,54 @@
   .cat h3{ margin:0 0 6px; font-size:15.5px; }
   .cat p{ margin:0; font-size:13.5px; color:var(--sub); }
 
-  /* 证书卡片墙 */
-  .cert-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
-  .cert{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
+  /* 证书卡片墙：横向无缝滚动跑马灯 */
+  .cert-marquee{ position:relative; }
+  .cert-viewport{
+    overflow-x:auto; overflow-y:hidden; scrollbar-width:none; -ms-overflow-style:none;
+    -webkit-overflow-scrolling:touch; padding:2px 0 8px;
+    mask-image:linear-gradient(90deg, transparent 0, #000 3%, #000 97%, transparent 100%);
+  }
+  .cert-viewport::-webkit-scrollbar{ display:none; }
+  .cert-track{ display:flex; gap:16px; width:max-content; }
+  .cert-track .cert{ flex:0 0 318px; cursor:pointer; }
+  .cert-track .cert:hover{ border-color:#d6e2f3; transform:translateY(-1px); }
+  .cert{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; transition:.18s; }
   .cert-shot{
-    height:118px; background:
+    height:112px; background:
       repeating-linear-gradient(45deg, #f4f7fc 0 10px, #eef3fa 10px 20px);
     border-bottom:1px solid var(--line);
     display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px;
   }
-  .cert-shot svg{ width:26px; height:26px; stroke:#9fb0c6; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .cert-shot svg{ width:25px; height:25px; stroke:#9fb0c6; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
   .cert-shot span{ font-size:11.5px; color:#93a3b8; }
-  .cert-body{ padding:16px 18px 18px; display:flex; flex-direction:column; gap:8px; flex:1; }
+  .cert-body{ padding:15px 17px 17px; display:flex; flex-direction:column; gap:8px; flex:1; }
   .cert-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-  .cert h4{ margin:0; font-size:15px; line-height:1.45; }
+  .cert h4{ margin:0; font-size:14.5px; line-height:1.45; }
   .badge{ font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
   .badge.ok{ color:var(--ok); background:var(--okbg); }
   .badge.wait{ color:var(--wait); background:var(--waitbg); }
   .cert dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:12.5px; color:var(--sub); }
   .cert dt{ color:#87919f; }
   .cert dd{ margin:0; color:#3d4453; word-break:break-word; }
+  .cert-hint{ margin-top:10px; font-size:12.5px; color:var(--sub); }
+
+  /* 证书大图弹层 */
+  .cert-modal{ position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(16,24,38,.55); }
+  .cert-modal[hidden]{ display:none; }
+  .cert-modal-card{
+    background:#fff; border-radius:18px; width:min(560px,94vw); max-height:88vh; overflow:auto;
+    padding:24px; position:relative; box-shadow:0 24px 60px rgba(10,20,40,.28);
+  }
+  .cert-modal-card .cert-shot{ border:1px solid var(--line); border-radius:12px; height:150px; margin-bottom:16px; }
+  .cert-modal-card h3{ margin:0 0 10px; font-size:18px; line-height:1.45; padding-right:26px; }
+  .cert-modal-card dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:7px 14px; font-size:13.5px; }
+  .cert-modal-card dt{ color:#87919f; }
+  .cert-modal-card dd{ margin:0; color:#3d4453; word-break:break-word; }
+  .cert-modal-close{
+    position:absolute; top:10px; right:12px; width:32px; height:32px; border-radius:50%;
+    border:0; background:#f1f5fb; color:#5b6470; font-size:19px; line-height:1; cursor:pointer;
+  }
+  .cert-modal-close:hover{ background:#e6edf8; color:var(--ink); }
 
   /* 质检流程 */
   .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
@@ -175,7 +221,7 @@
     .stats{ grid-template-columns:repeat(2,1fr); }
     .two-col{ grid-template-columns:1fr; }
     .grid-3{ grid-template-columns:repeat(2,1fr); }
-    .cert-grid{ grid-template-columns:repeat(2,1fr); }
+    .cert-track .cert{ flex-basis:280px; }
     .steps{ grid-template-columns:repeat(2,1fr); }
     .coop{ grid-template-columns:1fr; }
     .topnav{ display:none; }
@@ -184,7 +230,8 @@
     .contact{ padding:26px; }
   }
   @media (max-width:560px){
-    .grid-3,.cert-grid{ grid-template-columns:1fr; }
+    .grid-3{ grid-template-columns:1fr; }
+    .cert-track .cert{ flex-basis:250px; }
     .top-cta{ display:none; }
   }
 </style>
@@ -213,6 +260,8 @@
 </header>
 
 <section class="hero">
+  <div class="hero-media" id="heroMedia"></div>
+  <div class="hero-shade" id="heroShade"></div>
   <div class="wrap hero-in">
     <span class="eyebrow" data-t="heroEyebrow">服饰制造 · 定制生产</span>
     <h1 data-t="heroTitle">棉服、校服与冲锋衣的定制生产工厂</h1>
@@ -273,7 +322,12 @@
       <h2 data-t="certTitle">资质与证书</h2>
       <p data-t="certLead">按公开可查的登记与受理状态如实展示；证书扫描件待企业上传后替换下方占位图。</p>
     </div>
-    <div class="cert-grid" id="certGrid"></div>
+    <div class="cert-marquee">
+      <div class="cert-viewport" id="certViewport">
+        <div class="cert-track" id="certTrack"></div>
+      </div>
+    </div>
+    <div class="cert-hint" data-t="certHint">悬停暂停，点击卡片可放大查看；移动端可横向滑动</div>
   </div>
 </section>
 
@@ -314,6 +368,13 @@
     </div>
   </div>
 </section>
+
+<div class="cert-modal" id="certModal" hidden>
+  <div class="cert-modal-card" role="dialog" aria-modal="true">
+    <button class="cert-modal-close" type="button" aria-label="Close">×</button>
+    <div id="certModalBody"></div>
+  </div>
+</div>
 
 <footer>
   <div class="wrap" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
@@ -387,6 +448,8 @@
         { name:'深水水务秋季工装采购', org:'深圳市深水水务咨询有限公司', no:'中标结果公示', date:'2026-10-19', status:'已中标', tone:'ok' }
       ],
       certShot:'证书扫描件待上传',
+      certHint:'悬停暂停，点击卡片可放大查看；移动端可横向滑动',
+      certOrgLabel:'颁发/受理机构', certNoLabel:'编号/内容', certDateLabel:'日期', certStatusLabel:'状态',
       qcKicker:'质量控制', qcTitle:'过程质量控制',
       qcLead:'从来料到出货设置检验节点，检验记录随订单留存。',
       steps:[
@@ -469,6 +532,8 @@
         { name:'Shenshui Water autumn workwear tender', org:'Shenzhen Shenshui Water Consulting Co., Ltd.', no:'Award announcement', date:'2026-10-19', status:'Awarded', tone:'ok' }
       ],
       certShot:'Certificate scan pending upload',
+      certHint:'Hover to pause · click a card to enlarge · swipe on mobile',
+      certOrgLabel:'Issuer / accepting body', certNoLabel:'Number / details', certDateLabel:'Date', certStatusLabel:'Status',
       qcKicker:'Quality control', qcTitle:'In-process quality control',
       qcLead:'Inspection checkpoints from incoming materials to shipment, with records kept per order.',
       steps:[
@@ -551,6 +616,8 @@
         { name:'Тендер на спецодежду Shenshui Water', org:'Shenzhen Shenshui Water Consulting Co., Ltd.', no:'Протокол результатов', date:'19.10.2026', status:'Победа', tone:'ok' }
       ],
       certShot:'Скан сертификата ожидает загрузки',
+      certHint:'Наведите для паузы · нажмите карточку для увеличения · свайп на мобильном',
+      certOrgLabel:'Орган выдачи / приёма', certNoLabel:'Номер / содержание', certDateLabel:'Дата', certStatusLabel:'Статус',
       qcKicker:'Контроль качества', qcTitle:'Контроль в процессе производства',
       qcLead:'Контрольные точки от приёмки материалов до отгрузки, записи хранятся по заказу.',
       steps:[
@@ -583,6 +650,73 @@
   function el(id){ return document.getElementById(id); }
   function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
 
+  /* 三语取值：缺当前语种时回退 ru → zh → en → 内置兜底 */
+  function pick(f, fb){
+    if (f && typeof f === 'object'){
+      var v = f[LANG] || f.ru || f.zh || f.en;
+      if (typeof v === 'string' && v.trim()) return v;
+    } else if (typeof f === 'string' && f.trim()) {
+      return f;
+    }
+    return fb || '';
+  }
+  function pickList(list, fb, fn){
+    if (!Array.isArray(list) || !list.length) return fb;
+    var out = list.map(fn).filter(function (x) {
+      if (Array.isArray(x)) return x.join('').trim() !== '';
+      if (typeof x === 'string') return x.trim() !== '';
+      return x && ((x.name || '') + (x.value || '') + (x.label || '')).trim() !== '';
+    });
+    return out.length ? out : fb;
+  }
+  /* 后台数据 → 页面渲染结构；后台没数据或字段为空时用内置内容兜底 */
+  function buildContent(d){
+    if (!d || typeof d !== 'object') return t;
+    var fb = t, out = {};
+    var sec = function (k) { return (d[k] && typeof d[k] === 'object') ? d[k] : {}; };
+    var hero = sec('hero'), fac = sec('factory'), prd = sec('products');
+    var cs = sec('certs'), qc = sec('qc'), cp = sec('coop'), ct = sec('contact');
+    out.heroEyebrow = pick(hero.eyebrow, fb.heroEyebrow);
+    out.heroTitle = pick(hero.title, fb.heroTitle);
+    out.legalName = pick(hero.legal, fb.legalName);
+    out.heroLead = pick(hero.lead, fb.heroLead);
+    out.heroCta1 = pick(hero.cta1, fb.heroCta1);
+    out.heroCta2 = pick(hero.cta2, fb.heroCta2);
+    out.stats = pickList(d.stats, fb.stats, function (s) { return [pick(s.value), pick(s.label)]; });
+    out.company = pickList(d.company, fb.company, function (r) { return [pick(r.label), pick(r.value)]; });
+    out.facTitle = pick(fac.title, fb.facTitle);
+    out.facLead = pick(fac.lead, fb.facLead);
+    out.facSub1 = pick(fac.sub, fb.facSub1);
+    out.facText = pick(fac.text, fb.facText);
+    out.facList = pickList(fac.list, fb.facList, function (x) { return pick(x); });
+    out.facLines = pickList(fac.steps, fb.facLines, function (x) { return pick(x); });
+    out.prdTitle = pick(prd.title, fb.prdTitle);
+    out.prdLead = pick(prd.lead, fb.prdLead);
+    out.products = pickList(prd.items, fb.products, function (p) { return [pick(p.name), pick(p.desc)]; });
+    out.certTitle = pick(cs.title, fb.certTitle);
+    out.certLead = pick(cs.lead, fb.certLead);
+    var live = (Array.isArray(cs.items) ? cs.items : []).filter(function (c) { return c && c.visible !== false; });
+    out.certs = pickList(live, fb.certs, function (c) {
+      return {
+        id: c.id || '', name: pick(c.name), org: pick(c.org), no: pick(c.no), date: pick(c.date),
+        status: pick(c.status), tone: c.tone === 'wait' ? 'wait' : 'ok', img: c.img || ''
+      };
+    });
+    out.qcTitle = pick(qc.title, fb.qcTitle);
+    out.qcLead = pick(qc.lead, fb.qcLead);
+    out.steps = pickList(qc.steps, fb.steps, function (s) { return [pick(s.title), pick(s.desc)]; });
+    out.coopTitle = pick(cp.title, fb.coopTitle);
+    out.coopLead = pick(cp.lead, fb.coopLead);
+    out.coop = pickList(cp.items, fb.coop, function (c) { return [pick(c.k), pick(c.v)]; });
+    out.coopNote = pick(cp.note, fb.coopNote);
+    out.ctTitle = pick(ct.title, fb.ctTitle);
+    out.ctLead = pick(ct.lead, fb.ctLead);
+    out.ctBtn1 = pick(ct.cta1, fb.ctBtn1);
+    out.ctBtn2 = pick(ct.cta2, fb.ctBtn2);
+    Object.keys(fb).forEach(function (k) { if (!(k in out)) out[k] = fb[k]; });
+    return out;
+  }
+
   function setText(){
     document.querySelectorAll('[data-t]').forEach(function(node){
       var k = node.getAttribute('data-t');
@@ -596,7 +730,6 @@
       a.classList.toggle('active', a.getAttribute('data-lang') === LANG);
     });
   }
-
   function renderStats(){
     var box = el('stats'); if (!box) return;
     box.innerHTML = (t.stats || []).map(function(s){
@@ -632,24 +765,95 @@
         '<h3>' + esc(p[0]) + '</h3><p>' + esc(p[1]) + '</p></div>';
     }).join('');
   }
-  function renderCerts(){
-    var box = el('certGrid'); if (!box) return;
-    var shotIcon = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg>';
-    box.innerHTML = (t.certs || []).map(function(c){
-      var badge = 'badge ' + (c.tone === 'wait' ? 'wait' : 'ok');
-      return '<article class="cert">' +
-        '<div class="cert-shot">' + shotIcon + '<span>' + esc(t.certShot) + '</span></div>' +
-        '<div class="cert-body">' +
-          '<div class="cert-top"><h4>' + esc(c.name) + '</h4><span class="' + badge + '">' + esc(c.status) + '</span></div>' +
-          '<dl>' +
-            '<dt>颁发/受理</dt><dd>' + esc(c.org) + '</dd>' +
-            '<dt>编号/内容</dt><dd>' + esc(c.no) + '</dd>' +
-            '<dt>日期</dt><dd>' + esc(c.date) + '</dd>' +
-          '</dl>' +
-        '</div>' +
-      '</article>';
-    }).join('');
+
+  /* ---- 资质证书：横向无缝滚动（JS 驱动 scrollLeft，便于悬停/触摸暂停与手动滑动） ---- */
+  var certList = [], marqueeState = null;
+  var SHOT_ICON = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg>';
+  function certShotHTML(c, cls){
+    if (c.img) return '<div class="cert-shot ' + (cls || '') + '" style="padding:0"><img src="' + esc(c.img) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div>';
+    return '<div class="cert-shot ' + (cls || '') + '">' + SHOT_ICON + '<span>' + esc(t.certShot) + '</span></div>';
   }
+  function certCardHTML(c, i){
+    var badge = 'badge ' + (c.tone === 'wait' ? 'wait' : 'ok');
+    return '<article class="cert" data-idx="' + i + '">' + certShotHTML(c) +
+      '<div class="cert-body">' +
+        '<div class="cert-top"><h4>' + esc(c.name) + '</h4><span class="' + badge + '">' + esc(c.status) + '</span></div>' +
+        '<dl>' +
+          '<dt>' + esc(t.certOrgLabel) + '</dt><dd>' + esc(c.org) + '</dd>' +
+          '<dt>' + esc(t.certNoLabel) + '</dt><dd>' + esc(c.no) + '</dd>' +
+          '<dt>' + esc(t.certDateLabel) + '</dt><dd>' + esc(c.date) + '</dd>' +
+        '</dl>' +
+      '</div>' +
+    '</article>';
+  }
+  function renderCerts(){
+    var track = el('certTrack'); if (!track) return;
+    certList = t.certs || [];
+    if (!certList.length){ return; }
+    var one = certList.map(certCardHTML).join('');
+    track.innerHTML = one + one;   // 复制一份拼接，保证首尾无缝
+    track.onclick = function(e){
+      var card = e.target.closest ? e.target.closest('.cert') : null;
+      if (!card) return;
+      var idx = parseInt(card.getAttribute('data-idx'), 10);
+      if (certList[idx]) openCert(certList[idx]);
+    };
+    startMarquee();
+  }
+  function startMarquee(){
+    var vp = el('certViewport'), track = el('certTrack');
+    if (!vp || !track) return;
+    if (marqueeState){ marqueeState.measure(); return; }
+    /* 尊重「减少动态效果」：不做自动滚动，保留横向手动滑动 */
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var paused = false, half = 0, last = 0, timer = null;
+    var measure = function(){ half = track.scrollWidth / 2; };
+    measure();
+    marqueeState = { measure: measure };
+    window.addEventListener('resize', measure);
+    var speed = function(){ return window.innerWidth < 700 ? 15 : 32; };  // 移动端降速
+    var step = function(ts){
+      if (!last) last = ts;
+      var dt = Math.min((ts - last) / 1000, 0.05);
+      last = ts;
+      if (!paused && half > 0){
+        if (vp.scrollLeft >= half) vp.scrollLeft -= half;
+        vp.scrollLeft += speed() * dt;
+      }
+      requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+    vp.addEventListener('mouseenter', function(){ paused = true; });
+    vp.addEventListener('mouseleave', function(){ paused = false; });
+    vp.addEventListener('touchstart', function(){
+      paused = true;
+      if (timer) clearTimeout(timer);
+    }, { passive:true });
+    var resume = function(){ timer = setTimeout(function(){ paused = false; }, 1600); };
+    vp.addEventListener('touchend', resume, { passive:true });
+    vp.addEventListener('touchcancel', resume, { passive:true });
+  }
+  function openCert(c){
+    var m = el('certModal'), body = el('certModalBody');
+    if (!m || !body || !c) return;
+    var badge = 'badge ' + (c.tone === 'wait' ? 'wait' : 'ok');
+    body.innerHTML = certShotHTML(c) +
+      '<h3>' + esc(c.name) + ' <span class="' + badge + '">' + esc(c.status) + '</span></h3>' +
+      '<dl>' +
+        '<dt>' + esc(t.certOrgLabel) + '</dt><dd>' + esc(c.org) + '</dd>' +
+        '<dt>' + esc(t.certNoLabel) + '</dt><dd>' + esc(c.no) + '</dd>' +
+        '<dt>' + esc(t.certDateLabel) + '</dt><dd>' + esc(c.date) + '</dd>' +
+        '<dt>' + esc(t.certStatusLabel) + '</dt><dd>' + esc(c.status) + '</dd>' +
+      '</dl>';
+    m.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+  function closeCert(){
+    var m = el('certModal'); if (!m) return;
+    m.hidden = true;
+    document.body.style.overflow = '';
+  }
+
   function renderSteps(){
     var box = el('steps'); if (!box) return;
     box.innerHTML = (t.steps || []).map(function(s, i){
@@ -664,7 +868,67 @@
     }).join('');
   }
 
-  setText(); renderStats(); renderCompany(); renderFactory(); renderProducts(); renderCerts(); renderSteps(); renderCoop();
+  /* 首屏背景视频：无声自动循环；省流量 / 减少动态效果 / 加载失败时回退封面图 */
+  function applyHeroMedia(hero){
+    var heroEl = document.querySelector('.hero');
+    var media = el('heroMedia'), shade = el('heroShade');
+    if (!heroEl || !media || !shade) return;
+    var v = hero && hero.videoUrl;
+    var poster = hero && hero.videoPoster;
+    var ov = (hero && typeof hero.overlay === 'number') ? hero.overlay : 0.5;
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var saveData = !!(navigator.connection && navigator.connection.saveData);
+    media.innerHTML = '';
+    media.style.backgroundImage = '';
+    var usePoster = function(){
+      if (poster){
+        media.style.backgroundImage = 'url("' + poster + '")';
+        heroEl.classList.add('hero--media');
+      } else {
+        heroEl.classList.remove('hero--media');
+        media.style.backgroundImage = '';
+      }
+    };
+    if (v && !reduce && !saveData){
+      var video = document.createElement('video');
+      video.autoplay = true; video.muted = true; video.loop = true; video.playsInline = true;
+      video.setAttribute('muted', ''); video.setAttribute('playsinline', '');
+      if (poster) video.poster = poster;
+      video.addEventListener('error', usePoster);
+      video.src = v;
+      media.appendChild(video);
+      heroEl.classList.add('hero--media');
+      var p = video.play();
+      if (p && p.catch) p.catch(function(){ usePoster(); });
+    } else {
+      usePoster();
+    }
+    shade.style.background = heroEl.classList.contains('hero--media') ? 'rgba(10,18,30,' + ov + ')' : 'transparent';
+  }
+
+  function renderAll(){
+    setText(); renderStats(); renderCompany(); renderFactory(); renderProducts(); renderCerts(); renderSteps(); renderCoop();
+  }
+  renderAll();
+
+  /* 读取后台内容；接口失败或后台未维护时保持内置内容，不会出现空白页 */
+  fetch('/api/factory', { cache:'no-store' })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (d && d.factory){
+        t = buildContent(d.factory);
+        renderAll();
+        applyHeroMedia(d.factory.hero || {});
+      }
+    })
+    .catch(function(){});
+
+  if (el('certModal')){
+    el('certModal').addEventListener('click', function(e){
+      if (e.target === this || e.target.classList.contains('cert-modal-close')) closeCert();
+    });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeCert(); });
+  }
 })();
 </script>
 </body>

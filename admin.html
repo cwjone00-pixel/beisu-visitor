@@ -197,6 +197,7 @@
   <!-- 菜单：后台配置 + 一步直达体验站运营后台（新标签打开） -->
   <nav class="topbar-nav">
     <button class="topbar-nav__btn active" data-nav="config">后台配置</button>
+    <button class="topbar-nav__btn" data-nav="factory">工厂介绍</button>
     <a class="topbar-nav__btn" href="/exp-admin.html" target="_blank" rel="noopener" title="一步直达海南项目体验运营后台">海南项目体验 · 运营后台</a>
   </nav>
 </div>
@@ -514,6 +515,23 @@
 </div>
 
 </div><!-- /viewConfig -->
+
+<!-- ==================== 视图二：工厂介绍管理（#factory） ==================== -->
+<div id="viewFactory" style="display:none;">
+  <div class="card">
+    <div class="head-row">
+      <h2>工厂介绍 · 内容管理</h2>
+      <span class="chat-head-tools">
+        <span id="facStatus" class="chat-hint" style="margin:0;"></span>
+        <button class="btn btn-primary btn-sm" onclick="saveFactory()">保存并发布</button>
+      </span>
+    </div>
+    <div class="chat-hint">
+      三语字段分开填写；某语种留空时，前台自动回退到该字段的俄语 / 中文内容。前台地址：/ru/factory、/en/factory、/zh/factory。
+    </div>
+    <div id="factoryEditor" style="margin-top:14px;"></div>
+  </div>
+</div>
 
 <!-- 文章编辑弹窗 -->
 <div class="modal-mask hidden" id="artModal">
@@ -2348,6 +2366,465 @@ function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
 function labelOf(l){ return (l && (l.zh || l.en || l.ru)) || ''; }
 function esc(s){ const d=document.createElement('div'); d.textContent=String(s==null?'':s); return d.innerHTML; }
 function escAttr(s){ return String(s==null?'':s).replace(/"/g,'&quot;'); }
+</script>
+<script>
+/* ================= 工厂介绍管理（后台 #factory 视图） ================= */
+var FACTORY = null;
+var FAC_LANGS = [['zh','中文'],['en','EN'],['ru','RU']];
+function escAttr(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+  });
+}
+
+function emptyFactory(){
+  return {
+    hero:{}, stats:[], company:[],
+    factory:{ list:[], steps:[] },
+    products:{ items:[] }, certs:{ items:[] },
+    qc:{ steps:[] }, coop:{ items:[] }, contact:{}
+  };
+}
+function facReady(){
+  if (!FACTORY) FACTORY = emptyFactory();
+  ['hero','factory','products','certs','qc','coop','contact'].forEach(function(k){
+    if (!FACTORY[k] || typeof FACTORY[k] !== 'object') FACTORY[k] = {};
+  });
+  ['stats','company'].forEach(function(k){ if (!Array.isArray(FACTORY[k])) FACTORY[k] = []; });
+  ['list','steps'].forEach(function(k){ if (!Array.isArray(FACTORY.factory[k])) FACTORY.factory[k] = []; });
+  if (!Array.isArray(FACTORY.products.items)) FACTORY.products.items = [];
+  if (!Array.isArray(FACTORY.certs.items)) FACTORY.certs.items = [];
+  if (!Array.isArray(FACTORY.qc.steps)) FACTORY.qc.steps = [];
+  if (!Array.isArray(FACTORY.coop.items)) FACTORY.coop.items = [];
+}
+function setPath(obj, path, val){
+  var parts = path.split('.');
+  var o = obj;
+  for (var i = 0; i < parts.length - 1; i++){
+    var k = parts[i];
+    if (o[k] == null) o[k] = /^\d+$/.test(parts[i + 1]) ? [] : {};
+    o = o[k];
+  }
+  o[parts[parts.length - 1]] = val;
+}
+function getPath(obj, path){
+  return path.split('.').reduce(function(o, k){ return (o == null ? undefined : o[k]); }, obj);
+}
+
+/* 三语输入：每个字段一组 中 / EN / RU */
+function triHTML(path, label){
+  var box = document.createElement('div');
+  box.style.cssText = 'margin:8px 0;';
+  var html = '<div style="font-size:12.5px;color:#5b6470;margin-bottom:4px;">' + esc(label) + '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">';
+  FAC_LANGS.forEach(function(l){
+    var v = getPath(FACTORY, path + '.' + l[0]) || '';
+    html += '<label style="display:block;"><span style="font-size:11px;color:#9aa3ad;">' + l[1] + '</span>' +
+      '<textarea data-p="' + path + '.' + l[0] + '" rows="2" style="width:100%;box-sizing:border-box;font-size:12.5px;padding:6px 8px;border:1px solid #dde3ea;border-radius:8px;resize:vertical;">' + esc(v) + '</textarea></label>';
+  });
+  html += '</div>';
+  box.innerHTML = html;
+  return box;
+}
+function itemShell(title, idx, listPath, bodyNode, extraTools){
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'border:1px solid #e3e9f1;border-radius:12px;padding:10px 12px;margin:8px 0;background:#fbfcfe;';
+  var head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:8px;margin-bottom:4px;';
+  head.innerHTML = '<b style="font-size:12.5px;color:#3d4453;">' + esc(title) + '</b>' +
+    '<span style="margin-left:auto;display:flex;gap:6px;">' +
+      (extraTools || '') +
+      '<button class="btn btn-sm" data-act="up" data-list="' + listPath + '" data-idx="' + idx + '">↑</button>' +
+      '<button class="btn btn-sm" data-act="down" data-list="' + listPath + '" data-idx="' + idx + '">↓</button>' +
+      '<button class="btn btn-danger btn-sm" data-act="del" data-list="' + listPath + '" data-idx="' + idx + '">删除</button>' +
+    '</span>';
+  wrap.appendChild(head);
+  wrap.appendChild(bodyNode);
+  return wrap;
+}
+function listBlock(title, listPath, items, makeBody, addLabel){
+  var box = document.createElement('div');
+  box.style.cssText = 'margin:18px 0;padding:14px;border:1px solid #e3e9f1;border-radius:14px;background:#fff;';
+  box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;">' +
+    '<h3 style="margin:0;font-size:14.5px;">' + esc(title) + '</h3>' +
+    '<button class="btn btn-sm" data-act="add" data-list="' + listPath + '" style="margin-left:auto;">+ ' + esc(addLabel || '新增') + '</button></div>';
+  items.forEach(function(it, i){
+    var body = document.createElement('div');
+    body.innerHTML = makeBody(it, i);
+    box.appendChild(itemShell(title + ' ' + (i + 1), i, listPath, body));
+  });
+  return box;
+}
+function triListBody(fields){
+  return function(it, i){
+    return fields.map(function(f){ return triHTML('__PATH__' + '.' + i + '.' + f, f).innerHTML; }).join('');
+  };
+}
+
+function renderFactoryEditor(){
+  facReady();
+  var box = document.getElementById('factoryEditor');
+  if (!box) return;
+  var h = [];
+
+  /* 顶部主视觉 */
+  h.push('<div style="padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;">' +
+    '<h3 style="margin:0 0 6px;font-size:14.5px;">顶部主视觉</h3>' +
+    ['定位语|hero.eyebrow','主标题|hero.title','公司主体名|hero.legal','副标题|hero.lead','按钮一|hero.cta1','按钮二|hero.cta2']
+      .map(function(x){ var a = x.split('|'); var d = document.createElement('div'); d.appendChild(triHTML(a[1], a[0])); return d.innerHTML; }).join('') +
+    '</div>');
+
+  /* 公司信息（工商字段）与实力数据：可增删、可排序 */
+  var company = [];
+  h.push('<div style="padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;">' +
+    '<div style="display:flex;align-items:center;gap:10px;"><h3 style="margin:0;font-size:14.5px;">公司信息（工商字段）</h3>' +
+    '<button class="btn btn-sm" data-act="add" data-list="company" style="margin-left:auto;">+ 新增</button></div>');
+  FACTORY.company.forEach(function(it, i){
+    var d = document.createElement('div');
+    d.appendChild(triHTML('company.' + i + '.label', '字段名'));
+    d.appendChild(triHTML('company.' + i + '.value', '字段值'));
+    h.push(itemShell('字段 ' + (i + 1), i, 'company', d).outerHTML);
+  });
+  h.push('</div>');
+
+  h.push('<div style="padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;">' +
+    '<div style="display:flex;align-items:center;gap:10px;"><h3 style="margin:0;font-size:14.5px;">实力 / 产能数据</h3>' +
+    '<button class="btn btn-sm" data-act="add" data-list="stats" style="margin-left:auto;">+ 新增</button></div>');
+  FACTORY.stats.forEach(function(it, i){
+    var d = document.createElement('div');
+    d.appendChild(triHTML('stats.' + i + '.value', '数值'));
+    d.appendChild(triHTML('stats.' + i + '.label', '说明'));
+    h.push(itemShell('数据 ' + (i + 1), i, 'stats', d).outerHTML);
+  });
+  h.push('</div>');
+
+  /* 工厂与产线 */
+  var facBox = document.createElement('div');
+  facBox.style.cssText = 'padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;';
+  facBox.innerHTML = '<h3 style="margin:0 0 6px;font-size:14.5px;">工厂与产线</h3>';
+  [['区块标题','factory.title'],['区块说明','factory.lead'],['小标题','factory.sub'],['正文','factory.text']].forEach(function(x){
+    facBox.appendChild(triHTML(x[1], x[0]));
+  });
+  h.push(facBox.outerHTML);
+
+  /* 列表型：工厂要点 / 流程步骤 / 产品 / 质检 / 合作 */
+  var defs = [
+    ['工厂要点（列表）','factory.list','工厂要点'],
+    ['流程步骤（列表）','factory.steps','流程步骤'],
+    ['产品品类','products.items','产品', ['名称|name','说明|desc']],
+    ['质量控制步骤','qc.steps','步骤', ['标题|title','说明|desc']],
+    ['合作方式条款','coop.items','条款', ['名称|k','内容|v']]
+  ];
+  defs.forEach(function(def){
+    var listPath = def[1], arrPath = listPath;
+    var arr = getPath(FACTORY, arrPath);
+    if (!Array.isArray(arr)) arr = [];
+    var boxEl = document.createElement('div');
+    boxEl.style.cssText = 'padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;';
+    boxEl.innerHTML = '<div style="display:flex;align-items:center;gap:10px;"><h3 style="margin:0;font-size:14.5px;">' + esc(def[0]) + '</h3>' +
+      '<button class="btn btn-sm" data-act="add" data-list="' + listPath + '" style="margin-left:auto;">+ 新增</button></div>';
+    arr.forEach(function(it, i){
+      var body = document.createElement('div');
+      if (def[3]){
+        def[3].forEach(function(f){
+          var a = f.split('|');
+          body.appendChild(triHTML(listPath + '.' + i + '.' + a[1], a[0]));
+        });
+      } else {
+        body.appendChild(triHTML(listPath + '.' + i, '内容'));
+      }
+      boxEl.appendChild(itemShell(def[2] + ' ' + (i + 1), i, listPath, body));
+    });
+    h.push(boxEl.outerHTML);
+  });
+  h.push('<div style="padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;">' +
+    '<h3 style="margin:0 0 6px;font-size:14.5px;">合作说明 / 联系方式</h3>' +
+    ['合作说明|coop.note','联系区块标题|contact.title','联系说明|contact.lead','按钮一|contact.cta1','按钮二|contact.cta2']
+      .map(function(x){ var a = x.split('|'); var d = document.createElement('div'); d.appendChild(triHTML(a[1], a[0])); return d.innerHTML; }).join('') +
+    '</div>');
+
+  /* 区块标题与说明（三语） */
+  var heads = document.createElement('div');
+  heads.style.cssText = 'padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;';
+  heads.innerHTML = '<h3 style="margin:0 0 6px;font-size:14.5px;">区块标题与说明</h3>';
+  [['产品品类标题','products.title'],['产品品类说明','products.lead'],
+   ['资质证书标题','certs.title'],['资质证书说明','certs.lead'],
+   ['质量控制标题','qc.title'],['质量控制说明','qc.lead'],
+   ['合作方式标题','coop.title'],['合作方式说明','coop.lead']].forEach(function(x){
+    heads.appendChild(triHTML(x[1], x[0]));
+  });
+  h.push(heads.outerHTML);
+
+  box.innerHTML = h.join('');
+  box.insertBefore(renderVideoBlock(), box.firstChild);
+  renderCertEditor();
+}
+
+/* ---- 首屏背景视频（三语共用） ---- */
+function renderVideoBlock(){
+  var wrap = document.createElement('div');
+  wrap.style.cssText = 'padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;';
+  var url = (FACTORY.hero && FACTORY.hero.videoUrl) || '';
+  var poster = (FACTORY.hero && FACTORY.hero.videoPoster) || '';
+  var ov = (FACTORY.hero && typeof FACTORY.hero.overlay === 'number') ? FACTORY.hero.overlay : 0.5;
+  wrap.innerHTML = '<h3 style="margin:0 0 6px;font-size:14.5px;">首屏背景视频（三语共用）</h3>' +
+    '<div class="chat-hint" style="margin:0 0 10px;">背景视频：无声自动循环播放；未上传时用封面图，再没有则用纯色渐变兜底。建议上传压缩版 MP4（≤ 8MB），避免首屏卡顿。</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start;">' +
+      '<div>' +
+        '<span style="font-size:12px;color:#5b6470;">视频地址（mp4 / 站内文件）</span>' +
+        '<input id="facVideoUrl" value="' + escAttr(url) + '" placeholder="https://.../factory.mp4 或 /api/media/xxxx" style="width:100%;box-sizing:border-box;padding:7px 9px;border:1px solid #dde3ea;border-radius:8px;font-size:12.5px;">' +
+        '<div style="margin-top:8px;display:flex;gap:8px;align-items:center;">' +
+          '<input type="file" accept="video/mp4,video/webm" id="facVideoFile" style="font-size:12px;">' +
+          (url ? '<button class="btn btn-sm" type="button" data-video-clear="url">清除视频</button>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div>' +
+        '<span style="font-size:12px;color:#5b6470;">封面图（有视频时也建议配）</span>' +
+        '<div style="height:86px;border:1px dashed #cfd9e6;border-radius:10px;background:#f7fafd;display:flex;align-items:center;justify-content:center;overflow:hidden;">' +
+          (poster ? '<img src="' + escAttr(poster) + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:11.5px;color:#9aa3ad;">未上传</span>') +
+        '</div>' +
+        '<input type="file" accept="image/*" data-video="poster" style="font-size:12px;margin-top:6px;">' +
+        (poster ? '<button class="btn btn-sm" type="button" data-video-clear="poster" style="margin-top:6px;">清除封面</button>' : '') +
+        '<label style="display:block;margin-top:10px;font-size:12px;color:#5b6470;">遮罩透明度 <b id="facOvVal">' + ov.toFixed(2) + '</b>' +
+          '<input type="range" min="0.15" max="0.85" step="0.05" value="' + ov + '" data-p="hero.overlay" style="width:100%;">' +
+        '</label>' +
+      '</div>' +
+    '</div>';
+  return wrap;
+}
+
+/* ---- 证书管理：增删、排序、图片上传、上下架 ---- */
+function renderCertEditor(){
+  var host = document.getElementById('factoryEditor');
+  if (!host) return;
+  var box = document.createElement('div');
+  box.style.cssText = 'padding:14px;border:1px solid #e3e9f1;border-radius:14px;margin:10px 0;';
+  box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;"><h3 style="margin:0;font-size:14.5px;">资质证书</h3>' +
+    '<button class="btn btn-sm" data-act="add" data-list="certs.items" style="margin-left:auto;">+ 新增证书</button></div>' +
+    '<div class="chat-hint" style="margin:6px 0 2px;">支持 JPG / PNG / WebP，单张不超过 4MB；上下架控制前台是否展示，排序即前台滚动墙顺序。</div>';
+  FACTORY.certs.items.forEach(function(c, i){
+    var body = document.createElement('div');
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:4px;';
+    head.innerHTML = '<label style="font-size:12.5px;color:#3d4453;display:flex;align-items:center;gap:6px;">' +
+        '<input type="checkbox" data-p="certs.items.' + i + '.visible" ' + (c.visible !== false ? 'checked' : '') + '> 前台展示</label>' +
+      '<label style="font-size:12.5px;color:#3d4453;">状态样式 ' +
+        '<select data-p="certs.items.' + i + '.tone" style="padding:4px 6px;border:1px solid #dde3ea;border-radius:7px;font-size:12px;">' +
+          '<option value="ok"' + (c.tone !== 'wait' ? ' selected' : '') + '>正常（绿）</option>' +
+          '<option value="wait"' + (c.tone === 'wait' ? ' selected' : '') + '>办理中（橙）</option>' +
+        '</select></label>' +
+      '<span style="font-size:12px;color:#9aa3ad;">' + (c.img ? '已上传图片' : '未上传图片（前台显示占位）') + '</span>';
+    body.appendChild(head);
+    body.appendChild(triHTML('certs.items.' + i + '.name', '证书名称'));
+    body.appendChild(triHTML('certs.items.' + i + '.org', '颁发 / 受理机构'));
+    body.appendChild(triHTML('certs.items.' + i + '.no', '编号 / 内容'));
+    body.appendChild(triHTML('certs.items.' + i + '.date', '日期 / 有效期'));
+    body.appendChild(triHTML('certs.items.' + i + '.status', '状态文案（如 已注册 / 申请已受理）'));
+    var img = document.createElement('div');
+    img.style.cssText = 'display:flex;gap:12px;align-items:center;margin:8px 0;';
+    img.innerHTML = '<div style="width:120px;height:74px;border:1px dashed #cfd9e6;border-radius:10px;overflow:hidden;background:#f7fafd;display:flex;align-items:center;justify-content:center;">' +
+        (c.img ? '<img src="' + escAttr(c.img) + '" style="width:100%;height:100%;object-fit:cover;">' : '<span style="font-size:11px;color:#9aa3ad;">证书图片</span>') +
+      '</div>' +
+      '<div><input type="file" accept="image/*" data-cert-img="' + i + '" style="font-size:12px;">' +
+      (c.img ? '<div style="margin-top:6px;"><button class="btn btn-sm" type="button" data-cert-img-clear="' + i + '">清除图片</button></div>' : '') +
+      '</div>';
+    body.appendChild(img);
+    box.appendChild(itemShell('证书 ' + (i + 1), i, 'certs.items', body));
+  });
+  host.appendChild(box);
+}
+
+/* ---- 数组读写与新增默认值 ---- */
+function arrOf(path){
+  return path.split('.').reduce(function(o, k){ return o[k]; }, FACTORY);
+}
+function newItem(path){
+  if (path === 'stats') return { value:{}, label:{} };
+  if (path === 'company') return { label:{}, value:{} };
+  if (path === 'factory.list' || path === 'factory.steps') return { zh:'', en:'', ru:'' };
+  if (path === 'products.items') return { name:{}, desc:{} };
+  if (path === 'qc.steps') return { title:{}, desc:{} };
+  if (path === 'coop.items') return { k:{}, v:{} };
+  if (path === 'certs.items') return {
+    id:'C' + Date.now().toString(36) + Math.random().toString(36).slice(2,5),
+    name:{}, org:{}, no:{}, date:{}, status:{}, tone:'ok', img:'', visible:true
+  };
+  return {};
+}
+
+/* ---- 图片压缩后上传 ---- */
+function compressImage(file, cb){
+  var reader = new FileReader();
+  reader.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      var max = 1400, w = img.width, h = img.height;
+      if (w > max){ h = Math.round(h * max / w); w = max; }
+      var cv = document.createElement('canvas');
+      cv.width = w; cv.height = h;
+      cv.getContext('2d').drawImage(img, 0, 0, w, h);
+      cb(cv.toDataURL('image/jpeg', 0.82));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+function uploadImage(file, done){
+  if (file.size > 4 * 1024 * 1024){ setFacStatus('图片超过 4MB，请先压缩'); return; }
+  compressImage(file, function(dataUrl){
+    fetch('/api/media', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ dataUrl:dataUrl }) })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (!res || !res.ok) { setFacStatus('上传失败：' + ((res && res.error) || '未知错误')); return; }
+        done(res.url);
+        setFacStatus('图片已上传，记得点「保存并发布」');
+      })
+      .catch(function(){ setFacStatus('上传失败，请重试'); });
+  });
+}
+function setFacStatus(txt){
+  var el = document.getElementById('facStatus');
+  if (el) el.textContent = txt || '';
+}
+
+/* ---- 事件绑定（委托） ---- */
+(function(){
+  var host = document.getElementById('factoryEditor');
+  if (!host) return;
+  host.addEventListener('input', function(e){
+    var p = e.target.getAttribute && e.target.getAttribute('data-p');
+    if (!p) return;
+    if (p === 'hero.overlay'){
+      var n = Number(e.target.value);
+      setPath(FACTORY, p, n);
+      var lab = document.getElementById('facOvVal');
+      if (lab) lab.textContent = n.toFixed(2);
+      return;
+    }
+    setPath(FACTORY, p, e.target.value);
+  });
+  host.addEventListener('change', function(e){
+    var t = e.target;
+    var p = t.getAttribute && t.getAttribute('data-p');
+    if (p){
+      if (t.type === 'checkbox') setPath(FACTORY, p, t.checked);
+      else if (t.tagName === 'SELECT') setPath(FACTORY, p, t.value);
+    }
+    if (t.type === 'file'){
+      var ci = t.getAttribute('data-cert-img');
+      var vk = t.getAttribute('data-video');
+      var f = t.files && t.files[0];
+      if (!f) return;
+      if (ci != null){
+        uploadImage(f, function(url){ setPath(FACTORY, 'certs.items.' + ci + '.img', url); renderFactoryEditor(); });
+      } else if (vk){
+        uploadImage(f, function(url){ setPath(FACTORY, 'hero.videoPoster', url); renderFactoryEditor(); });
+      } else if (t.id === 'facVideoFile'){
+        if (f.size > 8 * 1024 * 1024){ setFacStatus('视频超过 8MB，请先压缩（可用 HandBrake / ffmpeg 压到 720p）'); t.value = ''; return; }
+        setFacStatus('视频上传中…');
+        var rd = new FileReader();
+        rd.onload = function(){
+          fetch('/api/admin/factory/video', {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ dataUrl: rd.result })
+          }).then(function(r){ return r.json(); })
+            .then(function(res){
+              if (res && res.ok){ FACTORY.hero.videoUrl = res.url; renderFactoryEditor(); setFacStatus('视频已上传，记得点「保存并发布」'); }
+              else setFacStatus('上传失败：' + ((res && res.error) || '未知错误'));
+            })
+            .catch(function(){ setFacStatus('上传失败，请重试'); });
+        };
+        rd.readAsDataURL(f);
+      }
+    }
+  });
+  host.addEventListener('click', function(e){
+    var btn = e.target.closest ? e.target.closest('[data-act],[data-cert-img-clear],[data-video-clear]') : null;
+    if (!btn) return;
+    if (btn.hasAttribute('data-cert-img-clear')){
+      var i = +btn.getAttribute('data-cert-img-clear');
+      setPath(FACTORY, 'certs.items.' + i + '.img', '');
+      renderFactoryEditor();
+      return;
+    }
+    if (btn.hasAttribute('data-video-clear')){
+      var what = btn.getAttribute('data-video-clear');
+      if (what === 'url') { FACTORY.hero.videoUrl = ''; }
+      else { FACTORY.hero.videoPoster = ''; }
+      renderFactoryEditor();
+      return;
+    }
+    var list = btn.getAttribute('data-list');
+    var act = btn.getAttribute('data-act');
+    var idx = +btn.getAttribute('data-idx');
+    if (!list || !act) return;
+    var arr = arrOf(list);
+    if (!Array.isArray(arr)) return;
+    if (act === 'add') arr.push(newItem(list));
+    else if (act === 'del') arr.splice(idx, 1);
+    else if (act === 'up' && idx > 0) arr.splice(idx - 1, 0, arr.splice(idx, 1)[0]);
+    else if (act === 'down' && idx < arr.length - 1) arr.splice(idx + 1, 0, arr.splice(idx, 1)[0]);
+    renderFactoryEditor();
+  });
+  /* 视频地址输入框（在字符串拼接的块里，单独绑定） */
+  host.addEventListener('input', function(e){
+    if (e.target.id === 'facVideoUrl' && FACTORY) FACTORY.hero.videoUrl = e.target.value.trim();
+  });
+})();
+
+/* ---- 载入 / 保存 / 视图切换（#factory） ---- */
+function loadFactory(){
+  setFacStatus('加载中…');
+  fetch('/api/factory', { cache:'no-store' })
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      FACTORY = (d && d.factory) || emptyFactory();
+      renderFactoryEditor();
+      setFacStatus(d && d.factory ? '已加载后台已保存内容' : '后台暂无内容，前台当前显示内置兜底内容');
+    })
+    .catch(function(){ setFacStatus('加载失败，请重新登录或刷新'); });
+}
+function saveFactory(){
+  if (!FACTORY) return;
+  setFacStatus('保存中…');
+  fetch('/api/admin/factory', {
+    method:'PUT',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ factory: FACTORY })
+  }).then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.ok){ FACTORY = res.factory; setFacStatus('已保存，前台刷新即生效'); }
+      else setFacStatus('保存失败：' + ((res && res.error) || '未知错误'));
+    })
+    .catch(function(){ setFacStatus('保存失败，请检查网络或登录态'); });
+}
+function showAdminView(name){
+  var btnC = document.querySelector('[data-nav="config"]');
+  var btnF = document.querySelector('[data-nav="factory"]');
+  if (btnC) btnC.classList.toggle('active', name === 'config');
+  if (btnF) btnF.classList.toggle('active', name === 'factory');
+  var vc = document.getElementById('viewConfig');
+  var vf = document.getElementById('viewFactory');
+  if (vc) vc.style.display = (name === 'config') ? '' : 'none';
+  if (vf) vf.style.display = (name === 'factory') ? '' : 'none';
+  if (name === 'factory') {
+    if (location.hash !== '#factory') location.hash = '#factory';
+    if (!FACTORY) loadFactory();
+  } else if (location.hash === '#factory') {
+    history.replaceState(null, '', location.pathname + '#config');
+  }
+}
+document.querySelectorAll('[data-nav]').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    if (btn.getAttribute('data-nav') === 'factory') showAdminView('factory');
+    else showAdminView('config');
+  });
+});
+window.addEventListener('hashchange', function(){
+  if (location.hash === '#factory') showAdminView('factory');
+  else if (location.hash === '#config') showAdminView('config');
+});
+if (location.hash === '#factory') showAdminView('factory');
 </script>
 </body>
 </html>
