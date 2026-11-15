@@ -148,8 +148,11 @@
     mask-image:linear-gradient(90deg, transparent 0, #000 3%, #000 97%, transparent 100%);
   }
   .cert-viewport::-webkit-scrollbar{ display:none; }
-  .cert-track{ display:flex; gap:16px; width:max-content; }
+  .cert-track{ display:flex; gap:16px; width:max-content; align-items:center; }
   .cert-track .cert{ flex:0 0 318px; cursor:pointer; }
+  /* 营业执照等横向证件：卡宽约 1.8 倍，横向比例，图片完整显示不裁切 */
+  .cert-track .cert--wide{ flex:0 0 576px; }
+  .cert-shot--wide{ height:152px !important; background:#eef2f8 !important; padding:6px !important; }
   .cert-track .cert:hover{ border-color:#d6e2f3; transform:translateY(-1px); }
   .cert{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; transition:.18s; }
   .cert-shot{
@@ -222,6 +225,8 @@
     .two-col{ grid-template-columns:1fr; }
     .grid-3{ grid-template-columns:repeat(2,1fr); }
     .cert-track .cert{ flex-basis:280px; }
+    .cert-track .cert--wide{ flex-basis:min(88vw,560px); }
+    .cert-shot--wide{ height:132px !important; }
     .steps{ grid-template-columns:repeat(2,1fr); }
     .coop{ grid-template-columns:1fr; }
     .topnav{ display:none; }
@@ -232,6 +237,7 @@
   @media (max-width:560px){
     .grid-3{ grid-template-columns:1fr; }
     .cert-track .cert{ flex-basis:250px; }
+    .cert-track .cert--wide{ flex-basis:86vw; }
     .top-cta{ display:none; }
   }
 </style>
@@ -705,13 +711,16 @@
   /* ---- 资质证书：横向无缝滚动（JS 驱动 scrollLeft，便于悬停/触摸暂停与手动滑动） ---- */
   var certList = [], marqueeState = null;
   var SHOT_ICON = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg>';
+  function isWideCert(c){ return !!c && (c.id === 'c-license' || c.wide === true); }
   function certShotHTML(c, cls){
-    if (c.img) return '<div class="cert-shot ' + (cls || '') + '" style="padding:0"><img src="' + esc(c.img) + '" alt="" style="width:100%;height:100%;object-fit:cover"></div>';
-    return '<div class="cert-shot ' + (cls || '') + '">' + SHOT_ICON + '<span>' + esc(t.certShot) + '</span></div>';
+    var wide = isWideCert(c);
+    var fit = wide ? 'contain' : 'cover';
+    if (c.img) return '<div class="cert-shot ' + (cls || '') + (wide ? ' cert-shot--wide' : '') + '" style="padding:0"><img src="' + esc(c.img) + '" alt="" style="width:100%;height:100%;object-fit:' + fit + '"></div>';
+    return '<div class="cert-shot ' + (cls || '') + (wide ? ' cert-shot--wide' : '') + '">' + SHOT_ICON + '<span>' + esc(t.certShot) + '</span></div>';
   }
   function certCardHTML(c, i){
     var badge = 'badge ' + (c.tone === 'wait' ? 'wait' : 'ok');
-    return '<article class="cert" data-idx="' + i + '">' + certShotHTML(c) +
+    return '<article class="cert' + (isWideCert(c) ? ' cert--wide' : '') + '" data-idx="' + i + '">' + certShotHTML(c) +
       '<div class="cert-body">' +
         '<div class="cert-top"><h4>' + esc(c.name) + '</h4><span class="' + badge + '">' + esc(c.status) + '</span></div>' +
         '<dl>' +
