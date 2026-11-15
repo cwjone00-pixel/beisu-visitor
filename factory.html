@@ -155,7 +155,7 @@
   /* 容器已按图片比例等比，fill 既不裁切也不变形；图片直接铺满卡片内边缘 */
   .cert-shot img{ width:100%; height:100%; object-fit:fill; display:block; }
   .cert-track .cert:hover{ border-color:#d6e2f3; transform:translateY(-1px); }
-  .cert{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; transition:.18s; }
+  .cert{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; position:relative; transition:.18s; }
   /* 无图占位（当前 7 张均有实拍图，仅兜底） */
   .cert-shot.is-empty{
     background:repeating-linear-gradient(45deg, #f4f7fc 0 10px, #eef3fa 10px 20px);
@@ -163,15 +163,17 @@
   }
   .cert-shot svg{ width:25px; height:25px; stroke:#9fb0c6; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
   .cert-shot span{ font-size:11.5px; color:#93a3b8; }
-  .cert-body{ padding:13px 14px 15px; display:flex; flex-direction:column; gap:8px; flex:1; }
-  .cert-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-  .cert h4{ margin:0; font-size:14px; line-height:1.45; }
+  /* 状态角标：叠在图片左上角，半透明，不占卡片高度 */
+  .cert-badge{
+    position:absolute; top:8px; left:8px; z-index:2; pointer-events:none;
+    font-size:11px; font-weight:600; line-height:1.6; padding:2px 9px; border-radius:999px;
+    color:#fff; background:rgba(18,32,52,.52); backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+    box-shadow:0 2px 8px rgba(10,20,40,.18);
+  }
+  .cert-badge.wait{ background:rgba(146,96,12,.60); }
   .badge{ font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
   .badge.ok{ color:var(--ok); background:var(--okbg); }
   .badge.wait{ color:var(--wait); background:var(--waitbg); }
-  .cert dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:12.5px; color:var(--sub); }
-  .cert dt{ color:#87919f; }
-  .cert dd{ margin:0; color:#3d4453; word-break:break-word; }
   /* 资质证书区块：不输出标题/说明，仅保留滚动墙，上下留白相应收紧 */
   section.block.certs-only{ padding:38px 0 54px; }
 
@@ -711,16 +713,10 @@
     return '<div class="cert-shot is-empty ' + (cls || '') + '">' + SHOT_ICON + '<span>' + esc(t.certShot) + '</span></div>';
   }
   function certCardHTML(c, i){
-    var badge = 'badge ' + (c.tone === 'wait' ? 'wait' : 'ok');
+    /* 卡片只留证件图 + 状态角标，文字信息全部放到放大弹层里 */
+    var tone = (c.tone === 'wait') ? 'wait' : 'ok';
     return '<article class="cert" data-idx="' + i + '">' + certShotHTML(c) +
-      '<div class="cert-body">' +
-        '<div class="cert-top"><h4>' + esc(c.name) + '</h4><span class="' + badge + '">' + esc(c.status) + '</span></div>' +
-        '<dl>' +
-          '<dt>' + esc(t.certOrgLabel) + '</dt><dd>' + esc(c.org) + '</dd>' +
-          '<dt>' + esc(t.certNoLabel) + '</dt><dd>' + esc(c.no) + '</dd>' +
-          '<dt>' + esc(t.certDateLabel) + '</dt><dd>' + esc(c.date) + '</dd>' +
-        '</dl>' +
-      '</div>' +
+      '<span class="cert-badge ' + tone + '">' + esc(c.status) + '</span>' +
     '</article>';
   }
   function renderCerts(){
