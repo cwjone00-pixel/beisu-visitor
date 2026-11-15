@@ -265,7 +265,9 @@
 </header>
 
 <section class="hero">
-  <div class="hero-media" id="heroMedia"></div>
+  <div class="hero-media" id="heroMedia">
+    <video id="heroVideo" muted playsinline webkit-playsinline autoplay loop preload="auto" style="display:none"></video>
+  </div>
   <div class="hero-shade" id="heroShade"></div>
   <div class="wrap hero-in">
     <span class="eyebrow" data-t="heroEyebrow">服饰制造 · 定制生产</span>
@@ -824,18 +826,33 @@
     }).join('');
   }
 
-  /* 首屏背景视频：无声自动循环；省流量 / 减少动态效果 / 加载失败时回退封面图 */
+  /* 首屏背景视频：桌面与移动端都自动播放。
+     - muted / playsinline / webkit-playsinline 必须在 src 之前写成 HTML 属性（iOS 只认属性，不认 JS 属性）
+     - 省流量、减少动效等信号不再阻止加载视频
+     - iOS 低电量模式会拒绝自动播放：保留封面图，并在首次触摸/点击/滚动时重试 play() */
+  var heroVideo = null, heroRetryBound = false;
+  function tryHeroPlay(){
+    if (!heroVideo) return;
+    var p = heroVideo.play();
+    if (p && p.catch) p.catch(function(){});
+  }
+  function bindHeroRetry(){
+    if (heroRetryBound) return;
+    heroRetryBound = true;
+    ['touchstart','pointerdown','click','scroll','keydown','mousedown'].forEach(function(ev){
+      document.addEventListener(ev, tryHeroPlay, { once:true, passive:true });
+    });
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) tryHeroPlay(); });
+  }
   function applyHeroMedia(hero){
     var heroEl = document.querySelector('.hero');
-    var media = el('heroMedia'), shade = el('heroShade');
+    var media = el('heroMedia'), shade = el('heroShade'), video = el('heroVideo');
     if (!heroEl || !media || !shade) return;
     var v = hero && hero.videoUrl;
     var poster = hero && hero.videoPoster;
     var ov = (hero && typeof hero.overlay === 'number') ? hero.overlay : 0.5;
-    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var saveData = !!(navigator.connection && navigator.connection.saveData);
-    media.innerHTML = '';
     media.style.backgroundImage = '';
+    heroVideo = null;
     var usePoster = function(){
       if (poster){
         media.style.backgroundImage = 'url("' + poster + '")';
@@ -845,18 +862,35 @@
         media.style.backgroundImage = '';
       }
     };
-    if (v && !reduce && !saveData){
-      var video = document.createElement('video');
-      video.autoplay = true; video.muted = true; video.loop = true; video.playsInline = true;
-      video.setAttribute('muted', ''); video.setAttribute('playsinline', '');
-      if (poster) video.poster = poster;
-      video.addEventListener('error', usePoster);
-      video.src = v;
-      media.appendChild(video);
+    if (v && video){
+      /* 视频节点写在 HTML 里（muted/playsinline/webkit-playsinline/autoplay 都是原生属性），这里只补 src 与封面 */
+      if (poster) video.setAttribute('poster', poster); else video.removeAttribute('poster');
+      video.muted = true; video.defaultMuted = true;
+      video.loop = true; video.autoplay = true; video.playsInline = true;
+      video.style.display = 'block';
+      if (video.getAttribute('src') !== v){
+        video.setAttribute('src', v);
+        try { video.load(); } catch(e){}
+      }
+      heroVideo = video;
       heroEl.classList.add('hero--media');
-      var p = video.play();
-      if (p && p.catch) p.catch(function(){ usePoster(); });
+      video.oncanplay = tryHeroPlay;
+      video.onloadeddata = tryHeroPlay;
+      video.onerror = function(){
+        /* 仅视频本身加载失败时回退封面；自动播放被系统拒绝不算错误 */
+        if (heroVideo !== video) return;
+        heroVideo = null;
+        video.style.display = 'none';
+        usePoster();
+      };
+      tryHeroPlay();
+      bindHeroRetry();
     } else {
+      if (video){
+        video.pause();
+        video.removeAttribute('src');
+        video.style.display = 'none';
+      }
       usePoster();
     }
     shade.style.background = heroEl.classList.contains('hero--media') ? 'rgba(10,18,30,' + ov + ')' : 'transparent';

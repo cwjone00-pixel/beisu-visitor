@@ -3556,7 +3556,34 @@ const server = http.createServer(async (req, res) => {
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) return send(res, 404, 'Not Found');   // 限定 id 形态，杜绝路径穿越
     const med = await loadMedia(id);
     if (!med) return send(res, 404, 'Not Found');
-    res.writeHead(200, { 'Content-Type': med.mime, 'Content-Length': med.buf.length, 'Cache-Control': 'public, max-age=31536000, immutable' });
+    /* 支持 Range 请求：iOS/Safari 播放视频严格依赖 206 分段响应，缺了会出现只显示首帧或完全不动 */
+    const total = med.buf.length;
+    const headers = {
+      'Content-Type': med.mime,
+      'Accept-Ranges': 'bytes',
+      'Cache-Control': 'public, max-age=31536000, immutable'
+    };
+    const range = String(req.headers.range || '').trim();
+    if (range){
+      const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+      if (m && (m[1] !== '' || m[2] !== '')){
+        let start = m[1] === '' ? NaN : parseInt(m[1], 10);
+        let end = m[2] === '' ? NaN : parseInt(m[2], 10);
+        if (isNaN(start)){ start = Math.max(0, total - end); end = total - 1; }   // bytes=-N：末尾 N 字节
+        else if (isNaN(end)) end = total - 1;
+        if (isNaN(start) || isNaN(end) || start > end || start >= total){
+          res.writeHead(416, { 'Content-Range': 'bytes */' + total, 'Accept-Ranges': 'bytes' });
+          return res.end();
+        }
+        end = Math.min(end, total - 1);
+        res.writeHead(206, Object.assign({}, headers, {
+          'Content-Range': 'bytes ' + start + '-' + end + '/' + total,
+          'Content-Length': end - start + 1
+        }));
+        return res.end(med.buf.subarray(start, end + 1));
+      }
+    }
+    res.writeHead(200, Object.assign({}, headers, { 'Content-Length': total }));
     return res.end(med.buf);
   }
 
