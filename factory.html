@@ -56,7 +56,7 @@
     background-size:44px 44px; pointer-events:none;
     mask-image:linear-gradient(180deg, rgba(0,0,0,.5), transparent 78%);
   }
-  .hero-in{ position:relative; z-index:2; padding:72px 0 64px; }
+  .hero-in{ position:relative; z-index:2; padding:64px 0 56px; }
   /* 首屏背景视频 / 封面图（通栏铺满，object-fit: cover） */
   .hero-media{ position:absolute; inset:0; z-index:0; background-position:center; background-size:cover; background-repeat:no-repeat; }
   .hero-media video{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -80,9 +80,9 @@
     color:var(--brand); background:rgba(47,124,246,.10); border:1px solid rgba(47,124,246,.18);
     padding:6px 12px; border-radius:999px; font-weight:600;
   }
-  .hero h1{ font-size:clamp(26px,3.9vw,42px); line-height:1.3; margin:18px 0 12px; letter-spacing:.2px; }
-  .hero .legal{ font-size:15px; color:var(--dark); font-weight:600; margin:0 0 10px; }
-  .hero p.lead{ font-size:clamp(14.5px,1.5vw,16.5px); color:var(--sub); max-width:760px; margin:0 0 26px; }
+  .hero h1{ font-size:clamp(30px,4.8vw,50px); line-height:1.24; margin:16px 0 14px; letter-spacing:.2px; }
+  .hero .legal{ font-size:15.5px; color:var(--dark); font-weight:600; margin:0 0 24px; }
+  .hero p.lead{ font-size:clamp(14.5px,1.5vw,16.5px); color:var(--sub); max-width:760px; margin:14px 0 22px; }
   .hero-actions{ display:flex; flex-wrap:wrap; gap:12px; }
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
@@ -163,16 +163,17 @@
   }
   .cert-shot svg{ width:25px; height:25px; stroke:#9fb0c6; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
   .cert-shot span{ font-size:11.5px; color:#93a3b8; }
-  .cert-body{ padding:15px 17px 17px; display:flex; flex-direction:column; gap:8px; flex:1; }
+  .cert-body{ padding:13px 14px 15px; display:flex; flex-direction:column; gap:8px; flex:1; }
   .cert-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
-  .cert h4{ margin:0; font-size:14.5px; line-height:1.45; }
+  .cert h4{ margin:0; font-size:14px; line-height:1.45; }
   .badge{ font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
   .badge.ok{ color:var(--ok); background:var(--okbg); }
   .badge.wait{ color:var(--wait); background:var(--waitbg); }
   .cert dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:12.5px; color:var(--sub); }
   .cert dt{ color:#87919f; }
   .cert dd{ margin:0; color:#3d4453; word-break:break-word; }
-  .cert-hint{ margin-top:10px; font-size:12.5px; color:var(--sub); }
+  /* 资质证书区块：不输出标题/说明，仅保留滚动墙，上下留白相应收紧 */
+  section.block.certs-only{ padding:38px 0 54px; }
 
   /* 证书大图弹层 */
   .cert-modal{ position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; padding:20px; background:rgba(16,24,38,.55); }
@@ -266,9 +267,9 @@
   <div class="hero-shade" id="heroShade"></div>
   <div class="wrap hero-in">
     <span class="eyebrow" data-t="heroEyebrow">服饰制造 · 定制生产</span>
-    <h1 data-t="heroTitle">棉服、校服与冲锋衣的定制生产工厂</h1>
+    <h1 data-t="heroTitle">冬季服装定制生产工厂</h1>
     <p class="legal" data-t="legalName">宁化县博泰服饰有限公司</p>
-    <p class="lead" data-t="heroLead">位于福建省三明市宁化县，7 条智能吊挂服装生产线，承接品牌代工、校服与团体工装定制。</p>
+    <p class="lead" data-t="heroLead"></p>
     <div class="hero-actions">
       <a class="btn btn-primary" href="#contact" data-t="heroCta1">获取合作报价</a>
       <a class="btn btn-ghost" href="#certs" data-t="heroCta2">查看资质证书</a>
@@ -288,19 +289,13 @@
   </div>
 </section>
 
-<section class="block" id="certs">
+<section class="block certs-only" id="certs">
   <div class="wrap">
-    <div class="sec-head">
-      <div class="kicker" data-t="certKicker">资质与证书</div>
-      <h2 data-t="certTitle">资质与证书</h2>
-      <p data-t="certLead">按公开可查的登记与受理状态如实展示；证书扫描件待企业上传后替换下方占位图。</p>
-    </div>
     <div class="cert-marquee">
       <div class="cert-viewport" id="certViewport">
         <div class="cert-track" id="certTrack"></div>
       </div>
     </div>
-    <div class="cert-hint" data-t="certHint">悬停暂停，点击卡片可放大查看；移动端可横向滑动</div>
   </div>
 </section>
 
@@ -366,9 +361,9 @@
     zh: {
       navCompany:'公司信息', navFactory:'工厂与产线', navProducts:'产品品类', navCerts:'资质证书', navCoop:'合作方式', navQuote:'获取报价',
       heroEyebrow:'服饰制造 · 定制生产',
-      heroTitle:'棉服、校服与冲锋衣的定制生产工厂',
+      heroTitle:'冬季服装定制生产工厂',
       legalName:'宁化县博泰服饰有限公司',
-      heroLead:'位于福建省三明市宁化县，7 条智能吊挂服装生产线，承接品牌代工、校服与团体工装定制。',
+      heroLead:'',
       heroCta1:'获取合作报价', heroCta2:'查看资质证书',
       stats:[
         ['2023 年','成立年份'],
@@ -409,8 +404,8 @@
         ['冲锋衣与工装','团体工装、冲锋衣等定制类服饰'],
         ['派克服','按客户款式开发，非主营定位']
       ],
-      certKicker:'资质与证书', certTitle:'资质与证书',
-      certLead:'按公开可查的登记与受理状态如实展示；证书扫描件待企业上传后替换下方占位图。',
+      certKicker:'', certTitle:'',
+      certLead:'',
       certs:[
         { name:'国家级科技型中小企业', org:'福建省科学技术厅', no:'名单序号 703', date:'2026 年第一批入库', status:'已入库', tone:'ok' },
         { name:'固定污染源排污登记', org:'全国排污许可管理信息平台', no:'运动机织服装制造 · 设计产能 300 吨/年', date:'首次登记', status:'已登记', tone:'ok' },
@@ -450,9 +445,9 @@
     en: {
       navCompany:'Company', navFactory:'Factory', navProducts:'Products', navCerts:'Certificates', navCoop:'Cooperation', navQuote:'Get a quote',
       heroEyebrow:'Garment manufacturing · Custom production',
-      heroTitle:'A factory for padded coats, school uniforms and shell jackets',
+      heroTitle:'Custom winter apparel factory',
       legalName:'Ninghua County Botai Clothing Co., Ltd.',
-      heroLead:'Based in Ninghua County, Sanming, Fujian, with 7 intelligent hanging-garment production lines, serving brand OEM, school uniform and group workwear programmes.',
+      heroLead:'',
       heroCta1:'Request pricing', heroCta2:'View certificates',
       stats:[
         ['2023','Founded'],
@@ -493,8 +488,8 @@
         ['Shell jackets & workwear','Group workwear and shell jackets'],
         ['Parkas','Developed on request; not our main positioning']
       ],
-      certKicker:'Certificates', certTitle:'Qualifications & certificates',
-      certLead:'Shown according to publicly verifiable registration and acceptance status. Scans will replace the placeholders once uploaded by the company.',
+      certKicker:'', certTitle:'',
+      certLead:'',
       certs:[
         { name:'National Sci-Tech SME', org:'Fujian Provincial Department of Science and Technology', no:'List No. 703', date:'2026, 1st batch', status:'Listed', tone:'ok' },
         { name:'Fixed pollution source registration', org:'National pollutant permit platform', no:'Sports woven apparel · 300 t/year design capacity', date:'Initial registration', status:'Registered', tone:'ok' },
@@ -534,9 +529,9 @@
     ru: {
       navCompany:'О компании', navFactory:'Производство', navProducts:'Продукция', navCerts:'Сертификаты', navCoop:'Сотрудничество', navQuote:'Запросить цену',
       heroEyebrow:'Швейное производство · Пошив на заказ',
-      heroTitle:'Фабрика утеплённой одежды, школьной формы и курток',
+      heroTitle:'Фабрика зимней одежды на заказ',
       legalName:'ООО «Нинхуа Ботай Фуши» (Ninghua County Botai Clothing Co., Ltd.)',
-      heroLead:'Расположена в уезде Нинхуа (Саньмин, Фуцзянь). 7 автоматизированных подвесных линий; пошив под брендом заказчика, школьная форма и корпоративная спецодежда.',
+      heroLead:'',
       heroCta1:'Запросить условия', heroCta2:'Смотреть сертификаты',
       stats:[
         ['2023','Год основания'],
@@ -577,8 +572,8 @@
         ['Куртки и спецодежда','Корпоративная спецодежда, куртки'],
         ['Парки','Разработка по запросу; не основная позиция']
       ],
-      certKicker:'Сертификаты', certTitle:'Квалификация и сертификаты',
-      certLead:'Показаны только публично проверяемые статусы регистрации и приёма заявок; сканы заменят заглушки после загрузки компанией.',
+      certKicker:'', certTitle:'',
+      certLead:'',
       certs:[
         { name:'Национальное научно-техническое МСП', org:'Департамент науки и технологий пров. Фуцзянь', no:'№ 703 в списке', date:'1-я партия 2026 г.', status:'В реестре', tone:'ok' },
         { name:'Регистрация источника выбросов', org:'Национальная платформа разрешений', no:'Спортивная трикотажная одежда · 300 т/год', date:'Первичная регистрация', status:'Зарегистрировано', tone:'ok' },
@@ -657,8 +652,6 @@
     out.heroCta2 = pick(hero.cta2, fb.heroCta2);
     out.stats = pickList(d.stats, fb.stats, function (s) { return [pick(s.value), pick(s.label)]; });
     out.company = pickList(d.company, fb.company, function (r) { return [pick(r.label), pick(r.value)]; });
-    out.certTitle = pick(cs.title, fb.certTitle);
-    out.certLead = pick(cs.lead, fb.certLead);
     var live = (Array.isArray(cs.items) ? cs.items : []).filter(function (c) { return c && c.visible !== false; });
     out.certs = pickList(live, fb.certs, function (c) {
       return {
@@ -684,7 +677,11 @@
   function setText(){
     document.querySelectorAll('[data-t]').forEach(function(node){
       var k = node.getAttribute('data-t');
-      if (typeof t[k] === 'string') node.textContent = t[k];
+      if (typeof t[k] === 'string'){
+        node.textContent = t[k];
+        /* 空值不输出：该行直接隐藏，避免留下空占位 */
+        node.style.display = t[k].trim() ? '' : 'none';
+      }
     });
     var names = { zh:'工厂介绍', en:'Factory', ru:'О производстве' };
     document.title = names[LANG] + ' · 宁化县博泰服饰有限公司';
