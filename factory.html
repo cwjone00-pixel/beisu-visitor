@@ -148,17 +148,17 @@
     mask-image:linear-gradient(90deg, transparent 0, #000 3%, #000 97%, transparent 100%);
   }
   .cert-viewport::-webkit-scrollbar{ display:none; }
-  .cert-track{ display:flex; gap:16px; width:max-content; align-items:center; }
-  .cert-track .cert{ flex:0 0 318px; cursor:pointer; }
-  /* 营业执照等横向证件：卡宽约 1.8 倍，横向比例，图片完整显示不裁切 */
-  .cert-track .cert--wide{ flex:0 0 576px; }
-  .cert-shot--wide{ height:152px !important; background:#eef2f8 !important; padding:6px !important; }
+  /* 统一卡片目标高度（唯一变量），卡宽 = 目标高度 × 图片宽高比，由 JS 设置 */
+  .cert-track{ display:flex; gap:16px; width:max-content; align-items:stretch; --certH:260px; }
+  .cert-track .cert{ flex:0 0 auto; width:184px; cursor:pointer; }
+  .cert-shot{ height:var(--certH); padding:0; background:none; display:block; overflow:hidden; }
+  /* 容器已按图片比例等比，fill 既不裁切也不变形；图片直接铺满卡片内边缘 */
+  .cert-shot img{ width:100%; height:100%; object-fit:fill; display:block; }
   .cert-track .cert:hover{ border-color:#d6e2f3; transform:translateY(-1px); }
   .cert{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; transition:.18s; }
-  .cert-shot{
-    height:112px; background:
-      repeating-linear-gradient(45deg, #f4f7fc 0 10px, #eef3fa 10px 20px);
-    border-bottom:1px solid var(--line);
+  /* 无图占位（当前 7 张均有实拍图，仅兜底） */
+  .cert-shot.is-empty{
+    background:repeating-linear-gradient(45deg, #f4f7fc 0 10px, #eef3fa 10px 20px);
     display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px;
   }
   .cert-shot svg{ width:25px; height:25px; stroke:#9fb0c6; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
@@ -181,7 +181,8 @@
     background:#fff; border-radius:18px; width:min(560px,94vw); max-height:88vh; overflow:auto;
     padding:24px; position:relative; box-shadow:0 24px 60px rgba(10,20,40,.28);
   }
-  .cert-modal-card .cert-shot{ border:1px solid var(--line); border-radius:12px; height:150px; margin-bottom:16px; }
+  .cert-modal-card .cert-shot{ border:0; border-radius:12px; height:auto; margin-bottom:16px; padding:0; background:none; overflow:visible; }
+  .cert-modal-card .cert-shot img{ width:auto; height:auto; max-width:100%; max-height:90vh; object-fit:contain; display:block; margin:0 auto; }
   .cert-modal-card h3{ margin:0 0 10px; font-size:18px; line-height:1.45; padding-right:26px; }
   .cert-modal-card dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:7px 14px; font-size:13.5px; }
   .cert-modal-card dt{ color:#87919f; }
@@ -224,9 +225,7 @@
     .stats{ grid-template-columns:repeat(2,1fr); }
     .two-col{ grid-template-columns:1fr; }
     .grid-3{ grid-template-columns:repeat(2,1fr); }
-    .cert-track .cert{ flex-basis:280px; }
-    .cert-track .cert--wide{ flex-basis:min(88vw,560px); }
-    .cert-shot--wide{ height:132px !important; }
+    .cert-track{ --certH:220px; }
     .steps{ grid-template-columns:repeat(2,1fr); }
     .coop{ grid-template-columns:1fr; }
     .topnav{ display:none; }
@@ -236,8 +235,7 @@
   }
   @media (max-width:560px){
     .grid-3{ grid-template-columns:1fr; }
-    .cert-track .cert{ flex-basis:250px; }
-    .cert-track .cert--wide{ flex-basis:86vw; }
+    .cert-track{ --certH:180px; }
     .top-cta{ display:none; }
   }
 </style>
@@ -711,16 +709,13 @@
   /* ---- 资质证书：横向无缝滚动（JS 驱动 scrollLeft，便于悬停/触摸暂停与手动滑动） ---- */
   var certList = [], marqueeState = null;
   var SHOT_ICON = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg>';
-  function isWideCert(c){ return !!c && (c.id === 'c-license' || c.wide === true); }
   function certShotHTML(c, cls){
-    var wide = isWideCert(c);
-    var fit = wide ? 'contain' : 'cover';
-    if (c.img) return '<div class="cert-shot ' + (cls || '') + (wide ? ' cert-shot--wide' : '') + '" style="padding:0"><img src="' + esc(c.img) + '" alt="" style="width:100%;height:100%;object-fit:' + fit + '"></div>';
-    return '<div class="cert-shot ' + (cls || '') + (wide ? ' cert-shot--wide' : '') + '">' + SHOT_ICON + '<span>' + esc(t.certShot) + '</span></div>';
+    if (c.img) return '<div class="cert-shot ' + (cls || '') + '"><img src="' + esc(c.img) + '" alt=""></div>';
+    return '<div class="cert-shot is-empty ' + (cls || '') + '">' + SHOT_ICON + '<span>' + esc(t.certShot) + '</span></div>';
   }
   function certCardHTML(c, i){
     var badge = 'badge ' + (c.tone === 'wait' ? 'wait' : 'ok');
-    return '<article class="cert' + (isWideCert(c) ? ' cert--wide' : '') + '" data-idx="' + i + '">' + certShotHTML(c) +
+    return '<article class="cert" data-idx="' + i + '">' + certShotHTML(c) +
       '<div class="cert-body">' +
         '<div class="cert-top"><h4>' + esc(c.name) + '</h4><span class="' + badge + '">' + esc(c.status) + '</span></div>' +
         '<dl>' +
@@ -744,7 +739,30 @@
       if (certList[idx]) openCert(certList[idx]);
     };
     startMarquee();
+    fitCertCards();
   }
+  /* 统一目标高度（--certH，唯一变量），卡宽 = 目标高度 × 图片宽高比，保证整张证件完整可见、无裁切 */
+  function fitCertCards(){
+    var track = el('certTrack'); if (!track) return;
+    var H = parseFloat(getComputedStyle(track).getPropertyValue('--certH')) || 260;
+    track.querySelectorAll('.cert').forEach(function(card){
+      var img = card.querySelector('.cert-shot img');
+      var ratio = 0.707;
+      if (img){
+        if (img.dataset.ratio) ratio = parseFloat(img.dataset.ratio);
+        else if (img.naturalWidth && img.naturalHeight){
+          ratio = img.naturalWidth / img.naturalHeight;
+          img.dataset.ratio = ratio;
+        } else {
+          /* 图片还没解码完，加载完成后再算一次 */
+          img.addEventListener('load', fitCertCards, { once:true });
+        }
+      }
+      card.style.width = Math.round(H * ratio) + 'px';
+    });
+    if (marqueeState) marqueeState.measure();  // 卡宽变化后重算跑马灯半程距离
+  }
+  window.addEventListener('resize', fitCertCards);
   function startMarquee(){
     var vp = el('certViewport'), track = el('certTrack');
     if (!vp || !track) return;
