@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>工厂介绍 · beisuas</title>
-<meta name="description" content="校服与儿童冬装源头工厂：自有产线、OEM/ODM、批发合作。">
+<meta name="description" content="宁化县博泰服饰有限公司：棉服、校服、冲锋衣等定制类服饰生产，7 条智能吊挂生产线。">
 <style>
   :root{
     --bg:#eef2f8; --card:#ffffff; --ink:#1b2230; --sub:#5b6470; --line:#e3e9f1;
     --brand:#2f7cf6; --brand-2:#1e5ed8; --dark:#16233a; --soft:#f6f8fc;
+    --ok:#12855f; --okbg:#e8f7f0; --wait:#a4690b; --waitbg:#fdf4e3;
   }
   *{ box-sizing:border-box; }
   html,body{ margin:0; padding:0; }
@@ -18,7 +19,6 @@
     line-height:1.7; -webkit-font-smoothing:antialiased;
   }
   a{ color:inherit; text-decoration:none; }
-  img{ max-width:100%; display:block; }
   .wrap{ width:min(1120px,92vw); margin:0 auto; }
 
   /* 顶栏 */
@@ -37,10 +37,7 @@
   .lang{ display:flex; gap:4px; background:#eef2f8; border-radius:999px; padding:3px; }
   .lang a{ font-size:12.5px; color:var(--sub); padding:5px 10px; border-radius:999px; }
   .lang a.active{ background:#fff; color:var(--brand); font-weight:600; box-shadow:0 1px 3px rgba(20,40,80,.12); }
-  .top-cta{
-    font-size:13px; color:#fff; background:var(--brand); padding:8px 14px;
-    border-radius:10px; font-weight:600;
-  }
+  .top-cta{ font-size:13px; color:#fff; background:var(--brand); padding:8px 14px; border-radius:10px; font-weight:600; }
   .top-cta:hover{ background:var(--brand-2); }
 
   /* 主视觉 */
@@ -59,14 +56,15 @@
     background-size:44px 44px; pointer-events:none;
     mask-image:linear-gradient(180deg, rgba(0,0,0,.5), transparent 78%);
   }
-  .hero-in{ position:relative; z-index:1; padding:76px 0 68px; }
+  .hero-in{ position:relative; z-index:1; padding:72px 0 64px; }
   .eyebrow{
-    display:inline-block; font-size:12.5px; letter-spacing:.14em; text-transform:uppercase;
+    display:inline-block; font-size:12.5px; letter-spacing:.12em; text-transform:uppercase;
     color:var(--brand); background:rgba(47,124,246,.10); border:1px solid rgba(47,124,246,.18);
     padding:6px 12px; border-radius:999px; font-weight:600;
   }
-  .hero h1{ font-size:clamp(28px,4.2vw,46px); line-height:1.25; margin:18px 0 14px; letter-spacing:.2px; }
-  .hero p.lead{ font-size:clamp(15px,1.6vw,17.5px); color:var(--sub); max-width:720px; margin:0 0 28px; }
+  .hero h1{ font-size:clamp(26px,3.9vw,42px); line-height:1.3; margin:18px 0 12px; letter-spacing:.2px; }
+  .hero .legal{ font-size:15px; color:var(--dark); font-weight:600; margin:0 0 10px; }
+  .hero p.lead{ font-size:clamp(14.5px,1.5vw,16.5px); color:var(--sub); max-width:760px; margin:0 0 26px; }
   .hero-actions{ display:flex; flex-wrap:wrap; gap:12px; }
   .btn{
     display:inline-flex; align-items:center; justify-content:center; gap:8px;
@@ -78,122 +76,115 @@
   .btn-ghost{ background:#fff; color:var(--ink); border-color:var(--line); }
   .btn-ghost:hover{ border-color:#c9d6e8; }
 
-  /* 数据条 */
-  .stats{ margin-top:42px; display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
-  .stat{
-    background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px 18px;
-    box-shadow:0 6px 18px rgba(20,40,80,.04);
-  }
-  .stat b{ display:block; font-size:clamp(22px,2.6vw,30px); letter-spacing:.5px; color:var(--dark); }
-  .stat span{ font-size:13px; color:var(--sub); }
+  /* 数据条：只放可确认的公开信息 */
+  .stats{ margin-top:38px; display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .stat{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; box-shadow:0 6px 18px rgba(20,40,80,.04); }
+  .stat b{ display:block; font-size:clamp(20px,2.3vw,27px); letter-spacing:.4px; color:var(--dark); }
+  .stat span{ font-size:12.5px; color:var(--sub); }
 
   /* 通用区块 */
-  section.block{ padding:66px 0; }
+  section.block{ padding:62px 0; }
   section.block.alt{ background:#fff; border-top:1px solid var(--line); border-bottom:1px solid var(--line); }
-  .sec-head{ max-width:760px; margin-bottom:30px; }
+  .sec-head{ max-width:780px; margin-bottom:28px; }
   .sec-head .kicker{ font-size:12.5px; letter-spacing:.16em; text-transform:uppercase; color:var(--brand); font-weight:700; }
-  .sec-head h2{ font-size:clamp(23px,2.8vw,32px); margin:8px 0 10px; letter-spacing:.2px; }
-  .sec-head p{ margin:0; color:var(--sub); font-size:15px; }
+  .sec-head h2{ font-size:clamp(22px,2.6vw,30px); margin:8px 0 10px; letter-spacing:.2px; }
+  .sec-head p{ margin:0; color:var(--sub); font-size:14.5px; }
 
-  .two-col{ display:grid; grid-template-columns:1.05fr .95fr; gap:28px; align-items:stretch; }
-  .panel{ background:#fff; border:1px solid var(--line); border-radius:18px; padding:26px; }
-  .panel h3{ margin:0 0 10px; font-size:18px; }
+  /* 工商信息 */
+  .company{ background:#fff; border:1px solid var(--line); border-radius:18px; overflow:hidden; }
+  .company .row{ display:grid; grid-template-columns:190px 1fr; gap:16px; padding:15px 22px; border-top:1px solid var(--line); }
+  .company .row:first-child{ border-top:0; }
+  .company .k{ font-size:13px; color:var(--sub); }
+  .company .v{ font-size:14.5px; color:#2b3342; }
+
+  .two-col{ display:grid; grid-template-columns:1.05fr .95fr; gap:26px; align-items:stretch; }
+  .panel{ background:#fff; border:1px solid var(--line); border-radius:18px; padding:24px; }
+  .panel h3{ margin:0 0 10px; font-size:17.5px; }
   .panel p{ margin:0 0 14px; color:var(--sub); font-size:14.5px; }
-  .checklist{ list-style:none; margin:0; padding:0; display:grid; gap:10px; }
+  .checklist{ list-style:none; margin:0; padding:0; display:grid; gap:9px; }
   .checklist li{ position:relative; padding-left:26px; font-size:14.5px; color:#3d4453; }
-  .checklist li::before{
-    content:""; position:absolute; left:0; top:7px; width:15px; height:15px; border-radius:50%;
-    background:rgba(47,124,246,.12); border:1px solid rgba(47,124,246,.35);
-  }
-  .checklist li::after{
-    content:""; position:absolute; left:4.5px; top:10.5px; width:5px; height:8px;
-    border-right:2px solid var(--brand); border-bottom:2px solid var(--brand); transform:rotate(40deg);
-  }
+  .checklist li::before{ content:""; position:absolute; left:0; top:7px; width:15px; height:15px; border-radius:50%; background:rgba(47,124,246,.12); border:1px solid rgba(47,124,246,.35); }
+  .checklist li::after{ content:""; position:absolute; left:4.5px; top:10.5px; width:5px; height:8px; border-right:2px solid var(--brand); border-bottom:2px solid var(--brand); transform:rotate(40deg); }
   .visual{
-    border-radius:18px; border:1px solid var(--line); overflow:hidden; min-height:260px;
-    background:
-      radial-gradient(400px 200px at 70% 18%, rgba(47,124,246,.18), transparent 70%),
-      linear-gradient(160deg,#f8fbff 0%, #eaf1fb 100%);
-    display:flex; flex-direction:column; justify-content:flex-end; gap:12px; padding:24px;
+    border-radius:18px; border:1px solid var(--line); overflow:hidden; min-height:250px;
+    background: radial-gradient(400px 200px at 70% 18%, rgba(47,124,246,.18), transparent 70%), linear-gradient(160deg,#f8fbff 0%, #eaf1fb 100%);
+    display:flex; flex-direction:column; justify-content:flex-end; gap:11px; padding:22px;
   }
-  .visual-lines{ display:grid; gap:10px; }
-  .line-chip{
-    background:rgba(255,255,255,.9); border:1px solid var(--line); border-radius:12px;
-    padding:12px 14px; font-size:13.5px; color:#3d4453; display:flex; align-items:center; gap:10px;
-  }
+  .line-chip{ background:rgba(255,255,255,.92); border:1px solid var(--line); border-radius:12px; padding:11px 14px; font-size:13.5px; color:#3d4453; display:flex; align-items:center; gap:10px; }
   .dot{ width:8px; height:8px; border-radius:50%; background:var(--brand); flex:none; }
 
   /* 产品品类 */
   .grid-3{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
-  .cat{
-    background:#fff; border:1px solid var(--line); border-radius:16px; padding:22px 20px;
-    transition:.18s; position:relative; overflow:hidden;
-  }
+  .cat{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px; transition:.18s; }
   .cat:hover{ transform:translateY(-2px); box-shadow:0 12px 26px rgba(20,40,80,.08); border-color:#d6e2f3; }
-  .cat .ico{
-    width:42px; height:42px; border-radius:12px; margin-bottom:14px;
-    background:linear-gradient(160deg, rgba(47,124,246,.16), rgba(47,124,246,.06));
-    display:flex; align-items:center; justify-content:center;
-  }
-  .cat .ico svg{ width:22px; height:22px; stroke:var(--brand); fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
-  .cat h3{ margin:0 0 6px; font-size:16px; }
+  .cat .ico{ width:40px; height:40px; border-radius:12px; margin-bottom:12px; background:linear-gradient(160deg, rgba(47,124,246,.16), rgba(47,124,246,.06)); display:flex; align-items:center; justify-content:center; }
+  .cat .ico svg{ width:21px; height:21px; stroke:var(--brand); fill:none; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+  .cat h3{ margin:0 0 6px; font-size:15.5px; }
   .cat p{ margin:0; font-size:13.5px; color:var(--sub); }
 
-  /* 资质 */
-  .chips{ display:flex; flex-wrap:wrap; gap:10px; }
-  .chip{
-    background:#fff; border:1px solid var(--line); border-radius:12px; padding:12px 16px;
-    font-size:13.5px; color:#3d4453; display:flex; align-items:center; gap:9px;
+  /* 证书卡片墙 */
+  .cert-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .cert{ background:#fff; border:1px solid var(--line); border-radius:16px; overflow:hidden; display:flex; flex-direction:column; }
+  .cert-shot{
+    height:118px; background:
+      repeating-linear-gradient(45deg, #f4f7fc 0 10px, #eef3fa 10px 20px);
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center; flex-direction:column; gap:6px;
   }
-  .chip svg{ width:17px; height:17px; stroke:var(--brand); fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex:none; }
+  .cert-shot svg{ width:26px; height:26px; stroke:#9fb0c6; fill:none; stroke-width:1.6; stroke-linecap:round; stroke-linejoin:round; }
+  .cert-shot span{ font-size:11.5px; color:#93a3b8; }
+  .cert-body{ padding:16px 18px 18px; display:flex; flex-direction:column; gap:8px; flex:1; }
+  .cert-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+  .cert h4{ margin:0; font-size:15px; line-height:1.45; }
+  .badge{ font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:999px; white-space:nowrap; }
+  .badge.ok{ color:var(--ok); background:var(--okbg); }
+  .badge.wait{ color:var(--wait); background:var(--waitbg); }
+  .cert dl{ margin:0; display:grid; grid-template-columns:auto 1fr; gap:4px 10px; font-size:12.5px; color:var(--sub); }
+  .cert dt{ color:#87919f; }
+  .cert dd{ margin:0; color:#3d4453; word-break:break-word; }
 
   /* 质检流程 */
-  .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; counter-reset:step; }
-  .step{
-    background:#fff; border:1px solid var(--line); border-radius:16px; padding:20px 18px; position:relative;
-  }
-  .step b.no{
-    display:inline-flex; align-items:center; justify-content:center;
-    width:26px; height:26px; border-radius:8px; background:rgba(47,124,246,.10);
-    color:var(--brand); font-size:12.5px; margin-bottom:10px;
-  }
-  .step h4{ margin:0 0 6px; font-size:15px; }
-  .step p{ margin:0; font-size:13.5px; color:var(--sub); }
+  .steps{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+  .step{ background:#fff; border:1px solid var(--line); border-radius:16px; padding:18px; }
+  .step b.no{ display:inline-flex; align-items:center; justify-content:center; width:26px; height:26px; border-radius:8px; background:rgba(47,124,246,.10); color:var(--brand); font-size:12.5px; margin-bottom:9px; }
+  .step h4{ margin:0 0 5px; font-size:14.5px; }
+  .step p{ margin:0; font-size:13px; color:var(--sub); }
 
   /* 合作方式 */
   .coop{ display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
-  .coop-item{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:18px; display:flex; gap:14px; }
-  .coop-item .k{ font-size:12.5px; color:var(--sub); }
-  .coop-item .v{ font-size:15px; font-weight:600; }
+  .coop-item{ background:#fff; border:1px solid var(--line); border-radius:14px; padding:17px 18px; display:flex; gap:13px; }
   .coop-item .bar{ width:4px; border-radius:4px; background:rgba(47,124,246,.35); flex:none; }
+  .coop-item .k{ font-size:12.5px; color:var(--sub); }
+  .coop-item .v{ font-size:14.5px; font-weight:600; }
+  .note{ margin-top:16px; font-size:13px; color:var(--sub); background:#fff; border:1px dashed var(--line); border-radius:14px; padding:14px 16px; }
 
   /* 联系 */
   .contact{
-    background:
-      radial-gradient(600px 260px at 85% 10%, rgba(47,124,246,.35), transparent 65%),
-      linear-gradient(160deg,#182a46 0%, #16233a 60%, #141f33 100%);
-    color:#fff; border-radius:22px; padding:40px; display:grid; gap:22px;
+    background: radial-gradient(600px 260px at 85% 10%, rgba(47,124,246,.35), transparent 65%), linear-gradient(160deg,#182a46 0%, #16233a 60%, #141f33 100%);
+    color:#fff; border-radius:22px; padding:38px; display:grid; gap:20px;
   }
-  .contact h2{ margin:0; font-size:clamp(22px,2.6vw,30px); }
-  .contact p{ margin:0; color:rgba(255,255,255,.72); font-size:15px; max-width:760px; }
+  .contact h2{ margin:0; font-size:clamp(21px,2.5vw,28px); }
+  .contact p{ margin:0; color:rgba(255,255,255,.72); font-size:14.5px; max-width:800px; }
   .contact .btns{ display:flex; flex-wrap:wrap; gap:12px; }
   .contact .btn-ghost{ background:rgba(255,255,255,.10); color:#fff; border-color:rgba(255,255,255,.22); }
   .contact .btn-ghost:hover{ background:rgba(255,255,255,.16); }
 
-  footer{ padding:34px 0 46px; color:var(--sub); font-size:13px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  footer{ padding:30px 0 44px; color:var(--sub); font-size:12.5px; display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
 
   @media (max-width:900px){
     .stats{ grid-template-columns:repeat(2,1fr); }
     .two-col{ grid-template-columns:1fr; }
     .grid-3{ grid-template-columns:repeat(2,1fr); }
+    .cert-grid{ grid-template-columns:repeat(2,1fr); }
     .steps{ grid-template-columns:repeat(2,1fr); }
     .coop{ grid-template-columns:1fr; }
     .topnav{ display:none; }
-    .hero-in{ padding:54px 0 48px; }
-    .contact{ padding:28px; }
+    .hero-in{ padding:52px 0 46px; }
+    .company .row{ grid-template-columns:120px 1fr; padding:13px 16px; }
+    .contact{ padding:26px; }
   }
   @media (max-width:560px){
-    .grid-3{ grid-template-columns:1fr; }
+    .grid-3,.cert-grid{ grid-template-columns:1fr; }
     .top-cta{ display:none; }
   }
 </style>
@@ -204,10 +195,11 @@
   <div class="wrap topbar-in">
     <a class="brand" href="/ru">beisuas<span>.</span></a>
     <nav class="topnav">
+      <a href="#company" data-t="navCompany">公司信息</a>
       <a href="#factory" data-t="navFactory">工厂与产线</a>
       <a href="#products" data-t="navProducts">产品品类</a>
+      <a href="#certs" data-t="navCerts">资质证书</a>
       <a href="#coop" data-t="navCoop">合作方式</a>
-      <a href="#contact" data-t="navContact">联系我们</a>
     </nav>
     <div class="top-right">
       <div class="lang">
@@ -222,82 +214,93 @@
 
 <section class="hero">
   <div class="wrap hero-in">
-    <span class="eyebrow" data-t="heroEyebrow">源头工厂 · OEM / ODM</span>
-    <h1 data-t="heroTitle">校服与儿童冬装，从中国工厂直达俄罗斯</h1>
-    <p class="lead" data-t="heroLead">自有裁剪、车缝、后整与质检产线，专注俄罗斯校服套装、儿童派克服与棉服的批发与贴牌生产。</p>
+    <span class="eyebrow" data-t="heroEyebrow">服饰制造 · 定制生产</span>
+    <h1 data-t="heroTitle">棉服、校服与冲锋衣的定制生产工厂</h1>
+    <p class="legal" data-t="legalName">宁化县博泰服饰有限公司</p>
+    <p class="lead" data-t="heroLead">位于福建省三明市宁化县，7 条智能吊挂服装生产线，承接品牌代工、校服与团体工装定制。</p>
     <div class="hero-actions">
-      <a class="btn btn-primary" href="#contact" data-t="heroCta1">获取批发报价</a>
-      <a class="btn btn-ghost" href="/ru" id="homeLink" data-t="heroCta2">返回首页咨询</a>
+      <a class="btn btn-primary" href="#contact" data-t="heroCta1">获取合作报价</a>
+      <a class="btn btn-ghost" href="#certs" data-t="heroCta2">查看资质证书</a>
     </div>
     <div class="stats" id="stats"></div>
   </div>
 </section>
 
-<section class="block alt">
+<section class="block alt" id="company">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker" data-t="coKicker">公司信息</div>
+      <h2 data-t="coTitle">工商登记信息</h2>
+      <p data-t="coLead">以下信息以公开工商登记与官方备案为准，可在合同、名片与官网上统一使用。</p>
+    </div>
+    <div class="company" id="companyRows"></div>
+  </div>
+</section>
+
+<section class="block" id="factory">
   <div class="wrap">
     <div class="sec-head">
       <div class="kicker" data-t="facKicker">工厂实力</div>
       <h2 data-t="facTitle">工厂与产线</h2>
-      <p data-t="facLead">从面料入库到成衣出库，关键工序在自有厂区内完成，订单节奏可控、品质可追溯。</p>
+      <p data-t="facLead">厂区位于宁化华侨经济开发区智能制造产业园，覆盖裁剪、缝制、整烫、后整总检与包装的完整工序。</p>
     </div>
-    <div class="two-col" id="factory">
+    <div class="two-col">
       <div class="panel">
-        <h3 data-t="facSub1">一体化生产</h3>
-        <p data-t="facText">裁剪、车缝、锁钉、整烫与包装分线作业，可根据订单结构灵活调配产能；自有版房与打样组，支持来图来样开发。</p>
+        <h3 data-t="facSub1">智能吊挂生产线</h3>
+        <p data-t="facText">现已建成 7 条智能吊挂服装生产线，规划生产线 10 条，可按订单结构调配产能；主要生产棉服、校服、冲锋衣等定制类服饰。</p>
         <ul class="checklist" id="facList"></ul>
       </div>
-      <div class="visual">
-        <div class="visual-lines" id="facLines"></div>
-      </div>
+      <div class="visual"><div id="facLines" style="display:grid;gap:11px"></div></div>
     </div>
   </div>
 </section>
 
-<section class="block">
+<section class="block alt" id="products">
   <div class="wrap">
     <div class="sec-head">
       <div class="kicker" data-t="prdKicker">产品</div>
       <h2 data-t="prdTitle">产品品类</h2>
-      <p data-t="prdLead">围绕校服与儿童冬季外套两条主线，可按款式、面料与尺码段定制。</p>
+      <p data-t="prdLead">以定制类服饰为主，可按客户款式、面料与尺码段组织生产。</p>
     </div>
-    <div class="grid-3" id="products"></div>
+    <div class="grid-3" id="productsBox"></div>
+  </div>
+</section>
+
+<section class="block" id="certs">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker" data-t="certKicker">资质与证书</div>
+      <h2 data-t="certTitle">资质与证书</h2>
+      <p data-t="certLead">按公开可查的登记与受理状态如实展示；证书扫描件待企业上传后替换下方占位图。</p>
+    </div>
+    <div class="cert-grid" id="certGrid"></div>
   </div>
 </section>
 
 <section class="block alt">
   <div class="wrap">
     <div class="sec-head">
-      <div class="kicker" data-t="certKicker">资质与标准</div>
-      <h2 data-t="certTitle">资质认证与合规</h2>
-      <p data-t="certLead">按订单目的地标准组织生产，配合客户验厂与第三方检测。</p>
-    </div>
-    <div class="chips" id="certs"></div>
-  </div>
-</section>
-
-<section class="block">
-  <div class="wrap">
-    <div class="sec-head">
       <div class="kicker" data-t="qcKicker">质量控制</div>
-      <h2 data-t="qcTitle">四道质检，逐件可追溯</h2>
-      <p data-t="qcLead">从来料到出货设置四道关口，检验记录随订单留档。</p>
+      <h2 data-t="qcTitle">过程质量控制</h2>
+      <p data-t="qcLead">从来料到出货设置检验节点，检验记录随订单留存。</p>
     </div>
     <div class="steps" id="steps"></div>
   </div>
 </section>
 
-<section class="block alt">
+<section class="block" id="coop">
   <div class="wrap">
     <div class="sec-head">
       <div class="kicker" data-t="coopKicker">合作方式</div>
       <h2 data-t="coopTitle">批发与贴牌合作</h2>
-      <p data-t="coopLead">面向俄罗斯批发商、校服经销商与品牌方，支持长期供货与按季开发。</p>
+      <p data-t="coopLead">承接品牌代工、校服与团体定制；具体条款以订单沟通与双方合同为准。</p>
     </div>
-    <div class="coop" id="coop"></div>
+    <div class="coop" id="coopBox"></div>
+    <div class="note" data-t="coopNote">面向俄罗斯及海外批发客户的合作方向：可按目标市场的尺码段、款式与标签要求组织生产，出口相关手续与物流在合作前确认。</div>
   </div>
 </section>
 
-<section class="block" id="contact">
+<section class="block alt" id="contact">
   <div class="wrap">
     <div class="contact">
       <div>
@@ -314,8 +317,8 @@
 
 <footer>
   <div class="wrap" style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-    <span>© beisuas</span>
-    <span data-t="footNote">校服 · 儿童冬装 · OEM / ODM 批发</span>
+    <span>© 宁化县博泰服饰有限公司</span>
+    <span data-t="footNote">棉服 · 校服 · 冲锋衣 · 定制类服饰</span>
   </div>
 </footer>
 
@@ -324,183 +327,344 @@
   var LANG = window.__BEISU_FORCED_LANG || (/^\/(ru|en|zh)\//.test(location.pathname) ? location.pathname.split('/')[1] : 'ru');
   if (['ru','en','zh'].indexOf(LANG) < 0) LANG = 'ru';
 
+  /* 仅使用公开可确认的信息；数字口径冲突的指标一律不写具体值 */
   var T = {
     zh: {
-      navFactory:'工厂与产线', navProducts:'产品品类', navCoop:'合作方式', navContact:'联系我们', navQuote:'获取报价',
-      heroEyebrow:'源头工厂 · OEM / ODM',
-      heroTitle:'校服与儿童冬装，从中国工厂直达俄罗斯',
-      heroLead:'自有裁剪、车缝、后整与质检产线，专注俄罗斯校服套装、儿童派克服与棉服的批发与贴牌生产。',
-      heroCta1:'获取批发报价', heroCta2:'返回首页咨询',
-      stats:[['12,000 m²','生产基地面积'],['8 条','车缝生产线'],['500+','熟练工人'],['80,000 件','月产能']],
-      facKicker:'工厂实力', facTitle:'工厂与产线',
-      facLead:'从面料入库到成衣出库，关键工序在自有厂区内完成，订单节奏可控、品质可追溯。',
-      facSub1:'一体化生产',
-      facText:'裁剪、车缝、锁钉、整烫与包装分线作业，可根据订单结构灵活调配产能；自有版房与打样组，支持来图来样开发。',
-      facList:['自有版房与打样组，来图来样开发','电脑裁床 + 流水线车缝，尺码段齐全','整烫、包装独立车间，出货前统一整理','订单进度可视化跟单，按周反馈'],
-      facLines:['面料入库检验','裁剪 / 车缝 / 锁钉流水线','整烫包装与出货区'],
-      prdKicker:'产品', prdTitle:'产品品类',
-      prdLead:'围绕校服与儿童冬季外套两条主线，可按款式、面料与尺码段定制。',
-      products:[
-        ['校服套装','西装外套 + 裙裤 / 长裤，按学校配色定制'],
-        ['校服衬衫','长袖 / 短袖，纯棉与混纺可选'],
-        ['针织开衫','毛背心与开衫，校徽刺绣可定制'],
-        ['运动校服','针织运动套装，适合日常与体育课'],
-        ['儿童派克服','防风面料 + 加厚内胆，冬季主推'],
-        ['儿童棉服','棉服 / 羽绒服，尺码段覆盖幼儿园至中学']
+      navCompany:'公司信息', navFactory:'工厂与产线', navProducts:'产品品类', navCerts:'资质证书', navCoop:'合作方式', navQuote:'获取报价',
+      heroEyebrow:'服饰制造 · 定制生产',
+      heroTitle:'棉服、校服与冲锋衣的定制生产工厂',
+      legalName:'宁化县博泰服饰有限公司',
+      heroLead:'位于福建省三明市宁化县，7 条智能吊挂服装生产线，承接品牌代工、校服与团体工装定制。',
+      heroCta1:'获取合作报价', heroCta2:'查看资质证书',
+      stats:[
+        ['2023 年','成立年份'],
+        ['8000+ m²','厂区面积（企业公开信息）'],
+        ['7 条','智能吊挂服装生产线'],
+        ['约 3000 万元','2025 年产值（据属地政府公开报道）']
       ],
-      certKicker:'资质与标准', certTitle:'资质认证与合规',
-      certLead:'按订单目的地标准组织生产，配合客户验厂与第三方检测。',
-      certs:['质量管理体系 · 按 ISO 9001 流程组织生产','客户验厂支持 · 可按 BSCI 要求配合','面料检测 · OEKO-TEX 等第三方报告','俄罗斯市场 · 可按 GOST / TR CU 要求标识'],
-      qcKicker:'质量控制', qcTitle:'四道质检，逐件可追溯',
-      qcLead:'从来料到出货设置四道关口，检验记录随订单留档。',
-      steps:[['来料检验','面料与辅料逐批抽检，色差、克重、缩水率先行确认。'],['过程巡检','裁片、车缝、锁钉逐道巡检，问题当线纠正。'],['成品全检','尺寸、色差、线头、五金逐件检查。'],['出货抽检','按 AQL 抽检并留档，随货提供检验记录。']],
+      coKicker:'公司信息', coTitle:'工商登记信息',
+      coLead:'以下信息以公开工商登记与官方备案为准，可在合同、名片与官网上统一使用。',
+      company:[
+        ['企业全称','宁化县博泰服饰有限公司'],
+        ['英文名称','Ninghua County Botai Clothing Co., Ltd.'],
+        ['成立日期','2023 年 8 月 18 日'],
+        ['注册资本','600 万元人民币'],
+        ['法定代表人','陈礼生'],
+        ['注册及生产地址','福建省宁化县城南镇工业南路 33 号 12 栋办公楼第二层'],
+        ['纳税人资质','增值税一般纳税人'],
+        ['所属行业','纺织服装、服饰业（服饰制造）']
+      ],
+      facKicker:'工厂实力', facTitle:'工厂与产线',
+      facLead:'厂区位于宁化华侨经济开发区智能制造产业园，覆盖裁剪、缝制、整烫、后整总检与包装的完整工序。',
+      facSub1:'智能吊挂生产线',
+      facText:'现已建成 7 条智能吊挂服装生产线，规划生产线 10 条，可按订单结构调配产能；主要生产棉服、校服、冲锋衣等定制类服饰。',
+      facList:[
+        '7 条智能吊挂生产线，覆盖裁剪至包装全工序',
+        '规划生产线 10 条，可按订单结构扩产',
+        '主要产品：棉服、校服、冲锋衣等定制类服饰',
+        '厂区位于宁化华侨经济开发区智能制造产业园'
+      ],
+      facLines:['裁剪','缝制（智能吊挂线）','整烫与后整总检','包装与出货'],
+      prdKicker:'产品', prdTitle:'产品品类',
+      prdLead:'以定制类服饰为主，可按客户款式、面料与尺码段组织生产。',
+      products:[
+        ['校服套装','西装、裙裤与配套件，按学校配色定制'],
+        ['校服衬衫','长袖 / 短袖，纯棉与混纺可选'],
+        ['针织与运动校服','针织开衫、背心与运动套装'],
+        ['儿童棉服','棉服与羽绒类冬装，尺码段可定制'],
+        ['冲锋衣与工装','团体工装、冲锋衣等定制类服饰'],
+        ['派克服','按客户款式开发，非主营定位']
+      ],
+      certKicker:'资质与证书', certTitle:'资质与证书',
+      certLead:'按公开可查的登记与受理状态如实展示；证书扫描件待企业上传后替换下方占位图。',
+      certs:[
+        { name:'国家级科技型中小企业', org:'福建省科学技术厅', no:'名单序号 703', date:'2026 年第一批入库', status:'已入库', tone:'ok' },
+        { name:'固定污染源排污登记', org:'全国排污许可管理信息平台', no:'运动机织服装制造 · 设计产能 300 吨/年', date:'首次登记', status:'已登记', tone:'ok' },
+        { name:'GB/T 27922 售后服务认证', org:'北京国标联合认证有限公司', no:'20136-2024-SA', date:'2024-03-14 受理', status:'申请已受理', tone:'wait' },
+        { name:'商标 XBOTAI（第 25 类）', org:'国家知识产权局', no:'78603681', date:'2024-05-15 申请', status:'已注册', tone:'ok' },
+        { name:'商标「学成」（第 25 类）', org:'国家知识产权局', no:'76004376', date:'有效期 2024-07-21 至 2034-07-20', status:'已注册', tone:'ok' },
+        { name:'软件著作权（2 项）', org:'国家版权局', no:'2026SR0780591 等', date:'2026-07-28 登记', status:'已登记', tone:'ok' },
+        { name:'深水水务秋季工装采购', org:'深圳市深水水务咨询有限公司', no:'中标结果公示', date:'2026-10-19', status:'已中标', tone:'ok' }
+      ],
+      certShot:'证书扫描件待上传',
+      qcKicker:'质量控制', qcTitle:'过程质量控制',
+      qcLead:'从来料到出货设置检验节点，检验记录随订单留存。',
+      steps:[
+        ['来料检验','面料与辅料进厂按批次抽检，确认色差、克重与缩水率。'],
+        ['过程巡检','裁剪、缝制、锁钉逐道巡检，问题当线纠正。'],
+        ['成品检验','尺寸、色差、线头与五金逐件检查。'],
+        ['出货抽检','按 AQL 抽检并留存记录，随货交付。']
+      ],
       coopKicker:'合作方式', coopTitle:'批发与贴牌合作',
-      coopLead:'面向俄罗斯批发商、校服经销商与品牌方，支持长期供货与按季开发。',
-      coop:[['合作模式','OEM / ODM，来图来样或贴牌生产'],['起订量','单款单色 300 件起，可按款式协商'],['打样周期','7–10 天出样，视工艺复杂度'],['大货交期','常规 30–45 天，旺季顺延'],['付款方式','30% 定金 + 尾款见提单副本'],['包装与标识','可按客户要求做吊牌、洗水标与外箱']],
-      ctTitle:'联系与询盘', ctLead:'告诉我们款式、数量与目标市场，我们会按订单给出面料建议、报价与交期。',
+      coopLead:'承接品牌代工、校服与团体定制；具体条款以订单沟通与双方合同为准。',
+      coop:[
+        ['合作模式','OEM / ODM、来图来样、团体定制'],
+        ['起订量','按款式与面料沟通确定'],
+        ['打样','按工艺复杂度评估后给出周期'],
+        ['大货交期','按订单数量与排产确认'],
+        ['付款方式','以双方合同约定为准'],
+        ['包装与标识','吊牌、洗水标与外箱可按客户要求']
+      ],
+      coopNote:'面向俄罗斯及海外批发客户的合作方向：可按目标市场的尺码段、款式与标签要求组织生产，出口相关手续与物流在合作前确认。',
+      ctTitle:'联系与询盘',
+      ctLead:'告诉我们款式、数量与目标市场，我们会按订单给出面料建议、报价与交期。',
       ctBtn1:'返回首页在线咨询', ctBtn2:'查看产品品类',
-      footNote:'校服 · 儿童冬装 · OEM / ODM 批发'
+      footNote:'棉服 · 校服 · 冲锋衣 · 定制类服饰'
     },
     en: {
-      navFactory:'Factory', navProducts:'Products', navCoop:'Cooperation', navContact:'Contact', navQuote:'Get a quote',
-      heroEyebrow:'Source factory · OEM / ODM',
-      heroTitle:'School uniforms and kids’ winter wear, straight from our factory',
-      heroLead:'In-house cutting, sewing, finishing and QC lines for Russian school uniform sets, kids’ parkas and padded coats — wholesale and private label.',
-      heroCta1:'Get wholesale pricing', heroCta2:'Back to home chat',
-      stats:[['12,000 m²','Production area'],['8','Sewing lines'],['500+','Skilled workers'],['80,000 pcs','Monthly capacity']],
-      facKicker:'Capability', facTitle:'Factory & production lines',
-      facLead:'From fabric intake to packed garments, key processes run in our own plant — controllable lead times and traceable quality.',
-      facSub1:'Integrated production',
-      facText:'Cutting, sewing, bartacking, pressing and packing are organised in separate lines so capacity can be reallocated by order mix. Our own pattern room and sampling team support development from sketches or samples.',
-      facList:['Own pattern room & sampling team','Computerised cutting + line sewing, full size range','Separate pressing and packing workshops','Visible order tracking with weekly updates'],
-      facLines:['Fabric intake & inspection','Cutting / sewing / bartacking lines','Pressing, packing & dispatch'],
-      prdKicker:'Products', prdTitle:'Product categories',
-      prdLead:'Two core lines — school uniforms and kids’ winter outerwear — customisable by style, fabric and size range.',
-      products:[
-        ['Uniform sets','Blazer + skirt / trousers, school colours'],
-        ['School shirts','Long / short sleeve, cotton and blends'],
-        ['Knitwear','Cardigans and vests, custom embroidery'],
-        ['Sport uniforms','Knit tracksuits for daily wear and PE'],
-        ['Kids’ parkas','Windproof shell + thick lining, winter focus'],
-        ['Padded coats','Padded / down coats, kindergarten to middle school']
+      navCompany:'Company', navFactory:'Factory', navProducts:'Products', navCerts:'Certificates', navCoop:'Cooperation', navQuote:'Get a quote',
+      heroEyebrow:'Garment manufacturing · Custom production',
+      heroTitle:'A factory for padded coats, school uniforms and shell jackets',
+      legalName:'Ninghua County Botai Clothing Co., Ltd.',
+      heroLead:'Based in Ninghua County, Sanming, Fujian, with 7 intelligent hanging-garment production lines, serving brand OEM, school uniform and group workwear programmes.',
+      heroCta1:'Request pricing', heroCta2:'View certificates',
+      stats:[
+        ['2023','Founded'],
+        ['8,000+ m²','Factory area (company disclosure)'],
+        ['7','Intelligent hanging production lines'],
+        ['≈CNY 30M','2025 output value (per local government reports)']
       ],
-      certKicker:'Standards', certTitle:'Compliance & certifications',
-      certLead:'Production is organised to the destination market’s standards, with factory audits and third-party testing supported.',
-      certs:['Quality system · ISO 9001-based process control','Factory audit support · BSCI requirements','Fabric testing · OEKO-TEX and other third-party reports','Russia market · GOST / TR CU labelling on request'],
-      qcKicker:'Quality control', qcTitle:'Four QC gates, traceable per order',
-      qcLead:'Four checkpoints from incoming fabric to shipment, with records kept per order.',
-      steps:[['Incoming inspection','Batch sampling of fabric and trims: shade, weight, shrinkage.'],['In-line inspection','Cut panels, sewing and bartacks checked line by line.'],['Final inspection','Measurements, shade, threads and hardware checked piece by piece.'],['Pre-shipment AQL','AQL sampling with records provided with the shipment.']],
+      coKicker:'Company', coTitle:'Business registration',
+      coLead:'The details below follow public business registration and official filings, and can be used consistently in contracts, name cards and this website.',
+      company:[
+        ['Legal name (CN)','宁化县博泰服饰有限公司'],
+        ['English name','Ninghua County Botai Clothing Co., Ltd.'],
+        ['Established','18 August 2023'],
+        ['Registered capital','CNY 6 million'],
+        ['Legal representative','Chen Lisheng'],
+        ['Registered & production address','2/F, Building 12, No. 33 Gongye South Road, Chengnan Town, Ninghua County, Fujian, China'],
+        ['Tax status','VAT general taxpayer'],
+        ['Industry','Textile, apparel and accessories — garment manufacturing']
+      ],
+      facKicker:'Capability', facTitle:'Factory & production lines',
+      facLead:'Located in the Ninghua Overseas Chinese Economic Development Zone intelligent manufacturing park, covering cutting, sewing, pressing, final inspection and packing.',
+      facSub1:'Intelligent hanging lines',
+      facText:'7 intelligent hanging-garment lines are in operation, with a planned total of 10 lines; capacity is allocated by order mix. Main products are custom padded coats, school uniforms and shell jackets.',
+      facList:[
+        '7 intelligent hanging lines covering cutting to packing',
+        'Planned total of 10 lines for order growth',
+        'Main products: padded coats, school uniforms, shell jackets',
+        'Located in Ninghua intelligent manufacturing park'
+      ],
+      facLines:['Cutting','Sewing (hanging lines)','Pressing & final inspection','Packing & dispatch'],
+      prdKicker:'Products', prdTitle:'Product categories',
+      prdLead:'Custom garment production, organised by your style, fabric and size range.',
+      products:[
+        ['Uniform sets','Blazers, skirts and trousers in school colours'],
+        ['School shirts','Long or short sleeve, cotton and blends'],
+        ['Knitwear & sport uniforms','Cardigans, vests and tracksuits'],
+        ['Kids’ padded coats','Padded and down winter styles, custom size runs'],
+        ['Shell jackets & workwear','Group workwear and shell jackets'],
+        ['Parkas','Developed on request; not our main positioning']
+      ],
+      certKicker:'Certificates', certTitle:'Qualifications & certificates',
+      certLead:'Shown according to publicly verifiable registration and acceptance status. Scans will replace the placeholders once uploaded by the company.',
+      certs:[
+        { name:'National Sci-Tech SME', org:'Fujian Provincial Department of Science and Technology', no:'List No. 703', date:'2026, 1st batch', status:'Listed', tone:'ok' },
+        { name:'Fixed pollution source registration', org:'National pollutant permit platform', no:'Sports woven apparel · 300 t/year design capacity', date:'Initial registration', status:'Registered', tone:'ok' },
+        { name:'GB/T 27922 after-sales service certification', org:'Beijing Guobiao Lianhe Certification', no:'20136-2024-SA', date:'Application accepted 2024-03-14', status:'Application accepted', tone:'wait' },
+        { name:'Trademark XBOTAI (Class 25)', org:'CNIPA', no:'78603681', date:'Filed 2024-05-15', status:'Registered', tone:'ok' },
+        { name:'Trademark “学成” (Class 25)', org:'CNIPA', no:'76004376', date:'Valid 2024-07-21 to 2034-07-20', status:'Registered', tone:'ok' },
+        { name:'Software copyrights (2)', org:'National Copyright Administration', no:'2026SR0780591 and others', date:'Registered 2026-07-28', status:'Registered', tone:'ok' },
+        { name:'Shenshui Water autumn workwear tender', org:'Shenzhen Shenshui Water Consulting Co., Ltd.', no:'Award announcement', date:'2026-10-19', status:'Awarded', tone:'ok' }
+      ],
+      certShot:'Certificate scan pending upload',
+      qcKicker:'Quality control', qcTitle:'In-process quality control',
+      qcLead:'Inspection checkpoints from incoming materials to shipment, with records kept per order.',
+      steps:[
+        ['Incoming inspection','Batch sampling of fabric and trims for shade, weight and shrinkage.'],
+        ['In-line inspection','Cutting, sewing and bartacks checked line by line.'],
+        ['Final inspection','Measurements, shade, threads and hardware checked piece by piece.'],
+        ['Pre-shipment AQL','AQL sampling with records provided with the shipment.']
+      ],
       coopKicker:'Cooperation', coopTitle:'Wholesale & private label',
-      coopLead:'Working with Russian wholesalers, uniform distributors and brands — seasonal development and long-term supply.',
-      coop:[['Model','OEM / ODM, from samples or private label'],['MOQ','From 300 pcs per style/colour, negotiable'],['Sampling','7–10 days, depending on complexity'],['Bulk lead time','30–45 days, longer in peak season'],['Payment','30% deposit + balance against B/L copy'],['Packing & labels','Hangtags, care labels and cartons to your spec']],
-      ctTitle:'Contact & inquiry', ctLead:'Tell us the style, quantity and target market — we will come back with fabric options, pricing and lead time.',
+      coopLead:'Brand OEM, school uniforms and group custom programmes; final terms are agreed per order and in the contract.',
+      coop:[
+        ['Model','OEM / ODM, samples or private label'],
+        ['MOQ','Agreed per style and fabric'],
+        ['Sampling','Lead time quoted after technical review'],
+        ['Bulk lead time','Confirmed against quantity and production schedule'],
+        ['Payment','As agreed in the contract'],
+        ['Packing & labels','Hangtags, care labels and cartons to your spec']
+      ],
+      coopNote:'Cooperation direction for Russian and overseas wholesale customers: production can follow the target market’s size range, styling and labelling requirements. Export procedures and logistics are confirmed before cooperation.',
+      ctTitle:'Contact & inquiry',
+      ctLead:'Tell us the style, quantity and target market — we will come back with fabric options, pricing and lead time.',
       ctBtn1:'Back to home chat', ctBtn2:'View product categories',
-      footNote:'School uniforms · Kids’ winter wear · OEM / ODM'
+      footNote:'Padded coats · School uniforms · Shell jackets · Custom garments'
     },
     ru: {
-      navFactory:'Производство', navProducts:'Продукция', navCoop:'Сотрудничество', navContact:'Контакты', navQuote:'Запросить цену',
-      heroEyebrow:'Собственное производство · OEM / ODM',
-      heroTitle:'Школьная форма и детская зимняя одежда напрямую с фабрики',
-      heroLead:'Собственные линии раскроя, пошива, отделки и контроля качества: школьная форма, детские парки и утеплённые куртки для России — оптом и под собственным брендом.',
-      heroCta1:'Получить оптовую цену', heroCta2:'Вернуться на главную',
-      stats:[['12 000 м²','Производственная площадь'],['8','Швейных линий'],['500+','Опытных сотрудников'],['80 000 шт.','Выпуск в месяц']],
-      facKicker:'Возможности', facTitle:'Фабрика и производственные линии',
-      facLead:'От приёмки ткани до упаковки готовых изделий — ключевые процессы на собственной площадке: управляемые сроки и прослеживаемое качество.',
-      facSub1:'Полный цикл производства',
-      facText:'Раскрой, пошив, закрепки, ВТО и упаковка организованы отдельными линиями, поэтому мощности перераспределяются под структуру заказа. Своё конструкторское бюро и образцы — разработка по эскизам или образцам.',
-      facList:['Своё КБ и группа образцов','Раскрой на автоматическом раскройном комплексе + поточный пошив','Отдельные цеха ВТО и упаковки','Прозрачный контроль заказа с еженедельными отчётами'],
-      facLines:['Приёмка и проверка ткани','Раскрой / пошив / закрепки','ВТО, упаковка и отгрузка'],
-      prdKicker:'Продукция', prdTitle:'Категории продукции',
-      prdLead:'Два основных направления — школьная форма и детская зимняя верхняя одежда; подбор по модели, ткани и размерному ряду.',
-      products:[
-        ['Комплекты формы','Пиджак + юбка / брюки, цвета школы'],
-        ['Рубашки','Длинный / короткий рукав, хлопок и смеси'],
-        ['Трикотаж','Кардиганы и жилеты, вышивка по заказу'],
-        ['Спортивная форма','Трикотажные костюмы для повседневки и физкультуры'],
-        ['Детские парки','Ветрозащитная ткань + тёплый утеплитель'],
-        ['Утеплённые куртки','Куртки на утеплителе / пуху, от сада до школы']
+      navCompany:'О компании', navFactory:'Производство', navProducts:'Продукция', navCerts:'Сертификаты', navCoop:'Сотрудничество', navQuote:'Запросить цену',
+      heroEyebrow:'Швейное производство · Пошив на заказ',
+      heroTitle:'Фабрика утеплённой одежды, школьной формы и курток',
+      legalName:'ООО «Нинхуа Ботай Фуши» (Ninghua County Botai Clothing Co., Ltd.)',
+      heroLead:'Расположена в уезде Нинхуа (Саньмин, Фуцзянь). 7 автоматизированных подвесных линий; пошив под брендом заказчика, школьная форма и корпоративная спецодежда.',
+      heroCta1:'Запросить условия', heroCta2:'Смотреть сертификаты',
+      stats:[
+        ['2023','Год основания'],
+        ['8000+ м²','Площадь производства (по данным компании)'],
+        ['7','Автоматизированных подвесных линий'],
+        ['≈30 млн юаней','Выручка за 2025 г. (по данным местных СМИ)']
       ],
-      certKicker:'Стандарты', certTitle:'Сертификация и соответствие',
-      certLead:'Производство организуется под стандарты страны назначения, поддерживаем аудит фабрики и независимые испытания.',
-      certs:['Система качества · процессы по ISO 9001','Поддержка аудита фабрики · требования BSCI','Испытания тканей · отчёты OEKO-TEX и др.','Рынок РФ · маркировка по GOST / TR CU по запросу'],
-      qcKicker:'Контроль качества', qcTitle:'Четыре этапа контроля, прослеживаемость по заказу',
-      qcLead:'Четыре контрольных точки от приёмки ткани до отгрузки, записи хранятся по каждому заказу.',
-      steps:[['Входной контроль','Выборочная проверка ткани и фурнитуры: оттенок, плотность, усадка.'],['Контроль в процессе','Проверка кроя, пошива и закрепок по линиям.'],['Финальный контроль','Промеры, оттенок, нитки и фурнитура — поиздельно.'],['Перед отгрузкой','Выборка по AQL, протоколы передаются с партией.']],
+      coKicker:'О компании', coTitle:'Регистрационные данные',
+      coLead:'Данные приведены по публичной регистрации и официальным документам; их можно использовать в договорах, визитках и на сайте.',
+      company:[
+        ['Полное наименование','宁化县博泰服饰有限公司'],
+        ['Наименование (англ.)','Ninghua County Botai Clothing Co., Ltd.'],
+        ['Дата регистрации','18 августа 2023 г.'],
+        ['Уставный капитал','6 млн юаней'],
+        ['Генеральный директор','Чэнь Лишэн'],
+        ['Адрес регистрации и производства','2-й этаж, здание 12, № 33, ул. Гунъе Наньлу, пос. Чэннань, уезд Нинхуа, пров. Фуцзянь, КНР'],
+        ['Налоговый статус','Плательщик НДС (общий режим)'],
+        ['Отрасль','Текстильное и швейное производство — пошив одежды']
+      ],
+      facKicker:'Возможности', facTitle:'Фабрика и производственные линии',
+      facLead:'Производство находится в парке интеллектуального производства района Нинхуа; полный цикл: раскрой, пошив, ВТО, финальный контроль и упаковка.',
+      facSub1:'Автоматизированные подвесные линии',
+      facText:'В эксплуатации 7 автоматизированных подвесных линий, по проекту — 10; мощности распределяются под структуру заказа. Основная продукция: утеплённая одежда, школьная форма, куртки.',
+      facList:[
+        '7 подвесных линий: от раскроя до упаковки',
+        'Проект — 10 линий, расширение под заказы',
+        'Основная продукция: утеплённая одежда, форма, куртки',
+        'Парк интеллектуального производства, Нинхуа'
+      ],
+      facLines:['Раскрой','Пошив (подвесные линии)','ВТО и финальный контроль','Упаковка и отгрузка'],
+      prdKicker:'Продукция', prdTitle:'Категории продукции',
+      prdLead:'Пошив на заказ: по модели, ткани и размерному ряду заказчика.',
+      products:[
+        ['Комплекты школьной формы','Пиджаки, юбки и брюки в цветах школы'],
+        ['Рубашки','Длинный / короткий рукав, хлопок и смеси'],
+        ['Трикотаж и спортивная форма','Кардиганы, жилеты, костюмы'],
+        ['Детская утеплённая одежда','Куртки на утеплителе и пуху, размерный ряд на заказ'],
+        ['Куртки и спецодежда','Корпоративная спецодежда, куртки'],
+        ['Парки','Разработка по запросу; не основная позиция']
+      ],
+      certKicker:'Сертификаты', certTitle:'Квалификация и сертификаты',
+      certLead:'Показаны только публично проверяемые статусы регистрации и приёма заявок; сканы заменят заглушки после загрузки компанией.',
+      certs:[
+        { name:'Национальное научно-техническое МСП', org:'Департамент науки и технологий пров. Фуцзянь', no:'№ 703 в списке', date:'1-я партия 2026 г.', status:'В реестре', tone:'ok' },
+        { name:'Регистрация источника выбросов', org:'Национальная платформа разрешений', no:'Спортивная трикотажная одежда · 300 т/год', date:'Первичная регистрация', status:'Зарегистрировано', tone:'ok' },
+        { name:'Сертификация сервиса GB/T 27922', org:'Beijing Guobiao Lianhe Certification', no:'20136-2024-SA', date:'Заявка принята 14.03.2024', status:'Заявка принята', tone:'wait' },
+        { name:'Товарный знак XBOTAI (кл. 25)', org:'CNIPA', no:'78603681', date:'Заявка 15.05.2024', status:'Зарегистрирован', tone:'ok' },
+        { name:'Товарный знак «学成» (кл. 25)', org:'CNIPA', no:'76004376', date:'Действует до 20.07.2034', status:'Зарегистрирован', tone:'ok' },
+        { name:'2 программы для ЭВМ', org:'Национальное управление авторских прав', no:'2026SR0780591 и др.', date:'Регистрация 28.07.2026', status:'Зарегистрированы', tone:'ok' },
+        { name:'Тендер на спецодежду Shenshui Water', org:'Shenzhen Shenshui Water Consulting Co., Ltd.', no:'Протокол результатов', date:'19.10.2026', status:'Победа', tone:'ok' }
+      ],
+      certShot:'Скан сертификата ожидает загрузки',
+      qcKicker:'Контроль качества', qcTitle:'Контроль в процессе производства',
+      qcLead:'Контрольные точки от приёмки материалов до отгрузки, записи хранятся по заказу.',
+      steps:[
+        ['Входной контроль','Выборочная проверка ткани и фурнитуры: оттенок, плотность, усадка.'],
+        ['Контроль в процессе','Проверка кроя, пошива и закрепок по линиям.'],
+        ['Финальный контроль','Промеры, оттенок, нитки и фурнитура — поиздельно.'],
+        ['Перед отгрузкой','Выборка по AQL, протоколы передаются с партией.']
+      ],
       coopKicker:'Сотрудничество', coopTitle:'Опт и производство под брендом',
-      coopLead:'Работаем с оптовиками, дистрибьюторами формы и брендами — сезонная разработка и долгосрочные поставки.',
-      coop:[['Формат','OEM / ODM: по образцам или под вашим брендом'],['Минимальный заказ','От 300 шт. на модель/цвет, обсуждается'],['Образцы','7–10 дней в зависимости от сложности'],['Срок партии','30–45 дней, в сезон дольше'],['Оплата','30% предоплата + остаток против копии B/L'],['Упаковка и маркировка','Бирки, ярлыки и коробки по вашему ТЗ']],
-      ctTitle:'Контакты и запрос', ctLead:'Сообщите модель, количество и рынок сбыта — предложим ткани, цену и сроки.',
+      coopLead:'OEM под брендом заказчика, школьная форма и корпоративные заказы; условия согласуются по заказу и в договоре.',
+      coop:[
+        ['Формат','OEM / ODM, по образцам или под вашим брендом'],
+        ['Минимальный заказ','Согласуется по модели и ткани'],
+        ['Образцы','Срок — после технической оценки'],
+        ['Срок партии','Подтверждается по количеству и загрузке'],
+        ['Оплата','По условиям договора'],
+        ['Упаковка и маркировка','Бирки, ярлыки и коробки по вашему ТЗ']
+      ],
+      coopNote:'Направление сотрудничества с оптовыми клиентами из России и других стран: производство под размерный ряд, модели и маркировку целевого рынка. Экспортные процедуры и логистика согласуются до начала сотрудничества.',
+      ctTitle:'Контакты и запрос',
+      ctLead:'Сообщите модель, количество и рынок сбыта — предложим ткани, цену и сроки.',
       ctBtn1:'Вернуться на главную в чат', ctBtn2:'Смотреть продукцию',
-      footNote:'Школьная форма · Детняя зимняя одежда · OEM / ODM'
+      footNote:'Утеплённая одежда · Школьная форма · Куртки · Пошив на заказ'
     }
   };
 
   var t = T[LANG] || T.ru;
   document.documentElement.lang = (LANG === 'zh') ? 'zh-CN' : LANG;
 
+  function el(id){ return document.getElementById(id); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
   function setText(){
-    document.querySelectorAll('[data-t]').forEach(function(el){
-      var k = el.getAttribute('data-t');
-      if (typeof t[k] === 'string') el.textContent = t[k];
+    document.querySelectorAll('[data-t]').forEach(function(node){
+      var k = node.getAttribute('data-t');
+      if (typeof t[k] === 'string') node.textContent = t[k];
     });
-    document.title = (LANG === 'zh' ? '工厂介绍' : LANG === 'en' ? 'Factory' : 'О производстве') + ' · beisuas';
-    /* 首页 / 在线咨询链接带语种前缀 */
+    var names = { zh:'工厂介绍', en:'Factory', ru:'О производстве' };
+    document.title = names[LANG] + ' · 宁化县博泰服饰有限公司';
     var home = '/' + LANG;
-    var h = document.getElementById('homeLink'); if (h) h.setAttribute('href', home);
-    var c = document.getElementById('chatLink'); if (c) c.setAttribute('href', home);
+    if (el('chatLink')) el('chatLink').setAttribute('href', home);
     document.querySelectorAll('.lang a').forEach(function(a){
       a.classList.toggle('active', a.getAttribute('data-lang') === LANG);
     });
   }
 
   function renderStats(){
-    var box = document.getElementById('stats'); if (!box) return;
+    var box = el('stats'); if (!box) return;
     box.innerHTML = (t.stats || []).map(function(s){
-      return '<div class="stat"><b>' + s[0] + '</b><span>' + s[1] + '</span></div>';
+      return '<div class="stat"><b>' + esc(s[0]) + '</b><span>' + esc(s[1]) + '</span></div>';
+    }).join('');
+  }
+  function renderCompany(){
+    var box = el('companyRows'); if (!box) return;
+    box.innerHTML = (t.company || []).map(function(r){
+      return '<div class="row"><div class="k">' + esc(r[0]) + '</div><div class="v">' + esc(r[1]) + '</div></div>';
     }).join('');
   }
   function renderFactory(){
-    var list = document.getElementById('facList');
-    if (list) list.innerHTML = (t.facList || []).map(function(x){ return '<li>' + x + '</li>'; }).join('');
-    var lines = document.getElementById('facLines');
+    var list = el('facList');
+    if (list) list.innerHTML = (t.facList || []).map(function(x){ return '<li>' + esc(x) + '</li>'; }).join('');
+    var lines = el('facLines');
     if (lines) lines.innerHTML = (t.facLines || []).map(function(x){
-      return '<div class="line-chip"><span class="dot"></span><span>' + x + '</span></div>';
+      return '<div class="line-chip"><span class="dot"></span><span>' + esc(x) + '</span></div>';
     }).join('');
   }
   var ICONS = [
     '<path d="M8 4l4 2 4-2 3 5-3 1v8H8v-8L5 9z"/>',
     '<path d="M6 4h12M7 4l1 5v11h8V9l1-5"/><path d="M10 4v4M14 4v4"/>',
     '<path d="M12 3l7 4v5c0 4-3 7-7 9-4-2-7-5-7-9V7z"/>',
-    '<circle cx="12" cy="7" r="3"/><path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>',
     '<path d="M5 10l7-6 7 6v9a1 1 0 0 1-1 1h-4v-6H10v6H6a1 1 0 0 1-1-1z"/>',
+    '<circle cx="12" cy="7" r="3"/><path d="M6 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/>',
     '<path d="M4 8h16v10H4z"/><path d="M4 12h16M9 8v10"/>'
   ];
   function renderProducts(){
-    var box = document.getElementById('products'); if (!box) return;
+    var box = el('productsBox'); if (!box) return;
     box.innerHTML = (t.products || []).map(function(p, i){
       return '<div class="cat"><div class="ico"><svg viewBox="0 0 24 24">' + ICONS[i % ICONS.length] + '</svg></div>' +
-        '<h3>' + p[0] + '</h3><p>' + p[1] + '</p></div>';
+        '<h3>' + esc(p[0]) + '</h3><p>' + esc(p[1]) + '</p></div>';
     }).join('');
   }
   function renderCerts(){
-    var box = document.getElementById('certs'); if (!box) return;
-    var icon = '<svg viewBox="0 0 24 24"><path d="M20 7L10 17l-5-5"/></svg>';
-    box.innerHTML = (t.certs || []).map(function(x){ return '<div class="chip">' + icon + '<span>' + x + '</span></div>'; }).join('');
-  }
-  function renderSteps(){
-    var box = document.getElementById('steps'); if (!box) return;
-    box.innerHTML = (t.steps || []).map(function(s, i){
-      return '<div class="step"><b class="no">' + (i + 1) + '</b><h4>' + s[0] + '</h4><p>' + s[1] + '</p></div>';
+    var box = el('certGrid'); if (!box) return;
+    var shotIcon = '<svg viewBox="0 0 24 24"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9 12h7M9 16h5"/></svg>';
+    box.innerHTML = (t.certs || []).map(function(c){
+      var badge = 'badge ' + (c.tone === 'wait' ? 'wait' : 'ok');
+      return '<article class="cert">' +
+        '<div class="cert-shot">' + shotIcon + '<span>' + esc(t.certShot) + '</span></div>' +
+        '<div class="cert-body">' +
+          '<div class="cert-top"><h4>' + esc(c.name) + '</h4><span class="' + badge + '">' + esc(c.status) + '</span></div>' +
+          '<dl>' +
+            '<dt>颁发/受理</dt><dd>' + esc(c.org) + '</dd>' +
+            '<dt>编号/内容</dt><dd>' + esc(c.no) + '</dd>' +
+            '<dt>日期</dt><dd>' + esc(c.date) + '</dd>' +
+          '</dl>' +
+        '</div>' +
+      '</article>';
     }).join('');
   }
+  function renderSteps(){
+    var box = el('steps'); if (!box) return;
+    box.innerHTML = (t.steps || []).map(function(s, i){
+      return '<div class="step"><b class="no">' + (i + 1) + '</b><h4>' + esc(s[0]) + '</h4><p>' + esc(s[1]) + '</p></div>';
+    }).join('');
+  }
+  /* 合作条款（起订量 / 打样 / 交期 / 定金）当前为企业未确认信息，页面只做中性表述，待企业确认后替换 */
   function renderCoop(){
-    var box = document.getElementById('coop'); if (!box) return;
+    var box = el('coopBox'); if (!box) return;
     box.innerHTML = (t.coop || []).map(function(c){
-      return '<div class="coop-item"><span class="bar"></span><div><div class="k">' + c[0] + '</div><div class="v">' + c[1] + '</div></div></div>';
+      return '<div class="coop-item"><span class="bar"></span><div><div class="k">' + esc(c[0]) + '</div><div class="v">' + esc(c[1]) + '</div></div></div>';
     }).join('');
   }
 
-  setText(); renderStats(); renderFactory(); renderProducts(); renderCerts(); renderSteps(); renderCoop();
+  setText(); renderStats(); renderCompany(); renderFactory(); renderProducts(); renderCerts(); renderSteps(); renderCoop();
 })();
 </script>
 </body>

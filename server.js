@@ -2569,7 +2569,7 @@ const SUBPAGE_META = {
     zh:'全岛游 · 打卡点详情', en:'Island tour · spot details', ru:'Тур по острову · детали места'
   },
   '/factory': {
-    zh:'工厂介绍 · 校服与儿童冬装源头工厂', en:'Factory · school uniforms and kids winter wear', ru:'О производстве · школьная форма и детская зимняя одежда'
+    zh:'工厂介绍 · 宁化县博泰服饰有限公司', en:'Factory · Ninghua County Botai Clothing Co., Ltd.', ru:'О производстве · ООО «Нинхуа Ботай Фуши»'
   }
 };
 /* 旧的单语地址 301 到俄语规范地址（保留查询参数），避免重复收录 */
